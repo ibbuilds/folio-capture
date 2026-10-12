@@ -1,0 +1,3040 @@
+{
+  "schemaVersion": 1,
+  "researchVersion": "2026.10.12",
+  "reviewedOn": "2026-10-12",
+  "runtimeTaxonomyChanged": false,
+  "scope": "1980s–12 October 2026 UI aesthetics history, native-language examples, graphic influences and earlier foundations.",
+  "chronologyPolicy": [
+    "orderBandStart is an approximate sorting boundary, never an asserted invention year.",
+    "Exact event dates are separately typed and sourced. They can be release, announcement, naming, publication or example dates.",
+    "Cultural artifact periods do not establish UI adoption or popularity.",
+    "Cross-period directions and unresolved origins remain undated rather than being invented for sorting.",
+    "Referenced era, revival date, software-version date, source date and screenshot creation date are different.",
+    "Aesthetic recognition and UI relevance are separate from quality and the future allowed vocabulary."
+  ],
+  "recheckedPriorSourceIds": [
+    "C01",
+    "C02",
+    "C03",
+    "C04",
+    "C05",
+    "C06",
+    "C07",
+    "C08",
+    "C09",
+    "C10",
+    "C11",
+    "C12",
+    "C13",
+    "C14",
+    "C15",
+    "C16"
+  ],
+  "records": [
+    {
+      "id": "laser-grid",
+      "name": "Laser Grid / corporate high-tech graphic world",
+      "languageType": "cultural-influence",
+      "periodLabel": "1980s artifact period; 2021 retrospective name",
+      "orderBandStart": 1980,
+      "dateBasis": "curator period and retrospective naming",
+      "uiEvidenceLevel": "graphic-context",
+      "definition": "Neon grids and reflective synthetic forms construct a coordinated high-tech graphic world.",
+      "uiGrammar": [
+        "Laser-like grid framing",
+        "Reflective synthetic forms",
+        "Coherent high-tech scene"
+      ],
+      "counterexamples": [
+        "Any neon accent",
+        "Synthwave revival assumed to be an original 1980s UI"
+      ],
+      "sourceIds": [
+        "H68"
+      ],
+      "atlasConceptIds": [
+        "synthwave-outrun",
+        "vaporwave"
+      ],
+      "events": [
+        {
+          "date": "2021",
+          "event": "Curator records retrospective renaming",
+          "sourceIds": [
+            "H68"
+          ]
+        }
+      ],
+      "limits": "No specific original UI frame was inspected. A referenced decade and the date a revival/name emerged are different facts."
+    },
+    {
+      "id": "memphis-origin",
+      "name": "Memphis-Milano graphic influence",
+      "languageType": "cultural-influence",
+      "periodLabel": "1980s design origins; UI adaptation later",
+      "orderBandStart": 1980,
+      "dateBasis": "curator cultural period",
+      "uiEvidenceLevel": "graphic-context",
+      "definition": "Playful geometric color and juxtaposition form a recognizable postmodern design influence.",
+      "uiGrammar": [
+        "Graphic geometric contrast",
+        "Playful material/shape juxtaposition",
+        "Coherent postmodern vocabulary"
+      ],
+      "counterexamples": [
+        "Furniture history treated as a 1981 GUI release",
+        "Every colorful UI called Memphis"
+      ],
+      "sourceIds": [
+        "H64"
+      ],
+      "atlasConceptIds": [
+        "geometric-pop"
+      ],
+      "events": [],
+      "limits": "The design movement predates many web adaptations. No original UI was inspected under this exact label; keep graphic influence distinct from UI introduction."
+    },
+    {
+      "id": "atlas:pixel-arcade",
+      "name": "Pixel / arcade",
+      "languageType": "aesthetic",
+      "atlasConceptIds": [
+        "pixel-arcade"
+      ],
+      "definitionRef": "atlas.json#pixel-arcade",
+      "periodLabel": "1980s game/bitmap references; web cases 1996–2005",
+      "orderBandStart": 1980,
+      "dateBasis": "reference era with later archived UI examples",
+      "dateSourceIds": [
+        "H45",
+        "H46"
+      ],
+      "uiSourceIds": [
+        "H46"
+      ],
+      "uiEvidenceLevel": "visually-reviewed-interface",
+      "events": [
+        {
+          "date": "1999",
+          "event": "Inspected eBoy web example",
+          "sourceIds": [
+            "H46"
+          ]
+        }
+      ],
+      "datingLimit": "The 1980 ordering denotes a reference-era bin, not the invention of pixel art or a first web deployment."
+    },
+    {
+      "id": "terminal-tui",
+      "name": "Terminal / character-grid UI",
+      "languageType": "screen-language",
+      "periodLabel": "1980s personal-computing context; earlier roots",
+      "orderBandStart": 1980,
+      "dateBasis": "documented context",
+      "uiEvidenceLevel": "institutional-interface-context",
+      "definition": "A character grid makes text, selection and command structure the primary interface material.",
+      "uiGrammar": [
+        "Monospaced cells",
+        "Text commands and status",
+        "Character-based grouping"
+      ],
+      "counterexamples": [
+        "Monospace branding alone",
+        "A decorative scanline overlay"
+      ],
+      "sourceIds": [
+        "H09"
+      ],
+      "atlasConceptIds": [
+        "technical-utilitarian",
+        "retro-gui"
+      ],
+      "events": [],
+      "limits": "DOS/PC context is documented in 1981. This does not date the invention of terminals, ANSI art or all text UI; no terminal screen was visually reviewed here."
+    },
+    {
+      "id": "monochrome-desktop",
+      "name": "Monochrome bitmap desktop",
+      "languageType": "screen-language",
+      "periodLabel": "1981–1984 product anchors; 1970s research roots",
+      "orderBandStart": 1981,
+      "dateBasis": "UI introduction",
+      "uiEvidenceLevel": "visually-reviewed-interface",
+      "definition": "One-bit graphics organize a paper-like workspace with pictorial objects and compact window controls.",
+      "uiGrammar": [
+        "Bitmap icons",
+        "Line/hatch hierarchy",
+        "Menu and window framing",
+        "Office-object metaphor"
+      ],
+      "counterexamples": [
+        "Any black-and-white page",
+        "A modern sparse theme"
+      ],
+      "sourceIds": [
+        "H01",
+        "H02",
+        "H03",
+        "H04",
+        "H06"
+      ],
+      "atlasConceptIds": [
+        "retro-gui",
+        "technical-utilitarian"
+      ],
+      "events": [
+        {
+          "date": "1981-04",
+          "event": "Star introduction reported by its designers",
+          "sourceIds": [
+            "H01"
+          ]
+        },
+        {
+          "date": "1983-01-19",
+          "event": "Lisa launch",
+          "sourceIds": [
+            "H02"
+          ]
+        },
+        {
+          "date": "1984-01-24",
+          "event": "Macintosh launch",
+          "sourceIds": [
+            "H03"
+          ]
+        }
+      ],
+      "limits": "Inspected ViewPoint is a successor illustration from the 1989 retrospective; System 1.1 is a later rendering of historical software. Neither is claimed as a launch-day screenshot."
+    },
+    {
+      "id": "amiga-workbench",
+      "name": "Amiga Workbench 1.x",
+      "languageType": "platform-language",
+      "periodLabel": "1985",
+      "orderBandStart": 1985,
+      "dateBasis": "UI release",
+      "uiEvidenceLevel": "visually-reviewed-interface",
+      "definition": "A named limited-color desktop uses bitmap labels, outlined windows and pictorial drawers/tools.",
+      "uiGrammar": [
+        "Blue/orange contrast",
+        "Bitmap labels",
+        "Distinctive window gadgets",
+        "Drawer/tool imagery"
+      ],
+      "counterexamples": [
+        "Blue and orange branding",
+        "All pixel art called Amiga"
+      ],
+      "sourceIds": [
+        "H05",
+        "H07"
+      ],
+      "atlasConceptIds": [
+        "retro-gui",
+        "pixel-arcade"
+      ],
+      "events": [
+        {
+          "date": "1985",
+          "event": "Workbench 1.0 shipping context",
+          "sourceIds": [
+            "H05"
+          ]
+        }
+      ],
+      "limits": "Source provenance establishes this platform. A later PNG of old software is not a file created in 1985; palette-selection motives were not independently verified."
+    },
+    {
+      "id": "windows-one",
+      "name": "Windows 1.x tiled color GUI",
+      "languageType": "platform-language",
+      "periodLabel": "1985",
+      "orderBandStart": 1985,
+      "dateBasis": "UI release",
+      "uiEvidenceLevel": "documented-platform",
+      "definition": "Early Windows supplies a limited-color graphical operating environment for DOS applications.",
+      "uiGrammar": [
+        "Compact menus and controls",
+        "Early bitmap presentation",
+        "Multiple application regions"
+      ],
+      "counterexamples": [
+        "Any blue bitmap screen",
+        "Generic Windows 95 styling"
+      ],
+      "sourceIds": [
+        "H08"
+      ],
+      "atlasConceptIds": [
+        "retro-gui"
+      ],
+      "events": [
+        {
+          "date": "1985-11-20",
+          "event": "Retail shipment announcement",
+          "sourceIds": [
+            "H08"
+          ]
+        }
+      ],
+      "limits": "No Windows 1.x frame was visually inspected in this revision. The release is verified; detailed version-specific styling remains a comparison lead."
+    },
+    {
+      "id": "frasurbane",
+      "name": "Frasurbane",
+      "languageType": "cultural-influence",
+      "periodLabel": "Late 1980s–mid-1990s curator period",
+      "orderBandStart": 1987,
+      "dateBasis": "curator cultural period",
+      "uiEvidenceLevel": "graphic-context",
+      "definition": "Classical/refined typography and staged cultural imagery form a particular consumer-era visual world.",
+      "uiGrammar": [
+        "Classical presentation",
+        "Cultivated consumer imagery",
+        "Coherent period references"
+      ],
+      "counterexamples": [
+        "Any modern serif called Frasurbane",
+        "Price treated as visual proof"
+      ],
+      "sourceIds": [
+        "H65",
+        "H67"
+      ],
+      "atlasConceptIds": [
+        "refined-luxury",
+        "editorial"
+      ],
+      "events": [],
+      "limits": "The ordering year represents a broad late-decade bin. UI use under this exact name is unverified in this corpus; do not promote it just because a page has a serif."
+    },
+    {
+      "id": "global-village",
+      "name": "Global Village Coffeehouse",
+      "languageType": "cultural-influence",
+      "periodLabel": "Late 1980s–1990s curator period",
+      "orderBandStart": 1987,
+      "dateBasis": "curator cultural period",
+      "uiEvidenceLevel": "graphic-context",
+      "definition": "Handmade/woodcut-like graphic relationships construct a particular idealized communal visual world.",
+      "uiGrammar": [
+        "Hand-drawn or woodcut-like forms",
+        "Material/graphic layering",
+        "Coherent period world"
+      ],
+      "counterexamples": [
+        "Generic coffee ecommerce",
+        "Green branding called ecological proof"
+      ],
+      "sourceIds": [
+        "H66"
+      ],
+      "atlasConceptIds": [
+        "warm-organic",
+        "digital-collage"
+      ],
+      "events": [],
+      "limits": "Graphic/consumer context is documented; no original interface under this exact label was visually inspected. Cultural imagery must not establish a creator’s identity or values."
+    },
+    {
+      "id": "lcars",
+      "name": "LCARS / Okudagram instrumentation",
+      "languageType": "fictional-interface-language",
+      "periodLabel": "1987 panels; 1999 designer account",
+      "orderBandStart": 1987,
+      "dateBasis": "dated artifact account",
+      "uiEvidenceLevel": "designer-described-fictional-interface",
+      "definition": "A fictional information system presents complex instrumentation through a strong graphic organizing grammar.",
+      "uiGrammar": [
+        "Graphic information bands",
+        "Instrument-like hierarchy",
+        "Repeated visual organization"
+      ],
+      "counterexamples": [
+        "All sci-fi called LCARS",
+        "Believable prop graphics treated as usable software"
+      ],
+      "sourceIds": [
+        "H10"
+      ],
+      "atlasConceptIds": [
+        "hexatron",
+        "technical-utilitarian"
+      ],
+      "events": [
+        {
+          "date": "1987",
+          "event": "Original TNG panels dated by their designers",
+          "sourceIds": [
+            "H10"
+          ]
+        },
+        {
+          "date": "1999-11-30",
+          "event": "Published designer interview",
+          "sourceIds": [
+            "H10"
+          ]
+        }
+      ],
+      "limits": "Creator intent concerns convincing screen scenery. No functional LCARS workflow was tested, and it is not an alias for every neon HUD."
+    },
+    {
+      "id": "utopian-scholastic",
+      "name": "Utopian Scholastic / edutainment imagery",
+      "languageType": "cultural-influence",
+      "periodLabel": "Late 1980s–1990s curator period",
+      "orderBandStart": 1987,
+      "dateBasis": "curator cultural period",
+      "uiEvidenceLevel": "graphic-context",
+      "definition": "Educational collage and idealized subject imagery combine into a distinctive reference world.",
+      "uiGrammar": [
+        "Subject-based photographic collage",
+        "Educational reference structure",
+        "Classical/idealized staging"
+      ],
+      "counterexamples": [
+        "Every educational dashboard",
+        "All Encarta screens assumed identical"
+      ],
+      "sourceIds": [
+        "H67"
+      ],
+      "atlasConceptIds": [
+        "editorial",
+        "digital-collage"
+      ],
+      "events": [],
+      "limits": "Encartacore is archive terminology, not automatic interface evidence. A photographed object and the surrounding UI need independent description."
+    },
+    {
+      "id": "open-look",
+      "name": "OPEN LOOK workstation UI",
+      "languageType": "platform-language",
+      "periodLabel": "1988–1989 documentation context",
+      "orderBandStart": 1988,
+      "dateBasis": "period documentation",
+      "uiEvidenceLevel": "documented-platform",
+      "definition": "A named workstation look-and-feel belongs to the early X/UNIX interface branch.",
+      "uiGrammar": [
+        "System-defined control grammar",
+        "Workstation windows and menus",
+        "Consistent look-and-feel policy"
+      ],
+      "counterexamples": [
+        "All X applications called OPEN LOOK",
+        "A toolkit name proving one screenshot style"
+      ],
+      "sourceIds": [
+        "H11",
+        "H12"
+      ],
+      "atlasConceptIds": [
+        "technical-utilitarian",
+        "retro-gui"
+      ],
+      "events": [],
+      "limits": "Period articles establish the branch, but the original manual and detailed control visuals were not inspected; round-button recipes are not asserted from an unread manual."
+    },
+    {
+      "id": "classic-beveled",
+      "name": "Classic beveled desktop UI",
+      "languageType": "screen-language",
+      "periodLabel": "Late 1980s–1990s; inspected 1995 Windows anchor",
+      "orderBandStart": 1989,
+      "dateBasis": "cross-platform period with dated example",
+      "uiEvidenceLevel": "visually-reviewed-interface",
+      "definition": "Raised and inset edges distinguish actions and fields within compact window/menu systems.",
+      "uiGrammar": [
+        "Directional bevel edges",
+        "Compact title/menu bars",
+        "Small pictorial controls",
+        "Nested menus"
+      ],
+      "counterexamples": [
+        "All dimensional cards called Windows 95",
+        "Neumorphic low relief treated as the same grammar"
+      ],
+      "sourceIds": [
+        "H12",
+        "H16",
+        "H17",
+        "H18",
+        "H20"
+      ],
+      "atlasConceptIds": [
+        "retro-gui",
+        "skeuomorphism"
+      ],
+      "events": [
+        {
+          "date": "1992-10",
+          "event": "Windows 95 UI-team formation",
+          "sourceIds": [
+            "H16"
+          ]
+        },
+        {
+          "date": "1995-08-24",
+          "event": "Windows 95 launch",
+          "sourceIds": [
+            "H17"
+          ]
+        }
+      ],
+      "limits": "The visual example is Windows 95; this is not a claim that Windows 95 invented bevels. Function, metaphor and material need separate labels."
+    },
+    {
+      "id": "motif-cde",
+      "name": "Motif / later CDE workstation branch",
+      "languageType": "platform-language",
+      "periodLabel": "Around 1989 for Motif; later CDE development",
+      "orderBandStart": 1989,
+      "dateBasis": "documentation history",
+      "uiEvidenceLevel": "documented-platform",
+      "definition": "A specified look-and-feel and toolkit coordinate workstation applications; later desktop integration is a related milestone.",
+      "uiGrammar": [
+        "Specified widget policy",
+        "Desktop/workstation organization",
+        "System consistency"
+      ],
+      "counterexamples": [
+        "X Window System treated as one aesthetic",
+        "All gray bevels called Motif"
+      ],
+      "sourceIds": [
+        "H12"
+      ],
+      "atlasConceptIds": [
+        "technical-utilitarian",
+        "retro-gui"
+      ],
+      "events": [],
+      "limits": "The maintainer FAQ dates Motif around 1989. CDE is a related later context, not a simultaneous 1989 introduction; no first CDE release date is asserted here."
+    },
+    {
+      "id": "nextstep",
+      "name": "NeXTSTEP workstation language",
+      "languageType": "platform-language",
+      "periodLabel": "1989 lineage; version-three record in 1992",
+      "orderBandStart": 1989,
+      "dateBasis": "platform lineage",
+      "uiEvidenceLevel": "documented-platform",
+      "definition": "A named workstation interface combines object-oriented application structure with a coordinated desktop/control language.",
+      "uiGrammar": [
+        "System-level control consistency",
+        "Workstation presentation",
+        "Named native implementation"
+      ],
+      "counterexamples": [
+        "Every gray desktop called NeXT",
+        "A black computer chassis treated as UI evidence"
+      ],
+      "sourceIds": [
+        "H13",
+        "H14",
+        "H15"
+      ],
+      "atlasConceptIds": [
+        "technical-utilitarian",
+        "retro-gui"
+      ],
+      "events": [
+        {
+          "date": "1989",
+          "event": "NeXTSTEP lineage reported by CHM",
+          "sourceIds": [
+            "H13"
+          ]
+        },
+        {
+          "date": "1992-09",
+          "event": "Version 3.0 archive record",
+          "sourceIds": [
+            "H15"
+          ]
+        },
+        {
+          "date": "1993",
+          "event": "Release-three guideline bibliographic anchor",
+          "sourceIds": [
+            "H14"
+          ]
+        }
+      ],
+      "limits": "The original manual fetch was forbidden and no NeXT desktop frame was inspected. Exact bevel/font prescriptions remain unverified in this study."
+    },
+    {
+      "id": "early-hypertext",
+      "name": "Early hypertext / document web",
+      "languageType": "screen-language",
+      "periodLabel": "Early 1990s",
+      "orderBandStart": 1990,
+      "dateBasis": "archived web period",
+      "uiEvidenceLevel": "archived-interface-collection",
+      "definition": "Documents, headings and linked text provide the visible structure before elaborate branded chrome.",
+      "uiGrammar": [
+        "Text/link-led navigation",
+        "Document reading order",
+        "Simple native controls"
+      ],
+      "counterexamples": [
+        "All old sites called brutalist",
+        "Missing CSS treated as deliberate style"
+      ],
+      "sourceIds": [
+        "H41"
+      ],
+      "atlasConceptIds": [
+        "raw-web-brutalism",
+        "webcore"
+      ],
+      "events": [],
+      "limits": "The museum includes the 1991 web context. A document-oriented interface is a historical form, not proof of intentional contemporary brutalism."
+    },
+    {
+      "id": "atlas:gen-x-soft-club",
+      "name": "Gen X Soft Club",
+      "languageType": "internet-era-consumer-aesthetic",
+      "atlasConceptIds": [
+        "gen-x-soft-club"
+      ],
+      "definitionRef": "atlas.json#gen-x-soft-club",
+      "periodLabel": "Early 1990s–mid-2000s curator period",
+      "orderBandStart": 1990,
+      "dateBasis": "curator cultural period",
+      "dateSourceIds": [
+        "C08"
+      ],
+      "uiSourceIds": [],
+      "uiEvidenceLevel": "graphic-context",
+      "events": [],
+      "datingLimit": "This broad current period is preserved rather than reduced to an unsupported exact year. UI examples under the exact label remain unverified."
+    },
+    {
+      "id": "atlas:raw-web-brutalism",
+      "name": "Raw web brutalism",
+      "languageType": "aesthetic",
+      "atlasConceptIds": [
+        "raw-web-brutalism"
+      ],
+      "definitionRef": "atlas.json#raw-web-brutalism",
+      "periodLabel": "Older raw-web precedents; documented style debate in 2017",
+      "orderBandStart": 1990,
+      "dateBasis": "precedent period and later terminology discussion",
+      "dateSourceIds": [
+        "H41",
+        "H63"
+      ],
+      "uiSourceIds": [
+        "H63"
+      ],
+      "uiEvidenceLevel": "practitioner-described-interface",
+      "events": [
+        {
+          "date": "2017-11-05",
+          "event": "Brutalism/antidesign analysis",
+          "sourceIds": [
+            "H63"
+          ]
+        }
+      ],
+      "datingLimit": "Early HTML is a precedent, not necessarily deliberate brutalism. This is not a single verified origin date."
+    },
+    {
+      "id": "beos-tabs",
+      "name": "BeOS tabbed desktop language",
+      "languageType": "platform-language",
+      "periodLabel": "1990s lineage; inspected R5/2000 anchor",
+      "orderBandStart": 1995,
+      "dateBasis": "approximate lineage plus version record",
+      "uiEvidenceLevel": "visually-reviewed-interface",
+      "definition": "A short tab marks the active window while compact native controls retain a coherent desktop grammar.",
+      "uiGrammar": [
+        "Short active yellow window tab",
+        "Compact gray controls",
+        "Pictorial desktop objects"
+      ],
+      "counterexamples": [
+        "A yellow accent alone",
+        "All classic gray UI called BeOS"
+      ],
+      "sourceIds": [
+        "H19"
+      ],
+      "atlasConceptIds": [
+        "retro-gui",
+        "technical-utilitarian"
+      ],
+      "events": [
+        {
+          "date": "2000",
+          "event": "R5 archive record",
+          "sourceIds": [
+            "H19"
+          ]
+        }
+      ],
+      "limits": "The reviewed frame is R5, not proof of a 1995 first appearance. The exact first-use date of tabs remains unverified; source ordering is approximate."
+    },
+    {
+      "id": "portal-directory",
+      "name": "Directory / portal web",
+      "languageType": "screen-language",
+      "periodLabel": "Mid-1990s; 1995 GeoCities anchor",
+      "orderBandStart": 1995,
+      "dateBasis": "archived example",
+      "uiEvidenceLevel": "archived-interface-record",
+      "definition": "Groups of links and categories make a collection/service navigable within a compact page.",
+      "uiGrammar": [
+        "Category groupings",
+        "Dense link navigation",
+        "Service/search entry points"
+      ],
+      "counterexamples": [
+        "Every personal GeoCities site treated as a portal",
+        "All link lists called an aesthetic"
+      ],
+      "sourceIds": [
+        "H41",
+        "H42"
+      ],
+      "atlasConceptIds": [
+        "webcore",
+        "technical-utilitarian"
+      ],
+      "events": [
+        {
+          "date": "1995",
+          "event": "GeoCities service-homepage record",
+          "sourceIds": [
+            "H42"
+          ]
+        }
+      ],
+      "limits": "Portal is partly an experience/composition form. It should not become a visual identity without additional evidence; the hosted personal sites are a separate corpus."
+    },
+    {
+      "id": "handheld-utility",
+      "name": "Early handheld / PDA utility UI",
+      "languageType": "screen-language",
+      "periodLabel": "1990s; PalmPilot 1996 anchor",
+      "orderBandStart": 1996,
+      "dateBasis": "dated object record",
+      "uiEvidenceLevel": "institutional-interface-context",
+      "definition": "Compact pen/touch tasks establish a handheld UI branch before smartphone glass and app-store-era visuals.",
+      "uiGrammar": [
+        "Small-screen task structure",
+        "Touch/pen context",
+        "Compact native interface"
+      ],
+      "counterexamples": [
+        "Mobile UI assumed to begin in 2007",
+        "A phone-shaped marketing mockup proving handheld interaction"
+      ],
+      "sourceIds": [
+        "H71"
+      ],
+      "atlasConceptIds": [
+        "technical-utilitarian"
+      ],
+      "events": [
+        {
+          "date": "1996",
+          "event": "PalmPilot institutional collection record",
+          "sourceIds": [
+            "H71"
+          ]
+        }
+      ],
+      "limits": "No complete Palm application was visually inspected. This is a relevant platform/task branch, not a new aesthetic filter or a first-ever touchscreen claim."
+    },
+    {
+      "id": "grunge-web",
+      "name": "Grunge / distressed web",
+      "languageType": "web-aesthetic",
+      "periodLabel": "1996 examples; renewed 2007–2008 commentary",
+      "orderBandStart": 1996,
+      "dateBasis": "archived examples and contemporary commentary",
+      "uiEvidenceLevel": "visually-reviewed-interface",
+      "definition": "Distressed typography, imperfect textures and cutout relationships deliberately shape a web composition.",
+      "uiGrammar": [
+        "Distressed graphic marks",
+        "Collage/cutout relationships",
+        "Controlled imperfection"
+      ],
+      "counterexamples": [
+        "Broken images called grunge",
+        "Every region assumed cluttered"
+      ],
+      "sourceIds": [
+        "H43",
+        "H44",
+        "H55"
+      ],
+      "atlasConceptIds": [
+        "digital-collage",
+        "anti-design"
+      ],
+      "events": [
+        {
+          "date": "1996",
+          "event": "Museum of Dirt archived interface",
+          "sourceIds": [
+            "H44"
+          ]
+        },
+        {
+          "date": "2008-01-29",
+          "event": "Practitioner commentary on grunge and gloss",
+          "sourceIds": [
+            "H55"
+          ]
+        }
+      ],
+      "limits": "The 1996 frame is centered and spacious, with disturbance concentrated in type/imagery. A 2008 trend article is not the style origin."
+    },
+    {
+      "id": "atlas:y2k-futurism",
+      "name": "Y2K futurism",
+      "languageType": "internet-aesthetic",
+      "atlasConceptIds": [
+        "y2k-futurism"
+      ],
+      "definitionRef": "atlas.json#y2k-futurism",
+      "periodLabel": "Late 1990s–early 2000s; circa 1996–2002 in curator history",
+      "orderBandStart": 1996,
+      "dateBasis": "curator artifact period corroborated by archived UI",
+      "dateSourceIds": [
+        "C01",
+        "C02"
+      ],
+      "uiSourceIds": [
+        "H48"
+      ],
+      "uiEvidenceLevel": "visually-reviewed-interface",
+      "events": [
+        {
+          "date": "2000",
+          "event": "Technical millennium web example",
+          "sourceIds": [
+            "H48"
+          ]
+        }
+      ],
+      "datingLimit": "CARI’s category period currently conflicts with its history narrative. The broader period is approximate; original versus revival needs provenance."
+    },
+    {
+      "id": "atlas:metalheart",
+      "name": "Metalheart",
+      "languageType": "internet-aesthetic",
+      "atlasConceptIds": [
+        "metalheart"
+      ],
+      "definitionRef": "atlas.json#metalheart",
+      "periodLabel": "Late 1990s–mid-2000s; archived web cases 2000–2003",
+      "orderBandStart": 1997,
+      "dateBasis": "curator period plus archived UI collection",
+      "dateSourceIds": [
+        "C04",
+        "H47"
+      ],
+      "uiSourceIds": [
+        "H47"
+      ],
+      "uiEvidenceLevel": "archived-interface-collection",
+      "events": [],
+      "datingLimit": "A concrete UI corpus is now linked. No uninspected entry is granted visual claims merely from collection membership."
+    },
+    {
+      "id": "platinum",
+      "name": "Platinum / Mac OS 8 appearance",
+      "languageType": "platform-language",
+      "periodLabel": "1997",
+      "orderBandStart": 1997,
+      "dateBasis": "native documentation milestone",
+      "uiEvidenceLevel": "visually-reviewed-interface",
+      "definition": "A named gray dimensional control system coordinates frames, accents and system typography.",
+      "uiGrammar": [
+        "Gray relief and frames",
+        "System-wide accents",
+        "Coordinated native control appearance"
+      ],
+      "counterexamples": [
+        "Any gray interface called Platinum",
+        "Appearance assumed to determine layout"
+      ],
+      "sourceIds": [
+        "H20",
+        "H21"
+      ],
+      "atlasConceptIds": [
+        "retro-gui",
+        "skeuomorphism"
+      ],
+      "events": [
+        {
+          "date": "1997-07-18",
+          "event": "Dated manual page for Platinum appearance",
+          "sourceIds": [
+            "H20"
+          ]
+        }
+      ],
+      "limits": "Inspected original manual figure. The documentation date is not a retail-release date; manual text distinguishes layout from appearance."
+    },
+    {
+      "id": "skinned-player",
+      "name": "Skinned media-player UI",
+      "languageType": "screen-language",
+      "periodLabel": "Late 1990s/2000s practice; 2020 preservation account",
+      "orderBandStart": 1997,
+      "dateBasis": "historical practice with later documentation",
+      "uiEvidenceLevel": "creator-preserved-interface-corpus",
+      "definition": "An application retains actions while its chrome, readouts and imagery are repainted into many visual worlds.",
+      "uiGrammar": [
+        "Custom player chrome",
+        "Persistent playback/control roles",
+        "Alternative graphic skins"
+      ],
+      "counterexamples": [
+        "One universal Winamp aesthetic",
+        "Museum launch treated as player-skin invention"
+      ],
+      "sourceIds": [
+        "H53"
+      ],
+      "atlasConceptIds": [
+        "retro-gui",
+        "webcore",
+        "y2k-futurism",
+        "cyberpunk"
+      ],
+      "events": [
+        {
+          "date": "2020-09-23",
+          "event": "Museum creator publication",
+          "sourceIds": [
+            "H53"
+          ]
+        }
+      ],
+      "limits": "The late-1990s ordering is an approximate historical context, not an independently verified first skin date. Skin-level classification is required; the corpus is visually diverse."
+    },
+    {
+      "id": "atlas:vectorheart",
+      "name": "Vectorheart",
+      "languageType": "internet-aesthetic",
+      "atlasConceptIds": [
+        "vectorheart"
+      ],
+      "definitionRef": "atlas.json#vectorheart",
+      "periodLabel": "Late 1990s–mid-2000s curator period",
+      "orderBandStart": 1997,
+      "dateBasis": "curator artifact period",
+      "dateSourceIds": [
+        "C05"
+      ],
+      "uiSourceIds": [],
+      "uiEvidenceLevel": "graphic-context",
+      "events": [],
+      "datingLimit": "The old archive definition is visually specific, but an independently inspected interface under the exact label remains needed."
+    },
+    {
+      "id": "techno-flash",
+      "name": "Technical / immersive Flash-era web",
+      "languageType": "web-aesthetic",
+      "periodLabel": "1999 studio context; inspected 2000 interface",
+      "orderBandStart": 1999,
+      "dateBasis": "creator history and archived example",
+      "uiEvidenceLevel": "visually-reviewed-interface",
+      "definition": "Compact technical navigation frames layered digital imagery into an immersive branded website.",
+      "uiGrammar": [
+        "Technical labels",
+        "Framed/toolbar-like controls",
+        "Synthetic layered imagery",
+        "Scene-led staging"
+      ],
+      "counterexamples": [
+        "Flash technology treated as one aesthetic",
+        "A still assumed to prove motion"
+      ],
+      "sourceIds": [
+        "H48",
+        "H49",
+        "H47"
+      ],
+      "atlasConceptIds": [
+        "y2k-futurism",
+        "metalheart",
+        "vectorheart",
+        "hexatron"
+      ],
+      "events": [
+        {
+          "date": "1999",
+          "event": "2Advanced studio founding",
+          "sourceIds": [
+            "H49"
+          ]
+        },
+        {
+          "date": "2000",
+          "event": "2Advanced v1 interface record",
+          "sourceIds": [
+            "H48"
+          ]
+        }
+      ],
+      "limits": "Founding and version dates differ. The inspected v1 frame supports technical millennium language; specific Metalheart attribution needs that version’s evidence rather than all studio work inheriting it."
+    },
+    {
+      "id": "atlas:aqua",
+      "name": "Apple Aqua",
+      "languageType": "platform-language",
+      "atlasConceptIds": [
+        "aqua"
+      ],
+      "definitionRef": "atlas.json#aqua",
+      "periodLabel": "2000 introduction; 2001 shipping-era web/native context",
+      "orderBandStart": 2000,
+      "dateBasis": "native design announcement",
+      "dateSourceIds": [
+        "A01",
+        "H50"
+      ],
+      "uiSourceIds": [
+        "A01"
+      ],
+      "uiEvidenceLevel": "platform-primary-documentation",
+      "events": [
+        {
+          "date": "2000-01-05",
+          "event": "Aqua/Mac OS X introduction",
+          "sourceIds": [
+            "A01"
+          ]
+        }
+      ],
+      "datingLimit": "This is a design introduction, not every later OS X release. The inspected 2001 website shares period presentation but is not proof of native Aqua implementation."
+    },
+    {
+      "id": "atlas:frutiger-metro",
+      "name": "Frutiger Metro / vector-pop nostalgia",
+      "languageType": "community-variant",
+      "atlasConceptIds": [
+        "frutiger-metro"
+      ],
+      "definitionRef": "atlas.json#frutiger-metro",
+      "periodLabel": "2000s vector/pop reference world; boundary provisional",
+      "orderBandStart": 2000,
+      "dateBasis": "qualified community period",
+      "dateSourceIds": [
+        "B01"
+      ],
+      "uiSourceIds": [],
+      "uiEvidenceLevel": "community-context",
+      "events": [],
+      "datingLimit": "This is not Microsoft Metro. No verified naming date or production UI corpus was established."
+    },
+    {
+      "id": "atlas:mcbling",
+      "name": "McBling",
+      "languageType": "internet-aesthetic",
+      "atlasConceptIds": [
+        "mcbling"
+      ],
+      "definitionRef": "atlas.json#mcbling",
+      "periodLabel": "Early–late 2000s curator period",
+      "orderBandStart": 2000,
+      "dateBasis": "curator cultural period",
+      "dateSourceIds": [
+        "C07"
+      ],
+      "uiSourceIds": [],
+      "uiEvidenceLevel": "cultural-context",
+      "events": [],
+      "datingLimit": "Fashion/consumer excess does not establish a UI’s aesthetic from one pink/chrome asset; no production UI was verified under this exact label."
+    },
+    {
+      "id": "atlas:scene-myspace",
+      "name": "Scene / MySpace-era grunge",
+      "languageType": "research-lead",
+      "atlasConceptIds": [
+        "scene-myspace"
+      ],
+      "definitionRef": "atlas.json#scene-myspace",
+      "periodLabel": "2000s reference world; precise UI corpus unresolved",
+      "orderBandStart": 2000,
+      "dateBasis": "reference-era context",
+      "dateSourceIds": [
+        "W01",
+        "J01"
+      ],
+      "uiSourceIds": [],
+      "uiEvidenceLevel": "community-context",
+      "events": [],
+      "datingLimit": "MySpace-era cultural references are not one aesthetic shared by all profile pages; no exact first naming date is asserted."
+    },
+    {
+      "id": "atlas:synthwave-outrun",
+      "name": "Synthwave / outrun",
+      "languageType": "internet-aesthetic",
+      "atlasConceptIds": [
+        "synthwave-outrun"
+      ],
+      "definitionRef": "atlas.json#synthwave-outrun",
+      "periodLabel": "2000s/2010s retro-futurist revival context",
+      "orderBandStart": 2000,
+      "dateBasis": "broad revival context",
+      "dateSourceIds": [
+        "AD03",
+        "H68"
+      ],
+      "uiSourceIds": [],
+      "uiEvidenceLevel": "cultural-context",
+      "events": [],
+      "datingLimit": "Ordering is deliberately coarse: exact visual/UI origin was not established. Related music/graphic names are not forced into one canonical synonym."
+    },
+    {
+      "id": "luna",
+      "name": "Luna / Windows XP visual language",
+      "languageType": "platform-language",
+      "periodLabel": "2001",
+      "orderBandStart": 2001,
+      "dateBasis": "UI product availability",
+      "uiEvidenceLevel": "visually-reviewed-historical-illustration",
+      "definition": "Opaque colorful native presentation gives the desktop a softer consumer-facing identity.",
+      "uiGrammar": [
+        "Blue/colorful system presentation",
+        "Soft dimensional cues",
+        "Friendly pictorial user objects"
+      ],
+      "counterexamples": [
+        "Every blue UI called Luna",
+        "Later Royale imagery claimed as original Luna"
+      ],
+      "sourceIds": [
+        "H22",
+        "H23",
+        "H24"
+      ],
+      "atlasConceptIds": [
+        "retro-gui",
+        "skeuomorphism"
+      ],
+      "events": [
+        {
+          "date": "2001-10-25",
+          "event": "Windows XP worldwide availability",
+          "sourceIds": [
+            "H23"
+          ]
+        }
+      ],
+      "limits": "Inspected a later-published XP login illustration. The source also contains a Royale-named asset; it was not used to assert the exact 2001 Luna desktop."
+    },
+    {
+      "id": "atlas:frutiger-aero",
+      "name": "Frutiger Aero",
+      "languageType": "internet-era-consumer-aesthetic",
+      "atlasConceptIds": [
+        "frutiger-aero"
+      ],
+      "definitionRef": "atlas.json#frutiger-aero",
+      "periodLabel": "Mid-2000s–early-2010s artifacts; public name in 2018",
+      "orderBandStart": 2004,
+      "dateBasis": "curator artifact period and retrospective naming",
+      "dateSourceIds": [
+        "C09",
+        "C01"
+      ],
+      "uiSourceIds": [
+        "H24",
+        "H25"
+      ],
+      "uiEvidenceLevel": "related-reviewed-native-interface",
+      "events": [
+        {
+          "date": "2018-01-18",
+          "event": "Original public group/naming event in CARI history",
+          "sourceIds": [
+            "C01"
+          ]
+        }
+      ],
+      "datingLimit": "Current CARI credits Sofi Xian and Froyo Tam jointly; widely repeated 2017 naming claims differ. The reviewed Aero-era UI is a related artifact, not an exact alias for the whole aesthetic."
+    },
+    {
+      "id": "atlas:frutiger-eco",
+      "name": "Frutiger Eco",
+      "languageType": "community-variant",
+      "atlasConceptIds": [
+        "frutiger-eco"
+      ],
+      "definitionRef": "atlas.json#frutiger-eco",
+      "periodLabel": "Mid-2000s/early-2010s reference world; boundary provisional",
+      "orderBandStart": 2004,
+      "dateBasis": "qualified community period",
+      "dateSourceIds": [
+        "B02"
+      ],
+      "uiSourceIds": [],
+      "uiEvidenceLevel": "community-context",
+      "events": [],
+      "datingLimit": "The UI branch and first coining date remain unsettled; ecological imagery does not establish sustainable performance."
+    },
+    {
+      "id": "web-two-gloss",
+      "name": "Glossy Web 2.0 visual treatment",
+      "languageType": "web-aesthetic",
+      "periodLabel": "Mid-2000s; documented 2007/2008 vocabulary",
+      "orderBandStart": 2004,
+      "dateBasis": "approximate period and contemporary commentary",
+      "uiEvidenceLevel": "documented-ui-treatment",
+      "definition": "Rounded dimensional surfaces, highlights and bright typographic branding shape a web presentation.",
+      "uiGrammar": [
+        "Gloss/reflections",
+        "Rounded dimensional controls",
+        "Bright simplified branding"
+      ],
+      "counterexamples": [
+        "Every social service called glossy",
+        "Web 2.0 technical meaning treated as visual birthdate"
+      ],
+      "sourceIds": [
+        "H55"
+      ],
+      "atlasConceptIds": [
+        "frutiger-aero",
+        "glassmorphism",
+        "semi-flat"
+      ],
+      "events": [
+        {
+          "date": "2008-01-29",
+          "event": "Commentary describing the 2007 visual vocabulary",
+          "sourceIds": [
+            "H55"
+          ]
+        }
+      ],
+      "limits": "The 2004 ordering is an approximate mid-2000s period boundary, not an origin date. Web 2.0’s social/technical history and this glossy visual subset are different."
+    },
+    {
+      "id": "aero",
+      "name": "Windows Aero / Aero Glass",
+      "languageType": "platform-language",
+      "periodLabel": "Mid-2000s; 2007 Vista documentation anchor",
+      "orderBandStart": 2005,
+      "dateBasis": "approximate development period with implementation documentation",
+      "uiEvidenceLevel": "visually-reviewed-historical-illustration",
+      "definition": "Native translucent window chrome creates a glass-like layer over the desktop.",
+      "uiGrammar": [
+        "Background-dependent translucency",
+        "Dimensional window chrome",
+        "Native layer relationships"
+      ],
+      "counterexamples": [
+        "Nature wallpaper alone",
+        "Every glass treatment claimed as Windows Aero"
+      ],
+      "sourceIds": [
+        "H24",
+        "H25"
+      ],
+      "atlasConceptIds": [
+        "frutiger-aero",
+        "glassmorphism"
+      ],
+      "events": [
+        {
+          "date": "2007-04",
+          "event": "Vista Aero Glass implementation article",
+          "sourceIds": [
+            "H25"
+          ]
+        }
+      ],
+      "limits": "The inspected image is a Windows 7 pre-release frame, not Vista launch output. Development-era ordering is approximate; Frutiger Aero is a broader retrospective aesthetic, not the native implementation’s alias."
+    },
+    {
+      "id": "superflat-pop",
+      "name": "Superflat Pop",
+      "languageType": "cultural-influence",
+      "periodLabel": "Late 2000s–early 2010s curator period",
+      "orderBandStart": 2007,
+      "dateBasis": "curator cultural period",
+      "uiEvidenceLevel": "graphic-context",
+      "definition": "A pop-commercial interpretation of Japanese Superflat imagery combines bright character/graphic relationships.",
+      "uiGrammar": [
+        "Character/graphic coherence",
+        "Pop-commercial reference world",
+        "Deliberate flat pictorial relationships"
+      ],
+      "counterexamples": [
+        "Flat controls alone",
+        "All kawaii called Superflat"
+      ],
+      "sourceIds": [
+        "H69"
+      ],
+      "atlasConceptIds": [
+        "kawaii",
+        "geometric-pop"
+      ],
+      "events": [],
+      "limits": "This is not an alias for flat UI. No production interface was verified under this exact cultural label."
+    },
+    {
+      "id": "oxygen",
+      "name": "Oxygen / KDE 4 artwork",
+      "languageType": "platform-language",
+      "periodLabel": "2008 release anchor",
+      "orderBandStart": 2008,
+      "dateBasis": "named project release",
+      "uiEvidenceLevel": "documented-platform",
+      "definition": "A coordinated desktop artwork/control language forms a named native visual system.",
+      "uiGrammar": [
+        "Coordinated icon/control artwork",
+        "Desktop-wide visual consistency",
+        "Named project implementation"
+      ],
+      "counterexamples": [
+        "Any glossy icon called Oxygen",
+        "Desktop renderer treated as aesthetic identity"
+      ],
+      "sourceIds": [
+        "H26"
+      ],
+      "atlasConceptIds": [
+        "skeuomorphism"
+      ],
+      "events": [
+        {
+          "date": "2008-01-11",
+          "event": "KDE 4.0 release with Oxygen artwork",
+          "sourceIds": [
+            "H26"
+          ]
+        }
+      ],
+      "limits": "Release text was read, not a complete Oxygen screenshot set. Detailed visual recipes need image comparisons before classification."
+    },
+    {
+      "id": "atlas:flat",
+      "name": "Flat",
+      "languageType": "surface-language",
+      "atlasConceptIds": [
+        "flat"
+      ],
+      "definitionRef": "atlas.json#flat",
+      "periodLabel": "Planar predecessors; modern UI movement documented in early 2010s",
+      "orderBandStart": 2010,
+      "dateBasis": "modern movement context with older rendering roots",
+      "dateSourceIds": [
+        "N04",
+        "H30",
+        "A02"
+      ],
+      "uiSourceIds": [
+        "H30",
+        "A02"
+      ],
+      "uiEvidenceLevel": "platform-primary-documentation",
+      "events": [
+        {
+          "date": "2013-06-10",
+          "event": "iOS 7 announcement as one major UI milestone",
+          "sourceIds": [
+            "A02"
+          ]
+        }
+      ],
+      "datingLimit": "Flat surfaces existed earlier. Metro, iOS 7, minimalism and the whole Material system are not aliases for flat design."
+    },
+    {
+      "id": "atlas:hexatron",
+      "name": "Hexatron / futuristic HUD",
+      "languageType": "internet-aesthetic",
+      "atlasConceptIds": [
+        "hexatron"
+      ],
+      "definitionRef": "atlas.json#hexatron",
+      "periodLabel": "Early–late 2010s curator period",
+      "orderBandStart": 2010,
+      "dateBasis": "curator artifact period",
+      "dateSourceIds": [
+        "C10"
+      ],
+      "uiSourceIds": [
+        "H70"
+      ],
+      "uiEvidenceLevel": "related-fictional-screen-project",
+      "events": [
+        {
+          "date": "2010",
+          "event": "Creator’s fictional-screen project account",
+          "sourceIds": [
+            "H70"
+          ]
+        }
+      ],
+      "datingLimit": "The related project is not asserted to be the first Hexatron artifact or a usable production application."
+    },
+    {
+      "id": "metro",
+      "name": "Metro / Windows Phone typography-led UI",
+      "languageType": "platform-language",
+      "periodLabel": "2010 preview guide; older signage/design influences",
+      "orderBandStart": 2010,
+      "dateBasis": "native design-guide publication",
+      "uiEvidenceLevel": "documented-platform",
+      "definition": "Typography and content replace much decorative chrome through a coordinated navigation language.",
+      "uiGrammar": [
+        "Large typographic hierarchy",
+        "Content-led navigation",
+        "Signage-related visual organization"
+      ],
+      "counterexamples": [
+        "Generic flat UI called Metro",
+        "Frutiger Metro treated as Microsoft’s system"
+      ],
+      "sourceIds": [
+        "H30",
+        "H24"
+      ],
+      "atlasConceptIds": [
+        "swiss-typographic",
+        "flat",
+        "minimal"
+      ],
+      "events": [
+        {
+          "date": "2010-03-18",
+          "event": "Official preview design-guide publication",
+          "sourceIds": [
+            "H30"
+          ]
+        }
+      ],
+      "limits": "This verifies a naming/UI milestone, not the first precursor in Zune or Windows Media Center. No interaction was tested."
+    },
+    {
+      "id": "atlas:polychrome-fluid",
+      "name": "Polychrome / fluid-color imagery",
+      "languageType": "imagery-treatment",
+      "atlasConceptIds": [
+        "polychrome-fluid"
+      ],
+      "definitionRef": "atlas.json#polychrome-fluid",
+      "periodLabel": "Early 2010s onward curator period",
+      "orderBandStart": 2010,
+      "dateBasis": "curator imagery period",
+      "dateSourceIds": [
+        "C14"
+      ],
+      "uiSourceIds": [],
+      "uiEvidenceLevel": "imagery-context",
+      "events": [],
+      "datingLimit": "Period estimates concern reference artifacts or documented use; they do not establish first-ever UI use."
+    },
+    {
+      "id": "atlas:seapunk",
+      "name": "Seapunk",
+      "languageType": "internet-aesthetic",
+      "atlasConceptIds": [
+        "seapunk"
+      ],
+      "definitionRef": "atlas.json#seapunk",
+      "periodLabel": "Early 2010s; creator interview in 2012",
+      "orderBandStart": 2010,
+      "dateBasis": "dated creator/community account",
+      "dateSourceIds": [
+        "S01"
+      ],
+      "uiSourceIds": [],
+      "uiEvidenceLevel": "cultural-context",
+      "events": [
+        {
+          "date": "2012-12-11",
+          "event": "Creator interview",
+          "sourceIds": [
+            "S01"
+          ]
+        }
+      ],
+      "datingLimit": "The interview date is not a proven first-use date. Aquatic motifs alone are insufficient for a UI claim."
+    },
+    {
+      "id": "atlas:semi-flat",
+      "name": "Semi-flat / selective depth",
+      "languageType": "surface-language",
+      "atlasConceptIds": [
+        "semi-flat"
+      ],
+      "definitionRef": "atlas.json#semi-flat",
+      "periodLabel": "2010s practitioner vocabulary; selective depth has older precedents",
+      "orderBandStart": 2010,
+      "dateBasis": "practitioner terminology period",
+      "dateSourceIds": [
+        "N04",
+        "G01"
+      ],
+      "uiSourceIds": [
+        "H27"
+      ],
+      "uiEvidenceLevel": "project-primary-documentation",
+      "events": [],
+      "datingLimit": "Flat 2.0 is a loose style name, not a formal platform version or a proven origin year."
+    },
+    {
+      "id": "atlas:solarpunk",
+      "name": "Solarpunk / eco-futurism",
+      "languageType": "internet-aesthetic",
+      "atlasConceptIds": [
+        "solarpunk"
+      ],
+      "definitionRef": "atlas.json#solarpunk",
+      "periodLabel": "2010s documented ecological-future vision",
+      "orderBandStart": 2010,
+      "dateBasis": "broad creator-context period",
+      "dateSourceIds": [
+        "S02"
+      ],
+      "uiSourceIds": [],
+      "uiEvidenceLevel": "artist-context",
+      "events": [],
+      "datingLimit": "A formative post is not sole invention. UI evidence under this exact visual world remains unverified; green branding alone is insufficient."
+    },
+    {
+      "id": "atlas:vaporwave",
+      "name": "Vaporwave",
+      "languageType": "internet-aesthetic",
+      "atlasConceptIds": [
+        "vaporwave"
+      ],
+      "definitionRef": "atlas.json#vaporwave",
+      "periodLabel": "Early 2010s revival / recontextualization",
+      "orderBandStart": 2010,
+      "dateBasis": "genre/artifact period",
+      "dateSourceIds": [
+        "J02",
+        "C15",
+        "AD03"
+      ],
+      "uiSourceIds": [],
+      "uiEvidenceLevel": "cultural-context",
+      "events": [],
+      "datingLimit": "Referenced consumer imagery often dates to the 1980s/1990s. Its age is not the date vaporwave emerged; no named production UI was inspected."
+    },
+    {
+      "id": "adwaita",
+      "name": "Adwaita / adaptive GNOME visual language",
+      "languageType": "platform-language",
+      "periodLabel": "2011 Shell milestone; 2021 Libadwaita revision",
+      "orderBandStart": 2011,
+      "dateBasis": "project redesign and library milestone",
+      "uiEvidenceLevel": "documented-platform",
+      "definition": "A coordinated application/control system evolves toward clearer native hierarchy and adaptive layouts.",
+      "uiGrammar": [
+        "Native header/control hierarchy",
+        "Coordinated application styling",
+        "Adaptive-layout context"
+      ],
+      "counterexamples": [
+        "All GTK versions treated as identical",
+        "Rounded white cards alone"
+      ],
+      "sourceIds": [
+        "H28",
+        "H29"
+      ],
+      "atlasConceptIds": [
+        "minimal",
+        "semi-flat"
+      ],
+      "events": [
+        {
+          "date": "2011-04-06",
+          "event": "GNOME 3 redesign release",
+          "sourceIds": [
+            "H28"
+          ]
+        },
+        {
+          "date": "2021-12-31",
+          "event": "Libadwaita 1.0 / redesigned stylesheet",
+          "sourceIds": [
+            "H29"
+          ]
+        }
+      ],
+      "limits": "These are separate milestones. No first-ever Adwaita coining date or complete application adoption date is asserted."
+    },
+    {
+      "id": "atlas:blob-world",
+      "name": "Blob World",
+      "languageType": "archive-query-context",
+      "atlasConceptIds": [
+        "blob-world"
+      ],
+      "definitionRef": "atlas.json#blob-world",
+      "periodLabel": "Mid-2010s onward curator period",
+      "orderBandStart": 2014,
+      "dateBasis": "curator imagery period",
+      "dateSourceIds": [
+        "C13"
+      ],
+      "uiSourceIds": [
+        "Q03"
+      ],
+      "uiEvidenceLevel": "adjacent-reviewed-hero",
+      "events": [],
+      "datingLimit": "Soft rendered worlds and actual rounded controls differ. The broad ordering is an approximate bin, not the first blob or a verified 2014 UI release."
+    },
+    {
+      "id": "breeze",
+      "name": "Breeze / Plasma 5 visual language",
+      "languageType": "platform-language",
+      "periodLabel": "2014",
+      "orderBandStart": 2014,
+      "dateBasis": "project visual-system release",
+      "uiEvidenceLevel": "documented-platform",
+      "definition": "Flatter native theming and typographic emphasis simplify a desktop artwork system.",
+      "uiGrammar": [
+        "Flatter theming",
+        "Stronger typographic hierarchy",
+        "Reduced competing chrome"
+      ],
+      "counterexamples": [
+        "Flat assumed to mean no hierarchy",
+        "Every Plasma 5 component assumed fully migrated on day one"
+      ],
+      "sourceIds": [
+        "H27"
+      ],
+      "atlasConceptIds": [
+        "semi-flat",
+        "clean"
+      ],
+      "events": [
+        {
+          "date": "2014-07-15",
+          "event": "Plasma 5.0 release naming Breeze",
+          "sourceIds": [
+            "H27"
+          ]
+        }
+      ],
+      "limits": "The release describes gradual completion; it does not prove immediate uniformity of all controls."
+    },
+    {
+      "id": "atlas:corporate-illustration",
+      "name": "Corporate expressive illustration",
+      "languageType": "imagery-language",
+      "atlasConceptIds": [
+        "corporate-illustration"
+      ],
+      "definitionRef": "atlas.json#corporate-illustration",
+      "periodLabel": "Mid-2010s onward related archive period",
+      "orderBandStart": 2014,
+      "dateBasis": "curator imagery period",
+      "dateSourceIds": [
+        "C16"
+      ],
+      "uiSourceIds": [],
+      "uiEvidenceLevel": "graphic-context",
+      "events": [],
+      "datingLimit": "Corporate Memphis is a related archive term, not a synonym for all illustration; the date does not establish Alegria’s creator/system history."
+    },
+    {
+      "id": "atlas:material-design",
+      "name": "Material Design",
+      "languageType": "platform-language",
+      "atlasConceptIds": [
+        "material-design"
+      ],
+      "definitionRef": "atlas.json#material-design",
+      "periodLabel": "2014 native-system announcement; further eras thereafter",
+      "orderBandStart": 2014,
+      "dateBasis": "native design-system milestone",
+      "dateSourceIds": [
+        "H36",
+        "H37",
+        "G01"
+      ],
+      "uiSourceIds": [
+        "H36",
+        "G01"
+      ],
+      "uiEvidenceLevel": "platform-primary-documentation",
+      "events": [
+        {
+          "date": "2014-06-25",
+          "event": "Design-language announcement",
+          "sourceIds": [
+            "H36"
+          ]
+        }
+      ],
+      "datingLimit": "The paper/spatial system is not entirely flat; 2018 and 2021 changes are subsequent milestones rather than invented aesthetic births."
+    },
+    {
+      "id": "atlas:austurbane",
+      "name": "Austurbane",
+      "languageType": "archive-query-context",
+      "atlasConceptIds": [
+        "austurbane"
+      ],
+      "definitionRef": "atlas.json#austurbane",
+      "periodLabel": "Late 2010s onward curator period",
+      "orderBandStart": 2017,
+      "dateBasis": "curator cultural period",
+      "dateSourceIds": [
+        "C12"
+      ],
+      "uiSourceIds": [],
+      "uiEvidenceLevel": "graphic-and-brand-context",
+      "events": [],
+      "datingLimit": "Period estimates concern reference artifacts or documented use; they do not establish first-ever UI use."
+    },
+    {
+      "id": "atlas:fluent-materials",
+      "name": "Fluent material system",
+      "languageType": "platform-language",
+      "atlasConceptIds": [
+        "fluent-materials"
+      ],
+      "definitionRef": "atlas.json#fluent-materials",
+      "periodLabel": "2017 named-system announcement; later Fluent/Windows material revisions",
+      "orderBandStart": 2017,
+      "dateBasis": "native design-system milestone",
+      "dateSourceIds": [
+        "H31",
+        "M02",
+        "H33"
+      ],
+      "uiSourceIds": [
+        "H31",
+        "M02"
+      ],
+      "uiEvidenceLevel": "platform-primary-documentation",
+      "events": [
+        {
+          "date": "2017-05-11",
+          "event": "Fluent Design announcement",
+          "sourceIds": [
+            "H31"
+          ]
+        }
+      ],
+      "datingLimit": "Acrylic, Mica and dimming have different material roles. Do not backdate current Fluent 2 guidance or Mica to this announcement."
+    },
+    {
+      "id": "atlas:neo-vectorheart",
+      "name": "Neo-Vectorheart",
+      "languageType": "internet-aesthetic",
+      "atlasConceptIds": [
+        "neo-vectorheart"
+      ],
+      "definitionRef": "atlas.json#neo-vectorheart",
+      "periodLabel": "Late 2010s onward curator revival period",
+      "orderBandStart": 2017,
+      "dateBasis": "curator revival period",
+      "dateSourceIds": [
+        "C06"
+      ],
+      "uiSourceIds": [],
+      "uiEvidenceLevel": "graphic-context",
+      "events": [],
+      "datingLimit": "Period estimates concern reference artifacts or documented use; they do not establish first-ever UI use."
+    },
+    {
+      "id": "atlas:neo-y2k",
+      "name": "Neo-Y2K",
+      "languageType": "internet-aesthetic",
+      "atlasConceptIds": [
+        "neo-y2k"
+      ],
+      "definitionRef": "atlas.json#neo-y2k",
+      "periodLabel": "Late 2010s onward; 2014–2016 revival research/art precedents",
+      "orderBandStart": 2017,
+      "dateBasis": "curator revival period",
+      "dateSourceIds": [
+        "C03",
+        "C01"
+      ],
+      "uiSourceIds": [],
+      "uiEvidenceLevel": "graphic-context",
+      "events": [],
+      "datingLimit": "Earlier research/art events and the curator’s strongest-relevance interval are different. No production UI was verified under this exact variant name."
+    },
+    {
+      "id": "atlas:refined-tech",
+      "name": "Refined tech",
+      "languageType": "operational-family",
+      "atlasConceptIds": [
+        "refined-tech"
+      ],
+      "definitionRef": "atlas.json#refined-tech",
+      "periodLabel": "Late 2010s onward archive context",
+      "orderBandStart": 2017,
+      "dateBasis": "operational synthesis with related archive period",
+      "dateSourceIds": [
+        "C11",
+        "L01",
+        "L02"
+      ],
+      "uiSourceIds": [
+        "L01",
+        "L02"
+      ],
+      "uiEvidenceLevel": "product-designer-account",
+      "events": [],
+      "datingLimit": "Cyberbougie is a related archive label. This ordering bin does not date a universal refined-tech movement or make Fluent/glass/neumorphism synonyms."
+    },
+    {
+      "id": "atlas:neumorphism",
+      "name": "Neumorphism",
+      "languageType": "surface-language",
+      "atlasConceptIds": [
+        "neumorphism"
+      ],
+      "definitionRef": "atlas.json#neumorphism",
+      "periodLabel": "2019 naming discussion; later prototype/usage debate",
+      "orderBandStart": 2019,
+      "dateBasis": "terminology-publication milestone",
+      "dateSourceIds": [
+        "H57",
+        "D01"
+      ],
+      "uiSourceIds": [
+        "D01"
+      ],
+      "uiEvidenceLevel": "visually-reviewed-material-comparison",
+      "events": [
+        {
+          "date": "2019-12-17",
+          "event": "Original public article date",
+          "sourceIds": [
+            "H57"
+          ]
+        }
+      ],
+      "datingLimit": "This visible date is preferred to secondary citations giving 16 December. The inspected diagram establishes low-relief material, not production prevalence."
+    },
+    {
+      "id": "big-sur",
+      "name": "Big Sur’s renewed dimensional macOS UI",
+      "languageType": "platform-language",
+      "periodLabel": "2020",
+      "orderBandStart": 2020,
+      "dateBasis": "native design announcement",
+      "uiEvidenceLevel": "documented-platform",
+      "definition": "Apple reworks desktop depth, control shapes and presentation within a named operating-system design.",
+      "uiGrammar": [
+        "Coordinated native depth",
+        "Reworked controls and surfaces",
+        "Named platform provenance"
+      ],
+      "counterexamples": [
+        "Every rounded macOS icon called neumorphic",
+        "Depth mistaken for physical-object skeuomorphism"
+      ],
+      "sourceIds": [
+        "H35"
+      ],
+      "atlasConceptIds": [
+        "semi-flat",
+        "neumorphism"
+      ],
+      "events": [
+        {
+          "date": "2020-06-22",
+          "event": "Design announcement",
+          "sourceIds": [
+            "H35"
+          ]
+        }
+      ],
+      "limits": "Announcement and public availability differ. A relation to soft dimensional styling is not a blanket neumorphism classification."
+    },
+    {
+      "id": "atlas:glassmorphism",
+      "name": "Glassmorphism",
+      "languageType": "surface-language",
+      "atlasConceptIds": [
+        "glassmorphism"
+      ],
+      "definitionRef": "atlas.json#glassmorphism",
+      "periodLabel": "Earlier translucent UI; named article in November 2020",
+      "orderBandStart": 2020,
+      "dateBasis": "terminology-publication milestone",
+      "dateSourceIds": [
+        "H58",
+        "H59",
+        "M02"
+      ],
+      "uiSourceIds": [
+        "H59",
+        "H25"
+      ],
+      "uiEvidenceLevel": "reviewed-concept-and-native-documentation",
+      "events": [
+        {
+          "date": "2020-11",
+          "event": "Author-dated naming article",
+          "sourceIds": [
+            "H58"
+          ]
+        }
+      ],
+      "datingLimit": "The naming date is not the invention of glass-like UI. The inspected concept card is not verified banking software."
+    },
+    {
+      "id": "atlas:neobrutalism",
+      "name": "Neobrutalism",
+      "languageType": "aesthetic",
+      "atlasConceptIds": [
+        "neobrutalism"
+      ],
+      "definitionRef": "atlas.json#neobrutalism",
+      "periodLabel": "Early 2020s visible direction; 2021 brand and 2025 analysis anchors",
+      "orderBandStart": 2020,
+      "dateBasis": "documented UI-era context",
+      "dateSourceIds": [
+        "H62",
+        "N02"
+      ],
+      "uiSourceIds": [
+        "N02"
+      ],
+      "uiEvidenceLevel": "documented-interface-examples",
+      "events": [
+        {
+          "date": "2021-11-26",
+          "event": "Gumroad announces new brand and website",
+          "sourceIds": [
+            "H62"
+          ]
+        }
+      ],
+      "datingLimit": "The rebrand date does not establish the first coiner; aesthetic attribution is supported separately by UI analysis, not by this short announcement alone."
+    },
+    {
+      "id": "atlas:claymorphism",
+      "name": "Claymorphism",
+      "languageType": "surface-language",
+      "atlasConceptIds": [
+        "claymorphism"
+      ],
+      "definitionRef": "atlas.json#claymorphism",
+      "periodLabel": "2021 named creator discussion; older inflated/tactile imagery",
+      "orderBandStart": 2021,
+      "dateBasis": "terminology-publication milestone",
+      "dateSourceIds": [
+        "H60",
+        "D02",
+        "D03"
+      ],
+      "uiSourceIds": [
+        "H61"
+      ],
+      "uiEvidenceLevel": "visually-reviewed-UI-concept",
+      "events": [
+        {
+          "date": "2021-12-20",
+          "event": "Dated creator video description",
+          "sourceIds": [
+            "H60"
+          ]
+        },
+        {
+          "date": "2021-12-24",
+          "event": "Dated tutorial",
+          "sourceIds": [
+            "D03"
+          ]
+        }
+      ],
+      "datingLimit": "These are documented terminology milestones, not the first rounded 3D objects. The inspected dashboard montage is a concept illustration."
+    },
+    {
+      "id": "material-you",
+      "name": "Material You / adaptive-personal Material",
+      "languageType": "platform-language",
+      "periodLabel": "2021",
+      "orderBandStart": 2021,
+      "dateBasis": "design-language announcement",
+      "uiEvidenceLevel": "documented-platform",
+      "definition": "A named system gives users adaptive/personal visual choices while coordinating components and surfaces.",
+      "uiGrammar": [
+        "Personal/adaptive color roles",
+        "Coordinated native components",
+        "System-defined hierarchy"
+      ],
+      "counterexamples": [
+        "Any colorful rounded UI called Material You",
+        "A static theme proving dynamic personalization"
+      ],
+      "sourceIds": [
+        "H38",
+        "G03"
+      ],
+      "atlasConceptIds": [
+        "material-design",
+        "m3-expressive"
+      ],
+      "events": [
+        {
+          "date": "2021-05-18",
+          "event": "Android 12 beta / Material You announcement",
+          "sourceIds": [
+            "H38"
+          ]
+        }
+      ],
+      "limits": "Generic visual traits can be observed separately. Actual dynamic behavior requires more than one still."
+    },
+    {
+      "id": "windows-eleven",
+      "name": "Windows 11 / rounded Fluent and Mica",
+      "languageType": "platform-language",
+      "periodLabel": "2021",
+      "orderBandStart": 2021,
+      "dateBasis": "native design milestone",
+      "uiEvidenceLevel": "documented-platform",
+      "definition": "Rounded geometry and purpose-specific materials coordinate a renewed Windows visual language.",
+      "uiGrammar": [
+        "Coordinated rounding",
+        "Layer-specific native materials",
+        "Mica versus Acrylic roles"
+      ],
+      "counterexamples": [
+        "Mica described as transparent glass",
+        "Every rounded interface called Windows 11"
+      ],
+      "sourceIds": [
+        "H32",
+        "H33",
+        "M02"
+      ],
+      "atlasConceptIds": [
+        "fluent-materials",
+        "glassmorphism"
+      ],
+      "events": [
+        {
+          "date": "2021-07-13",
+          "event": "Published design-team account",
+          "sourceIds": [
+            "H32"
+          ]
+        }
+      ],
+      "limits": "The date is an account, not first availability. Mica is opaque; the platform cannot be established from blur alone."
+    },
+    {
+      "id": "visionos",
+      "name": "visionOS spatial UI",
+      "languageType": "platform-language",
+      "periodLabel": "2023 announcement; distinct commercial release later",
+      "orderBandStart": 2023,
+      "dateBasis": "native platform announcement",
+      "uiEvidenceLevel": "documented-platform",
+      "definition": "A named native system places application content and controls within a spatial computing environment.",
+      "uiGrammar": [
+        "Spatial placement context",
+        "Native system provenance",
+        "Content/control layer roles"
+      ],
+      "counterexamples": [
+        "A WebGL hero called visionOS",
+        "A static glass rectangle proving spatial interaction"
+      ],
+      "sourceIds": [
+        "H40"
+      ],
+      "atlasConceptIds": [
+        "spatial-immersive",
+        "glassmorphism"
+      ],
+      "events": [
+        {
+          "date": "2023-06-05",
+          "event": "Apple platform announcement",
+          "sourceIds": [
+            "H40"
+          ]
+        }
+      ],
+      "limits": "Not the beginning of all spatial UI and not the 2024 consumer release. No headset task or motion state was tested."
+    },
+    {
+      "id": "atlas:liquid-glass",
+      "name": "Apple Liquid Glass",
+      "languageType": "platform-language",
+      "atlasConceptIds": [
+        "liquid-glass"
+      ],
+      "definitionRef": "atlas.json#liquid-glass",
+      "periodLabel": "2025 native material introduction; product reinterpretations thereafter",
+      "orderBandStart": 2025,
+      "dateBasis": "native design-system announcement",
+      "dateSourceIds": [
+        "A03",
+        "L02"
+      ],
+      "uiSourceIds": [
+        "A03",
+        "L02"
+      ],
+      "uiEvidenceLevel": "platform-and-product-primary-documentation",
+      "events": [
+        {
+          "date": "2025-06-09",
+          "event": "Apple announcement",
+          "sourceIds": [
+            "A03"
+          ]
+        },
+        {
+          "date": "2025-10-21",
+          "event": "Linear product interpretation",
+          "sourceIds": [
+            "L02"
+          ]
+        }
+      ],
+      "datingLimit": "Native provenance is stronger than appearance resemblance. Adaptive optics/motion were not established from a screenshot."
+    },
+    {
+      "id": "atlas:cybersigilism",
+      "name": "Cybersigilism",
+      "languageType": "graphic-motif-context",
+      "atlasConceptIds": [
+        "cybersigilism"
+      ],
+      "definitionRef": "atlas.json#cybersigilism",
+      "periodLabel": "2025–2026 documented graphic/fashion usage",
+      "orderBandStart": 2025,
+      "dateBasis": "dated discussion and project, not origin",
+      "dateSourceIds": [
+        "B08",
+        "X01"
+      ],
+      "uiSourceIds": [],
+      "uiEvidenceLevel": "ornamental-graphic-context",
+      "events": [
+        {
+          "date": "2026-01-25",
+          "event": "Creator-labeled graphic project",
+          "sourceIds": [
+            "X01"
+          ]
+        }
+      ],
+      "datingLimit": "This dates one project, not the first use of the name or a deployed UI design language."
+    },
+    {
+      "id": "atlas:m3-expressive",
+      "name": "Material 3 Expressive",
+      "languageType": "platform-language",
+      "atlasConceptIds": [
+        "m3-expressive"
+      ],
+      "definitionRef": "atlas.json#m3-expressive",
+      "periodLabel": "2025 official expressive-design announcement",
+      "orderBandStart": 2025,
+      "dateBasis": "native design-system milestone",
+      "dateSourceIds": [
+        "H39",
+        "G03"
+      ],
+      "uiSourceIds": [
+        "H39"
+      ],
+      "uiEvidenceLevel": "visually-reviewed-official-UI-plate",
+      "events": [
+        {
+          "date": "2025-05-13",
+          "event": "Official announcement",
+          "sourceIds": [
+            "H39"
+          ]
+        }
+      ],
+      "datingLimit": "The inspected frame covers part of the published plate. Announcement, beta, rollout and actual product adoption are different dates."
+    },
+    {
+      "id": "atlas:y3k",
+      "name": "Y3K / speculative hyper-futurism",
+      "languageType": "emerging-query-label",
+      "atlasConceptIds": [
+        "y3k"
+      ],
+      "definitionRef": "atlas.json#y3k",
+      "periodLabel": "2025–2026 documented editorial usage",
+      "orderBandStart": 2025,
+      "dateBasis": "dated discussion, not origin",
+      "dateSourceIds": [
+        "B08"
+      ],
+      "uiSourceIds": [],
+      "uiEvidenceLevel": "fashion-and-graphic-context",
+      "events": [
+        {
+          "date": "2025-01-07",
+          "event": "Editorial publication",
+          "sourceIds": [
+            "B08"
+          ]
+        },
+        {
+          "date": "2026-08",
+          "event": "Recorded article update",
+          "sourceIds": [
+            "B08"
+          ]
+        }
+      ],
+      "datingLimit": "The visual future is fictional. The label does not mean a UI released in the year 3000, and UI prevalence is unverified."
+    },
+    {
+      "id": "atlas:acid-graphics",
+      "name": "Acid graphics / digital rave",
+      "languageType": "aesthetic",
+      "atlasConceptIds": [
+        "acid-graphics"
+      ],
+      "definitionRef": "atlas.json#acid-graphics",
+      "periodLabel": "Psychedelic/rave/digital graphic lineage; 2022 practitioner account",
+      "orderBandStart": null,
+      "dateBasis": "unsettled first use",
+      "dateSourceIds": [
+        "I01"
+      ],
+      "uiSourceIds": [],
+      "uiEvidenceLevel": "graphic-context",
+      "events": [
+        {
+          "date": "2022-02-17",
+          "event": "Practitioner analysis",
+          "sourceIds": [
+            "I01"
+          ]
+        }
+      ],
+      "datingLimit": "No dated production UI was inspected under this exact label; a contemporary article does not establish an origin or UI prevalence."
+    },
+    {
+      "id": "atlas:anti-design",
+      "name": "Anti-design",
+      "languageType": "operational-family",
+      "atlasConceptIds": [
+        "anti-design"
+      ],
+      "definitionRef": "atlas.json#anti-design",
+      "periodLabel": "Older graphic experiments; documented web distinction in 2017",
+      "orderBandStart": null,
+      "dateBasis": "cross-period",
+      "dateSourceIds": [
+        "P03",
+        "H63"
+      ],
+      "uiSourceIds": [
+        "H63"
+      ],
+      "uiEvidenceLevel": "practitioner-described-interface",
+      "events": [
+        {
+          "date": "2017-11-05",
+          "event": "Published distinction from stripped-down UI",
+          "sourceIds": [
+            "H63"
+          ]
+        }
+      ],
+      "datingLimit": "Convention-breaking needs intentional/coherent context. The article’s date is not the birth of the aesthetic."
+    },
+    {
+      "id": "atlas:cinematic",
+      "name": "Cinematic",
+      "languageType": "aesthetic",
+      "atlasConceptIds": [
+        "cinematic"
+      ],
+      "definitionRef": "atlas.json#cinematic",
+      "periodLabel": "Film/scene roots; contemporary web use",
+      "orderBandStart": null,
+      "dateBasis": "cross-period",
+      "dateSourceIds": [
+        "Q02",
+        "Q08"
+      ],
+      "uiSourceIds": [
+        "Q02"
+      ],
+      "uiEvidenceLevel": "visually-reviewed-hero",
+      "events": [
+        {
+          "date": "2026-10-08",
+          "event": "Contemporary staged hero featured",
+          "sourceIds": [
+            "Q02"
+          ]
+        }
+      ],
+      "datingLimit": "This is not a 2026 origin. Motion, interaction and full-site coherence were not inferred from the hero."
+    },
+    {
+      "id": "atlas:clean",
+      "name": "Clean",
+      "languageType": "appearance-quality-descriptor",
+      "atlasConceptIds": [
+        "clean"
+      ],
+      "definitionRef": "atlas.json#clean",
+      "periodLabel": "Cross-period organization; inspected 2001 web example",
+      "orderBandStart": null,
+      "dateBasis": "cross-period descriptor",
+      "dateSourceIds": [
+        "H50",
+        "L01"
+      ],
+      "uiSourceIds": [
+        "H50"
+      ],
+      "uiEvidenceLevel": "visually-reviewed-interface",
+      "events": [
+        {
+          "date": "2001",
+          "event": "Product-led website with readable organization",
+          "sourceIds": [
+            "H50"
+          ]
+        }
+      ],
+      "datingLimit": "Clean does not have a style release date. It can coexist with dimensional chrome, density and several aesthetics."
+    },
+    {
+      "id": "atlas:cottagecore",
+      "name": "Cottagecore",
+      "languageType": "community-aesthetic",
+      "atlasConceptIds": [
+        "cottagecore"
+      ],
+      "definitionRef": "atlas.json#cottagecore",
+      "periodLabel": "Older pastoral references; 2021 editorial account",
+      "orderBandStart": null,
+      "dateBasis": "reference world and dated discussion",
+      "dateSourceIds": [
+        "AD02"
+      ],
+      "uiSourceIds": [],
+      "uiEvidenceLevel": "cultural-context",
+      "events": [
+        {
+          "date": "2021-02-09",
+          "event": "Adobe discussion",
+          "sourceIds": [
+            "AD02"
+          ]
+        }
+      ],
+      "datingLimit": "The account does not prove original coining, first UI use or production prevalence."
+    },
+    {
+      "id": "atlas:cybercore",
+      "name": "Cybercore",
+      "languageType": "community-aesthetic",
+      "atlasConceptIds": [
+        "cybercore"
+      ],
+      "definitionRef": "atlas.json#cybercore",
+      "periodLabel": "Community usage documented; first UI date unresolved",
+      "orderBandStart": null,
+      "dateBasis": "unsettled first use",
+      "dateSourceIds": [
+        "B03"
+      ],
+      "uiSourceIds": [],
+      "uiEvidenceLevel": "community-context",
+      "events": [],
+      "datingLimit": "Period estimates concern reference artifacts or documented use; they do not establish first-ever UI use."
+    },
+    {
+      "id": "atlas:cyberpunk",
+      "name": "Cyberpunk / neon noir",
+      "languageType": "internet-aesthetic",
+      "atlasConceptIds": [
+        "cyberpunk"
+      ],
+      "definitionRef": "atlas.json#cyberpunk",
+      "periodLabel": "Earlier speculative genre roots; interface-specific case research separate",
+      "orderBandStart": null,
+      "dateBasis": "genre context with unsettled UI onset",
+      "dateSourceIds": [
+        "I05"
+      ],
+      "uiSourceIds": [
+        "H70"
+      ],
+      "uiEvidenceLevel": "related-fictional-screen-project",
+      "events": [],
+      "datingLimit": "TRON’s 2010 graphics establish fictional UI work, not a universal cyberpunk classification. Neon alone and an entire genre’s date are insufficient."
+    },
+    {
+      "id": "atlas:dark-academia",
+      "name": "Dark academia",
+      "languageType": "community-aesthetic",
+      "atlasConceptIds": [
+        "dark-academia"
+      ],
+      "definitionRef": "atlas.json#dark-academia",
+      "periodLabel": "Older academic/romantic references; contemporary usage",
+      "orderBandStart": null,
+      "dateBasis": "unsettled first UI use",
+      "dateSourceIds": [
+        "AD02"
+      ],
+      "uiSourceIds": [],
+      "uiEvidenceLevel": "cultural-context",
+      "events": [],
+      "datingLimit": "Period estimates concern reference artifacts or documented use; they do not establish first-ever UI use."
+    },
+    {
+      "id": "atlas:digital-collage",
+      "name": "Digital collage / zine",
+      "languageType": "aesthetic",
+      "atlasConceptIds": [
+        "digital-collage"
+      ],
+      "definitionRef": "atlas.json#digital-collage",
+      "periodLabel": "Older collage roots; inspected 1996 web adaptation",
+      "orderBandStart": null,
+      "dateBasis": "cross-period",
+      "dateSourceIds": [
+        "R02",
+        "I04",
+        "H44"
+      ],
+      "uiSourceIds": [
+        "H44",
+        "Q05"
+      ],
+      "uiEvidenceLevel": "visually-reviewed-interface",
+      "events": [
+        {
+          "date": "1996",
+          "event": "Bottle/planet montage and type in a web interface",
+          "sourceIds": [
+            "H44"
+          ]
+        }
+      ],
+      "datingLimit": "The example date is not digital collage’s invention. Graphic layering must materially affect the subject being classified."
+    },
+    {
+      "id": "atlas:dreamcore",
+      "name": "Dreamcore",
+      "languageType": "community-aesthetic",
+      "atlasConceptIds": [
+        "dreamcore"
+      ],
+      "definitionRef": "atlas.json#dreamcore",
+      "periodLabel": "Contemporary community usage; first UI date unresolved",
+      "orderBandStart": null,
+      "dateBasis": "unsettled first use",
+      "dateSourceIds": [
+        "J01",
+        "J03",
+        "R02"
+      ],
+      "uiSourceIds": [],
+      "uiEvidenceLevel": "research-and-community-context",
+      "events": [],
+      "datingLimit": "Period estimates concern reference artifacts or documented use; they do not establish first-ever UI use."
+    },
+    {
+      "id": "atlas:editorial",
+      "name": "Editorial",
+      "languageType": "aesthetic",
+      "atlasConceptIds": [
+        "editorial"
+      ],
+      "definitionRef": "atlas.json#editorial",
+      "periodLabel": "Print roots; inspected web example in 1996",
+      "orderBandStart": null,
+      "dateBasis": "cross-period",
+      "dateSourceIds": [
+        "P02",
+        "H52"
+      ],
+      "uiSourceIds": [
+        "H52",
+        "Q01"
+      ],
+      "uiEvidenceLevel": "visually-reviewed-interface",
+      "events": [
+        {
+          "date": "1996",
+          "event": "Newspaper-derived UI composition",
+          "sourceIds": [
+            "H52"
+          ]
+        },
+        {
+          "date": "2026-10-09",
+          "event": "Contemporary gallery example featured",
+          "sourceIds": [
+            "Q01"
+          ]
+        }
+      ],
+      "datingLimit": "The dated examples do not establish editorial design’s origin, and publication purpose alone is insufficient."
+    },
+    {
+      "id": "atlas:expressive-maximalism",
+      "name": "Expressive maximalism",
+      "languageType": "aesthetic",
+      "atlasConceptIds": [
+        "expressive-maximalism"
+      ],
+      "definitionRef": "atlas.json#expressive-maximalism",
+      "periodLabel": "Older expressive abundance; contemporary graphic practice",
+      "orderBandStart": null,
+      "dateBasis": "cross-period",
+      "dateSourceIds": [
+        "I03",
+        "I04"
+      ],
+      "uiSourceIds": [
+        "H46"
+      ],
+      "uiEvidenceLevel": "adjacent-reviewed-visual-language",
+      "events": [],
+      "datingLimit": "eBoy’s rich pixel world shows visual abundance in a UI; it is not used as proof of a formally self-described maximalist identity."
+    },
+    {
+      "id": "atlas:geometric-pop",
+      "name": "Geometric pop",
+      "languageType": "operational-family",
+      "atlasConceptIds": [
+        "geometric-pop"
+      ],
+      "definitionRef": "atlas.json#geometric-pop",
+      "periodLabel": "1980s Memphis influence; many later UI adaptations",
+      "orderBandStart": null,
+      "dateBasis": "older graphic influence",
+      "dateSourceIds": [
+        "H64",
+        "H69",
+        "G03"
+      ],
+      "uiSourceIds": [
+        "H39"
+      ],
+      "uiEvidenceLevel": "adjacent-reviewed-system",
+      "events": [],
+      "datingLimit": "Graphic geometry is broader than Memphis or Material. The official expressive plate is a related UI example, not automatic cultural attribution."
+    },
+    {
+      "id": "atlas:glitch",
+      "name": "Glitch / corrupted-media language",
+      "languageType": "aesthetic",
+      "atlasConceptIds": [
+        "glitch"
+      ],
+      "definitionRef": "atlas.json#glitch",
+      "periodLabel": "Earlier technical/art precedents; 2011 scholarly milestone",
+      "orderBandStart": null,
+      "dateBasis": "cross-period",
+      "dateSourceIds": [
+        "R04"
+      ],
+      "uiSourceIds": [],
+      "uiEvidenceLevel": "artist-and-scholar-context",
+      "events": [
+        {
+          "date": "2011",
+          "event": "Menkman publication",
+          "sourceIds": [
+            "R04"
+          ]
+        }
+      ],
+      "datingLimit": "The book summary is not the entire book. No broken capture or unloaded image is treated as deliberate glitch UI."
+    },
+    {
+      "id": "atlas:kawaii",
+      "name": "Kawaii / character-led cute",
+      "languageType": "cultural-visual-language",
+      "atlasConceptIds": [
+        "kawaii"
+      ],
+      "definitionRef": "atlas.json#kawaii",
+      "periodLabel": "Earlier Japanese character/visual culture; modern UI adaptation",
+      "orderBandStart": null,
+      "dateBasis": "older cultural language",
+      "dateSourceIds": [
+        "K01",
+        "I02"
+      ],
+      "uiSourceIds": [
+        "I02"
+      ],
+      "uiEvidenceLevel": "creator-described-interface",
+      "events": [
+        {
+          "date": "2022-08-22",
+          "event": "Seen creator case publication",
+          "sourceIds": [
+            "I02"
+          ]
+        }
+      ],
+      "datingLimit": "The specific UI adapts a cute messenger/character world; it does not date kawaii’s origin or establish that all pastels are kawaii."
+    },
+    {
+      "id": "atlas:kidcore",
+      "name": "Kidcore",
+      "languageType": "community-aesthetic",
+      "atlasConceptIds": [
+        "kidcore"
+      ],
+      "definitionRef": "atlas.json#kidcore",
+      "periodLabel": "Earlier childhood reference imagery; later community label",
+      "orderBandStart": null,
+      "dateBasis": "unsettled first UI use",
+      "dateSourceIds": [
+        "B07",
+        "J01"
+      ],
+      "uiSourceIds": [],
+      "uiEvidenceLevel": "community-context",
+      "events": [],
+      "datingLimit": "Period estimates concern reference artifacts or documented use; they do not establish first-ever UI use."
+    },
+    {
+      "id": "atlas:light-academia",
+      "name": "Light academia",
+      "languageType": "provisional-query-variant",
+      "atlasConceptIds": [
+        "light-academia"
+      ],
+      "definitionRef": "atlas.json#light-academia",
+      "periodLabel": "Related contemporary query variant; dates unresolved",
+      "orderBandStart": null,
+      "dateBasis": "unsettled first UI use",
+      "dateSourceIds": [
+        "AD02"
+      ],
+      "uiSourceIds": [],
+      "uiEvidenceLevel": "provisional-query-context",
+      "events": [],
+      "datingLimit": "Period estimates concern reference artifacts or documented use; they do not establish first-ever UI use."
+    },
+    {
+      "id": "atlas:liminal-space",
+      "name": "Liminal-space atmosphere",
+      "languageType": "mood-context",
+      "atlasConceptIds": [
+        "liminal-space"
+      ],
+      "definitionRef": "atlas.json#liminal-space",
+      "periodLabel": "Older image/spatial traditions; first UI label unresolved",
+      "orderBandStart": null,
+      "dateBasis": "cross-period",
+      "dateSourceIds": [
+        "J01"
+      ],
+      "uiSourceIds": [],
+      "uiEvidenceLevel": "mood-context",
+      "events": [],
+      "datingLimit": "Period estimates concern reference artifacts or documented use; they do not establish first-ever UI use."
+    },
+    {
+      "id": "atlas:minimal",
+      "name": "Minimal / minimalist",
+      "languageType": "aesthetic",
+      "atlasConceptIds": [
+        "minimal"
+      ],
+      "definitionRef": "atlas.json#minimal",
+      "periodLabel": "Older restraint traditions; inspected web example in 1998",
+      "orderBandStart": null,
+      "dateBasis": "cross-period",
+      "dateSourceIds": [
+        "N01",
+        "H51"
+      ],
+      "uiSourceIds": [
+        "H51"
+      ],
+      "uiEvidenceLevel": "visually-reviewed-interface",
+      "events": [
+        {
+          "date": "1998",
+          "event": "Restrained search composition in an archived UI",
+          "sourceIds": [
+            "H51"
+          ]
+        }
+      ],
+      "datingLimit": "Minimalism is not born in 1998; the example still contains a dimensional logo and native controls."
+    },
+    {
+      "id": "atlas:playful-3d",
+      "name": "Playful tactile 3D",
+      "languageType": "operational-family",
+      "atlasConceptIds": [
+        "playful-3d"
+      ],
+      "definitionRef": "atlas.json#playful-3d",
+      "periodLabel": "Older tactile/character imagery; 2021 clay-UI terminology anchor",
+      "orderBandStart": null,
+      "dateBasis": "cross-period",
+      "dateSourceIds": [
+        "C13",
+        "D02",
+        "H60"
+      ],
+      "uiSourceIds": [
+        "H61",
+        "Q03"
+      ],
+      "uiEvidenceLevel": "reviewed-concept-and-hero",
+      "events": [],
+      "datingLimit": "The reviewed clay montage is conceptual; the hero is one published frame. Neither proves live 3D or production dashboard behavior."
+    },
+    {
+      "id": "atlas:refined-luxury",
+      "name": "Refined / luxury",
+      "languageType": "operational-family",
+      "atlasConceptIds": [
+        "refined-luxury"
+      ],
+      "definitionRef": "atlas.json#refined-luxury",
+      "periodLabel": "Enduring refined/material-aware direction",
+      "orderBandStart": null,
+      "dateBasis": "cross-period",
+      "dateSourceIds": [
+        "C12",
+        "Q02"
+      ],
+      "uiSourceIds": [
+        "Q02"
+      ],
+      "uiEvidenceLevel": "visually-reviewed-hero",
+      "events": [],
+      "datingLimit": "An inspected hero supports refined staging; it does not establish price, universal quality or a first-use date."
+    },
+    {
+      "id": "atlas:retro-gui",
+      "name": "Retro GUI / desktop nostalgia",
+      "languageType": "aesthetic",
+      "atlasConceptIds": [
+        "retro-gui"
+      ],
+      "definitionRef": "atlas.json#retro-gui",
+      "periodLabel": "1980s/1990s UI references; explicit 2019 web remix",
+      "orderBandStart": null,
+      "dateBasis": "reference period and dated revival example",
+      "dateSourceIds": [
+        "H06",
+        "H18",
+        "H56"
+      ],
+      "uiSourceIds": [
+        "H56"
+      ],
+      "uiEvidenceLevel": "creator-described-interface",
+      "events": [
+        {
+          "date": "2019-07-26",
+          "event": "Poolside FM redesign account",
+          "sourceIds": [
+            "H56"
+          ]
+        }
+      ],
+      "datingLimit": "1986/1999 are deliberate imagined reference times in the creator account; 2019 is the redesign event."
+    },
+    {
+      "id": "atlas:retro-print",
+      "name": "Retro print / newspaper",
+      "languageType": "aesthetic",
+      "atlasConceptIds": [
+        "retro-print"
+      ],
+      "definitionRef": "atlas.json#retro-print",
+      "periodLabel": "Older print metaphor; 2023 published UI case",
+      "orderBandStart": null,
+      "dateBasis": "cross-period with dated revival case",
+      "dateSourceIds": [
+        "Q09"
+      ],
+      "uiSourceIds": [
+        "Q09"
+      ],
+      "uiEvidenceLevel": "indexed-interface-case",
+      "events": [
+        {
+          "date": "2023-07",
+          "event": "Miranda case in gallery publication",
+          "sourceIds": [
+            "Q09"
+          ]
+        }
+      ],
+      "datingLimit": "This dates the publication containing the case, not its first launch or the invention of paper-like web layouts."
+    },
+    {
+      "id": "atlas:romantic-botanical",
+      "name": "Romantic botanical",
+      "languageType": "operational-family",
+      "atlasConceptIds": [
+        "romantic-botanical"
+      ],
+      "definitionRef": "atlas.json#romantic-botanical",
+      "periodLabel": "Older botanical/romantic references; 2021 editorial naming context",
+      "orderBandStart": null,
+      "dateBasis": "cross-period",
+      "dateSourceIds": [
+        "AD02",
+        "I07"
+      ],
+      "uiSourceIds": [],
+      "uiEvidenceLevel": "graphic-context",
+      "events": [
+        {
+          "date": "2021-02-09",
+          "event": "Adobe creative-direction account",
+          "sourceIds": [
+            "AD02"
+          ]
+        }
+      ],
+      "datingLimit": "No representative production UI set was verified. This is a reference vocabulary, not a 2021 invention event."
+    },
+    {
+      "id": "atlas:skeuomorphism",
+      "name": "Skeuomorphic",
+      "languageType": "surface-language",
+      "atlasConceptIds": [
+        "skeuomorphism"
+      ],
+      "definitionRef": "atlas.json#skeuomorphism",
+      "periodLabel": "Older object metaphors; realism prominent in later native UI",
+      "orderBandStart": null,
+      "dateBasis": "cross-period",
+      "dateSourceIds": [
+        "H01",
+        "H20",
+        "H34",
+        "D01"
+      ],
+      "uiSourceIds": [
+        "H01",
+        "H20"
+      ],
+      "uiEvidenceLevel": "reviewed-native-metaphor-and-controls",
+      "events": [
+        {
+          "date": "2007-01-09",
+          "event": "iPhone multi-touch announcement milestone",
+          "sourceIds": [
+            "H34"
+          ]
+        }
+      ],
+      "datingLimit": "The iPhone did not invent skeuomorphism. An office metaphor, simulated material and a physical-looking control must be described separately."
+    },
+    {
+      "id": "atlas:spatial-immersive",
+      "name": "Spatial / immersive",
+      "languageType": "presentation-mode",
+      "atlasConceptIds": [
+        "spatial-immersive"
+      ],
+      "definitionRef": "atlas.json#spatial-immersive",
+      "periodLabel": "Earlier interactive-media roots; 2023 native spatial milestone",
+      "orderBandStart": null,
+      "dateBasis": "cross-period",
+      "dateSourceIds": [
+        "Q03",
+        "A04",
+        "H40"
+      ],
+      "uiSourceIds": [
+        "H40"
+      ],
+      "uiEvidenceLevel": "platform-primary-documentation",
+      "events": [
+        {
+          "date": "2023-06-05",
+          "event": "visionOS announcement as one spatial-UI milestone",
+          "sourceIds": [
+            "H40"
+          ]
+        }
+      ],
+      "datingLimit": "Immersive scenery, spatial interaction and a named native platform are different claims; none began universally with this announcement."
+    },
+    {
+      "id": "atlas:surreal-digital",
+      "name": "Surreal digital",
+      "languageType": "operational-family",
+      "atlasConceptIds": [
+        "surreal-digital"
+      ],
+      "definitionRef": "atlas.json#surreal-digital",
+      "periodLabel": "Older surrealism; 1998–2005 net-art precedent",
+      "orderBandStart": null,
+      "dateBasis": "cross-period",
+      "dateSourceIds": [
+        "R02",
+        "C13"
+      ],
+      "uiSourceIds": [
+        "Q03",
+        "Q08"
+      ],
+      "uiEvidenceLevel": "adjacent-reviewed-and-curator-examples",
+      "events": [],
+      "datingLimit": "Dream7 is an art precedent, not proof of the origin of today’s surreal/dreamcore UI or a working product flow."
+    },
+    {
+      "id": "atlas:swiss-typographic",
+      "name": "Swiss / international typographic",
+      "languageType": "aesthetic",
+      "atlasConceptIds": [
+        "swiss-typographic"
+      ],
+      "definitionRef": "atlas.json#swiss-typographic",
+      "periodLabel": "Pre-1980 graphic foundations; continuing UI relevance",
+      "orderBandStart": null,
+      "dateBasis": "older foundation",
+      "dateSourceIds": [
+        "P01",
+        "P02",
+        "P03"
+      ],
+      "uiSourceIds": [
+        "H30"
+      ],
+      "uiEvidenceLevel": "related-platform-documentation",
+      "events": [],
+      "datingLimit": "Metro’s signage/type-led intent is a related UI anchor, not proof that all Metro screenshots implement historical Swiss typography."
+    },
+    {
+      "id": "atlas:technical-utilitarian",
+      "name": "Technical / utilitarian",
+      "languageType": "operational-family",
+      "atlasConceptIds": [
+        "technical-utilitarian"
+      ],
+      "definitionRef": "atlas.json#technical-utilitarian",
+      "periodLabel": "Older instrument traditions; 1981 office-UI anchor",
+      "orderBandStart": null,
+      "dateBasis": "cross-period",
+      "dateSourceIds": [
+        "H01",
+        "L01"
+      ],
+      "uiSourceIds": [
+        "H01",
+        "L01"
+      ],
+      "uiEvidenceLevel": "designer-described-and-reviewed-interface",
+      "events": [
+        {
+          "date": "1981-04",
+          "event": "Office-information UI lineage anchor",
+          "sourceIds": [
+            "H01"
+          ]
+        },
+        {
+          "date": "2026-03-12",
+          "event": "Current product-design account",
+          "sourceIds": [
+            "L01"
+          ]
+        }
+      ],
+      "datingLimit": "The general aesthetic is older than either record. A dashboard purpose does not itself establish the look."
+    },
+    {
+      "id": "atlas:warm-organic",
+      "name": "Warm organic",
+      "languageType": "operational-family",
+      "atlasConceptIds": [
+        "warm-organic"
+      ],
+      "definitionRef": "atlas.json#warm-organic",
+      "periodLabel": "Enduring natural/material direction",
+      "orderBandStart": null,
+      "dateBasis": "cross-period",
+      "dateSourceIds": [
+        "AD02",
+        "C12",
+        "I07"
+      ],
+      "uiSourceIds": [
+        "Q05"
+      ],
+      "uiEvidenceLevel": "visually-reviewed-section",
+      "events": [],
+      "datingLimit": "A contemporary section supports material/organic staging; current branding exercises do not establish production UI history."
+    },
+    {
+      "id": "atlas:webcore",
+      "name": "Webcore / old-web nostalgia",
+      "languageType": "community-aesthetic",
+      "atlasConceptIds": [
+        "webcore"
+      ],
+      "definitionRef": "atlas.json#webcore",
+      "periodLabel": "1990s/2000s reference worlds; later personal-web revival",
+      "orderBandStart": null,
+      "dateBasis": "reference period versus unsettled revival onset",
+      "dateSourceIds": [
+        "B04",
+        "W01",
+        "W02"
+      ],
+      "uiSourceIds": [
+        "W01",
+        "W02"
+      ],
+      "uiEvidenceLevel": "creator-described-interface",
+      "events": [],
+      "datingLimit": "The creator pages demonstrate current practice. Their age/reference world cannot establish one universal revival start."
+    },
+    {
+      "id": "atlas:weirdcore",
+      "name": "Weirdcore",
+      "languageType": "community-aesthetic",
+      "atlasConceptIds": [
+        "weirdcore"
+      ],
+      "definitionRef": "atlas.json#weirdcore",
+      "periodLabel": "Contemporary community usage; first UI date unresolved",
+      "orderBandStart": null,
+      "dateBasis": "unsettled first use",
+      "dateSourceIds": [
+        "J01",
+        "J03",
+        "B06"
+      ],
+      "uiSourceIds": [],
+      "uiEvidenceLevel": "research-and-community-context",
+      "events": [],
+      "datingLimit": "Period estimates concern reference artifacts or documented use; they do not establish first-ever UI use."
+    }
+  ]
+}
