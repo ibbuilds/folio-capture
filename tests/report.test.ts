@@ -37,14 +37,15 @@ function fixtureStore(output: string, records = fixtures()): Store {
   return { output, latestCaptures: () => records, pages: () => records.map(record => ({ id: record.pageId, url: record.manifest!.requestedUrl, provenance: [], latestCaptureId: record.id })), jobs: () => [] } as unknown as Store;
 }
 
-test('catalog indexes exact regions, inherits page labels, and excludes unknown categories', async () => {
+test('catalog indexes exact regions, separates page context, and excludes unknown categories', async () => {
   const output = await mkdtemp(join(tmpdir(), 'folio-report-'));
   try {
     const index = await exportCatalog(fixtureStore(output));
     assert.equal(index.sectionIndex.length, 4);
     const hero = index.sectionIndex.find(section => section.regionId === 'hero')!;
     assert.equal(hero.profileId, 'desktop');
-    assert.ok(hero.labels.some(item => item.axis === 'industry' && item.label === 'software'));
+    assert.ok(hero.parentContext.some(item => item.axis === 'industry' && item.label === 'software'));
+    assert.equal(hero.labels.some(item => item.axis === 'industry'), false);
     assert.equal(hero.labels.some(item => item.label === 'minimal'), false);
     assert.deepEqual(hero.frames.map(frame => frame.order), [1, 2]);
     assert.ok(hero.frames[1].image.endsWith('hero-2.png'));
