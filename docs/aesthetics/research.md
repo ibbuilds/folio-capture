@@ -2,6 +2,8 @@
 
 Reviewed through **11 October 2026**. The latest scope includes flat design. The [atlas](atlas.json) contains the detailed operational definitions; [sources](sources.md) identifies evidence and access limits.
 
+The later [1980s–2026 history](ui-history.md), [chronology](timeline.md) and [UI recognition guide](ui-evidence-review.md) expand this study and supply additional date checks and corrections. This earlier report retains its original review date.
+
 ## What the research establishes
 
 A useful classifier must distinguish **visual identity, material, composition, period reference, and execution quality**. A page can have an editorial identity, flat controls, cinematic photography, and a clean hierarchy simultaneously. A section may have a different identity from its parent. Neither an aesthetic name nor a recent publication proves good execution.
