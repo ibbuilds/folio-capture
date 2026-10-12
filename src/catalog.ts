@@ -1,8 +1,8 @@
 import { mkdir, rename, rm, readFile } from 'node:fs/promises';
-import { join, relative } from 'node:path';
+import { join, relative, extname } from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { Store } from './store.ts';
-import { atomicJson, hash, idFor, inside, now } from './utils.ts';
+import { atomicJson, idFor, inside, now } from './utils.ts';
 import { trustedAsset } from './quality.ts';
 import type { ReferenceRecord } from './references.ts';
 
@@ -29,11 +29,19 @@ export async function exportAccepted(store:Store) {
         images:record.subject.frames.map((f,order)=>({id:idFor([record.subject.captureId,f.path]),order,path:`${record.directory}/${f.path}`,
           thumbnail:`${record.directory}/${f.thumbnail}`,width:f.width,height:f.height,sha256:f.sha256,bounds:f.bounds,scrollY:f.scrollY,kind:f.kind})),
       });
-    } catch(error) {exceptions.push({id:record.subject.id,reason:String(error)});}
+    } catch(error) {
+      exceptions.push({id:record.subject.id,reason:String(error)});
+      record.quality.verdict='repair';record.quality.reasons=[`Export asset verification failed: ${String(error)}`];
+      delete record.classification;store.saveReference(record);
+      const job=store.getJob('quality',`${record.subject.id}:${record.quality.cacheKey}`);
+      if(job)store.finish(job,'complete',{verdict:'repair'},String(error));
+    }
   }
-  const sites=[...new Map(records.map(r=>[r.subject.siteId,{id:r.subject.siteId,url:new URL(r.sourceUrl).origin,labels:[],assessment:'unassessed',coverage:'Only collected pages; not an exhaustive site judgment'}])).values()];
-  const pages=[...new Map(records.map(r=>[r.subject.pageId,{id:r.subject.pageId,parentId:r.subject.siteId,url:r.sourceUrl,labels:[],classificationScope:'See independently assessed viewport references'}])).values()];
-  const sections=[...new Map(records.filter(r=>r.subject.sectionId).map(r=>[r.subject.sectionId!,{id:r.subject.sectionId!,parentId:r.subject.pageId,title:r.subject.title,order:r.subject.order,correspondence:'inferred; labels never inherited',labels:[]}])).values()];
+  const acceptedIds=new Set(references.map(r=>r.id));
+  const graphRecords=eligible.filter(r=>acceptedIds.has(r.subject.id));
+  const sites=[...new Map(graphRecords.map(r=>[r.subject.siteId,{id:r.subject.siteId,url:new URL(r.sourceUrl).origin,labels:[],assessment:'unassessed',coverage:'Only collected pages; not an exhaustive site judgment'}])).values()];
+  const pages=[...new Map(graphRecords.map(r=>[r.subject.pageId,{id:r.subject.pageId,parentId:r.subject.siteId,url:r.sourceUrl,labels:[],classificationScope:'See independently assessed viewport references'}])).values()];
+  const sections=[...new Map(graphRecords.filter(r=>r.subject.sectionId).map(r=>[r.subject.sectionId!,{id:r.subject.sectionId!,parentId:r.subject.pageId,title:r.subject.title,order:r.subject.order,correspondence:'inferred; labels never inherited',labels:[]}])).values()];
   const indexes:Record<string,string[]>={};
   const add=(key:string,id:string)=>{indexes[key]??=[];if(!indexes[key].includes(id))indexes[key].push(id);};
   const axes:Record<string,string>={visual_style:'aesthetic',appearance:'appearance',section_purpose:'section',page_purpose:'page',experience:'experience',composition:'composition'};
@@ -84,7 +92,12 @@ export async function pruneQuarantine(store:Store,olderThanDays:number) {
   }
   let removed=0;
   for(const record of candidates) {
-    const paths=assets(record).filter(path=>!protectedPaths.has(inside(store.output,path)));
+    const captureRoot=inside(store.output,record.directory);
+    const paths=assets(record).filter(path=>{
+      const target=inside(store.output,path);inside(captureRoot,relative(captureRoot,target));
+      if(!['.png','.webp'].includes(extname(target).toLowerCase()))throw new Error('Pruning is restricted to capture image assets');
+      return !protectedPaths.has(target);
+    });
     if(!paths.length)continue;
     // Tombstone before removal makes retry safe after interruption; original hashes/reasons remain in SQLite.
     record.pruned={at:record.pruned?.at??now(),paths:[...new Set([...(record.pruned?.paths??[]),...paths])]};

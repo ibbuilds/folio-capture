@@ -4,7 +4,11 @@ output: ./output
 freshnessDays: 730
 classifier:
   runner: codex # Use none for a completely model-free run.
-  # model: your-available-vision-model
+  model: gpt-6.1-sol
+  reasoning: high
+quality:
+  maxImages: 24 # Larger subjects remain uncertain rather than sampling unseen frames.
+  quarantineDays: 30 # Applied only by the explicit prune command.
 sources:
   - https://linear.app/
   - https://vercel.com/

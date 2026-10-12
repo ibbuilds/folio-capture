@@ -264,10 +264,62 @@ const distinctions: Record<string, { aliases: string[]; traits: string[]; counte
   vaporwave: { aliases: ['vapor-wave'], traits: ['Retro-futurist nostalgia','Surreal digital motifs','Pastel/neon with historical computing or classical references'], counter: ['Pink gradient alone','Any futuristic dark interface'], neighbors: ['retro','futuristic','maximalist'] },
   futuristic: { aliases: ['sci-fi'], traits: ['Speculative technological motifs','Coherent advanced-interface visual language'], counter: ['An AI product name','Dark palette alone'], neighbors: ['industrial','vaporwave'] },
 };
-for (const concepts of Object.values(TAXONOMY)) for (const concept of concepts) {
+const styleDistinctions: Record<string, [string[], string[], string[]]> = {
+  editorial: [['Publication-like type hierarchy','Deliberate reading rhythm'],['A serif headline on an otherwise conventional application'],['minimal','luxurious']],
+  geometric: [['Repeated geometric forms organize hierarchy'],['One decorative circle or an ordinary rectangular card'],['minimal','playful']],
+  playful: [['Informal expressive forms','A coherent lighthearted tone'],['A single bright accent on a formal interface'],['geometric','maximalist']],
+  maximalist: [['Intentional layered variety','Rich information or ornament arranged coherently'],['Accidental clutter or an unstyled crowded page'],['playful','vaporwave']],
+  skeuomorphic: [['Identifiable physical object or material analogy','Affordances follow the analogy'],['An ordinary soft shadow without a physical metaphor'],['neumorphism','retro']],
+  industrial: [['Exposed structural motifs','Technical labeling','Utilitarian detailing'],['An industrial company logo with generic cards'],['futuristic','brutalist']],
+  cinematic: [['Immersive imagery','Dramatic staged composition','Film-like pacing visible in captured states'],['Any full-width photograph'],['luxurious','editorial']],
+  organic: [['Natural irregular forms','Coherent tactile or living motifs'],['Green branding or a single leaf icon'],['playful','skeuomorphic']],
+  luxurious: [['Refined hierarchy','Controlled material-rich details','Consistent crafted presentation'],['A high price or gold accent alone'],['minimal','editorial']],
+};
+const axisCounterexamples: Record<TaxonomyAxis, string> = {
+  experience:'A marketing screenshot depicting an application does not establish that the page itself is an application.',
+  page_purpose:'A pricing or about link in navigation does not make the current page a pricing or about page.',
+  section_purpose:'Neighboring section headings and navigation destinations do not establish this section function.',
+  composition:'Document-wide CSS grid declarations do not establish the visible arrangement in this region.',
+  visual_style:'One decorative effect or a library tag does not establish a coherent aesthetic.',
+  appearance:'A light background does not establish clarity, glass depth or soft extrusion.',
+  typography:'A font in a fallback stack does not prove it rendered; large type does not establish an aesthetic.',
+  color_palette:'A small accent color or invisible background declaration does not establish the dominant palette.',
+  density:'A sparse screenshot crop does not establish the density of an unseen whole section.',
+  imagery:'An invisible media element or an offscreen image does not establish visible imagery treatment.',
+  surface_treatment:'A shadow on a tiny icon does not establish the treatment of the principal surfaces.',
+  industry:'Brand color, typography, aesthetics and library tags do not establish the product industry.',
+  audience:'Price, visual sophistication or technical-looking styling do not establish intended users.',
+  interaction_pattern:'A still image of a control does not prove working transitions or an uncaptured flow.',
+};
+const related: Partial<Record<TaxonomyAxis, string[][]>> = {
+  experience:[['marketing','product-ui'],['commerce','marketing'],['editorial','documentation'],['portfolio','marketing']],
+  page_purpose:[['home','landing'],['pricing','product-detail'],['about','home'],['dashboard','listing'],['authentication','checkout'],['article','documentation']],
+  section_purpose:[['hero','cta'],['features','process'],['pricing','comparison'],['testimonials','social-proof'],['metrics','social-proof'],['gallery','listing'],['faq','content'],['form','controls'],['navigation','footer'],['data-display','content']],
+  composition:[['single-column','centered'],['two-column','text-media-split'],['multi-column','grid'],['sidebar','two-column'],['asymmetric','text-media-split'],['full-bleed-media','layered-media']],
+  typography:[['sans-serif','serif'],['monospace','sans-serif'],['display','oversized-type'],['condensed','display']],
+  color_palette:[['monochrome','neutral'],['dark','light'],['muted','pastel'],['vibrant','high-contrast']],
+  density:[['sparse','balanced'],['balanced','dense'],['dense','mixed']],
+  imagery:[['photography','3d-render'],['illustration','3d-render'],['product-ui','device-mockup'],['icon-led','type-led'],['video-frame','photography'],['none','unknown']],
+  surface_treatment:[['flat','soft-shadow'],['outlined','hard-shadow'],['rounded','layered'],['translucent','backdrop-blur'],['gradient','textured']],
+  interaction_pattern:[['tabs','navigation-menu'],['accordion-controls','modal'],['search','filters'],['filters','sorting'],['carousel-controls','horizontal-scroll'],['form','search'],['pagination','carousel-controls'],['toast','modal'],['command-menu','navigation-menu']],
+};
+for (const [axisName, concepts] of Object.entries(TAXONOMY)) for (const concept of concepts) {
+  const axis=axisName as TaxonomyAxis;
   const distinction = distinctions[concept.label];
-  if (distinction) Object.assign(concept, { aliases: distinction.aliases, supportingTraits: distinction.traits, counterexamples: distinction.counter, confusingNeighbors: distinction.neighbors });
-  else concept.confusingNeighbors = concepts.filter(other => other.label !== concept.label && other.label !== 'unknown').slice(0, 3).map(other => other.label);
+  if (distinction && (axis==='visual_style'||axis==='appearance')) Object.assign(concept, { aliases: distinction.aliases, supportingTraits: distinction.traits, counterexamples: distinction.counter, confusingNeighbors: distinction.neighbors });
+  else if(axis==='visual_style' && styleDistinctions[concept.label]) {
+    const [traits,counter,neighbors]=styleDistinctions[concept.label];
+    Object.assign(concept,{supportingTraits:traits,counterexamples:counter,confusingNeighbors:neighbors});
+  } else {
+    concept.counterexamples=[axisCounterexamples[axis]];
+    concept.confusingNeighbors=[...new Set((related[axis]??[]).filter(pair=>pair.includes(concept.label)).flat().filter(label=>label!==concept.label&&concepts.some(c=>c.label===label)))];
+    if(!concept.confusingNeighbors.length)concept.confusingNeighbors=['unknown'];
+    if(concept.label==='unknown') {
+      concept.supportingTraits=['Insufficient direct evidence to support a specific label'];
+      concept.counterexamples=['Sufficient direct evidence for a defined label must not be replaced with unknown.'];
+      concept.confusingNeighbors=concepts.filter(c=>c.label!=='unknown').map(c=>c.label);
+    }
+  }
 }
 export function normalizeLabel(axis: TaxonomyAxis, input: string): string | undefined {
   const value = input.trim().toLowerCase();

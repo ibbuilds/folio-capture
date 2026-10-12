@@ -267,7 +267,7 @@ function validateOutput(raw: string, evidence: EvidenceItem[], images: ImageInpu
     if (label.label !== 'unknown' && label.evidenceIds.length === 0) throw new ClassifierError('A supported label must cite evidence.', 'validation');
     if (label.regionId !== null && label.evidenceIds.some(id => ids.get(id)?.regionId && ids.get(id)?.regionId !== label.regionId)) throw new ClassifierError('Region evidence belongs to another region.', 'validation');
     if (axis === 'visual_style' && label.label !== 'unknown' && !label.evidenceIds.some(id => imageIds.has(id))) throw new ClassifierError('Visual style needs an attached image reference; source tags are insufficient.', 'validation');
-    if (['typography', 'color_palette', 'density', 'imagery', 'surface_treatment', 'interaction_pattern'].includes(axis) && label.label !== 'unknown' && !label.evidenceIds.some(id => imageIds.has(id))) throw new ClassifierError('Visual treatments and observed patterns require an attached image reference.', 'validation');
+    if (['appearance', 'typography', 'color_palette', 'density', 'imagery', 'surface_treatment', 'interaction_pattern'].includes(axis) && label.label !== 'unknown' && !label.evidenceIds.some(id => imageIds.has(id))) throw new ClassifierError('Visual treatments and observed patterns require an attached image reference.', 'validation');
     if (axis === 'interaction_pattern' && label.label === 'horizontal-scroll' && !label.evidenceIds.some(id => {
       const item = ids.get(id); return item !== undefined && observedHorizontalScroll(item);
     })) throw new ClassifierError('A horizontal-scroll claim requires a captured mechanical scroll-state reference as well as an image.', 'validation');

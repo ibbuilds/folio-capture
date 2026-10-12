@@ -1,76 +1,104 @@
 # Folio Capture
 
-Our internal tool for building a local catalog of design references. It captures original public pages, preserves sections and context, and exports evidence for the future Folio library and Design Kit.
+A local reference-collection engine: **sources → discovery → clean capture → quality assessment → classification → export**. The future library frontend and MCP live in another repository.
 
-## Setup
+## Setup and use
 
-Use Node **24.15 or newer in the 24.x line**. From this folder:
+Requires Node **24.15–24.x**, the pinned Playwright Chromium build, and an authenticated Codex CLI for visual judgments.
 
 ```sh
 npm ci
 npm run setup
+npm run capture
 ```
 
-Playwright uses its pinned Chromium build, separate from your personal browser. Codex is optional: the normal run enriches images through your installed CLI and existing sign-in; `--capture-only` requires no model.
-
-## Add sources and run
-
-Edit `sources.yaml`. URLs can be original pages or Refero Styles collections:
+Edit `sources.yaml`:
 
 ```yaml
 output: ./output
 freshnessDays: 730
 classifier:
   runner: codex
+  model: gpt-6.1-sol
+  reasoning: high
+quality:
+  maxImages: 24
+  quarantineDays: 30
 sources:
-  - https://linear.app/
-  - url: https://styles.refero.design/
-    kind: library
+  - https://example.com/pricing
+  - url: https://example.com/
+    kind: site
+    maxPages: 25
+    maxDepth: 2
+  - https://styles.refero.design/
+  - https://recent.design/websites
 ```
 
+A direct URL captures that page and its sections. `site` traverses same-origin navigation within the configured limits. Supported library collections resolve explicit original-site links, preserve the discovery path, and also capture the supplied library page itself. Its quality does not control traversal. The registry supports Refero Styles and Recent website collections; Godly's homepage maps discovery to Recent. Unknown structures remain exceptions. These adapters have deterministic traversal tests; Recent still needs a practical live trial.
+
+Six profiles cover desktop (1920×1080, 1440×1000), tablet (1024×768, 768×1024), and mobile (390×844, 360×800). PNG originals use DPR 2 with separate WebP thumbnails. Custom `profiles` support DPR 3 without upscaling. Captures use fresh contexts, light preference, normal motion, progressive scrolling and scoped nuisance cleanup. Intentional modals and sticky design elements are preserved.
+
+## Saved work and commands
+
 ```sh
-npm run capture
 npm run capture -- --capture-only --limit 3
 npm run folio -- status
+npm run folio -- retry
+npm run folio -- refresh --source https://example.com/pricing
+npm run folio -- reassess
+npm run folio -- classify --refresh
+npm run folio -- export
+npm run folio -- prune --older-than-days 30
+npm run folio -- evaluate --benchmark reviewed.json
+```
+
+`capture-only` and `classifier.runner: none` collect without a model. They **do not** approve references. `reassess` evaluates saved images without opening websites; `classify` enriches only accepted saved references. Authentication errors, usage limits, timeouts and invalid model output leave jobs pending. Interrupted work resumes from SQLite, including a completed assessment whose critique failed. Model action tools are disabled.
+
+Each page variant and section variant is assessed independently against hierarchy, typography/readability, spacing/consistency, aesthetic coherence, imagery/content fit and execution at the captured viewport. Both assessment and critique must support 9–10 with no material weakness. Disagreement is uncertain; broken captures require repair. An excellent section can qualify inside a rejected page. Page acceptance requires complete recorded coverage and all its frames. Subjects above `quality.maxImages` stay uncertain instead of granting unsampled frames a judgment.
+
+**Quality results are experimental.** Passing contract tests or two agreeing judgments does not establish aesthetic accuracy. No independent benchmark result or 98% precision is claimed. Publication date, awards and minimalism are not quality shortcuts; basic readability matters without requiring an exhaustive accessibility audit.
+
+## Local output
+
+```text
+output/
+  state.sqlite
+  index.json                         # collection ledger, includes unassessed captures
+  catalog.json                       # accepted, classified references only
+  quarantine.json                    # rejected/uncertain/pending/repair inventory
+  exports/<generation>/
+    catalog.json
+    indexes/aesthetic/clean.json
+    indexes/section/testimonials.json
+    indexes/viewport/tablet.json
+  captures/<page-id>/<capture-version>/
+    manifest.json                    # original version-one capture contract
+    evidence.json
+    classification.json              # legacy/deterministic metadata, preserved
+    references.v2.json               # scoped quality + classification records
+    desktop/ ... mobile/ thumbnails/ diagnostics/
+```
+
+`catalog.json` is published atomically after its immutable category-index generation is ready. Paths to images and indexes are relative to the **output root**. Each reference has stable IDs, parent links, viewport, image dimensions/hashes, exact-scope labels, evidence, provenance and quality decisions. Category indexes reference IDs; they never copy images. Site/page/section context nodes carry no invented inherited labels. Page-wide judgments live on their assessed page/viewport references. Site-wide quality remains unassessed: collecting some pages does not establish the quality of an entire site.
+
+Aesthetics and appearance are separate: minimal/minimalist/minimalistic normalize to minimal; clean remains independently searchable. Retro, vaporwave, futuristic, brutalist, neobrutalist, glass and neumorphic treatments have versioned definitions and evidence constraints. Multiple labels can coexist. Sections never inherit parent aesthetics. Library terminology stays source provenance.
+
+Quarantine is **logical**, so images remain at their original capture paths until explicit pruning. Pruning removes only old rejected assets not shared with accepted, uncertain, pending or unassessed subjects. URLs, hashes and reasons remain. Protected/shared assets may therefore survive pruning. Old export generations remain on disk; consumers should start from the current root catalog.
+
+The local QA report is optional:
+
+```sh
+npm run folio -- report
 npm run folio -- serve
 ```
 
-Open the URL printed by `serve` to inspect the local report. The output path is relative to the YAML file; an absolute folder works too. `--output` overrides it relative to your terminal directory. Defaults cover six profiles at DPR 2: wide desktop 1920×1080, desktop 1440×1000, landscape tablet 1024×768, portrait tablet 768×1024, mobile 390×844, and small mobile 360×800. These record representative layouts; they do not claim every possible pixel width was inspected. Customize `profiles` in YAML to add exact widths or reduce a pilot run.
-
-Refero can contain thousands of entries. Start with `--limit 3`, inspect the result, then run without a limit. A limit is a checkpoint, not proof that a library is exhausted.
-
-## Resume, retry, and refresh
-
-Running the same command resumes interrupted jobs, scans the library for new entries, and reuses successful captures until their freshness period expires. Recorded failures remain visible until explicitly retried.
-
-```sh
-npm run folio -- retry
-npm run folio -- refresh --source https://linear.app/
-npm run folio -- classify
-npm run folio -- classify --refresh
-npm run folio -- report
-```
-
-`classify` works only on saved images. A missing CLI, authentication issue, timeout, or usage limit never erases captures. Each enrichment attempt has a configurable 15-minute total budget because six responsive variants can contain many sections; completed image batches are cached and resume on retry. To use a particular available vision model, set `classifier.model`; otherwise the classifier uses the Codex CLI default, which may differ from the model selected in this chat. It preserves authentication while isolating analysis from user-configured action tools. No new API account is required.
-
-## Output and interpretation
-
-`output/state.sqlite` records discovery, resolution, capture, viewport, and classification jobs. `index.json` contains category indexes and the latest published attempt per page. Each capture version contains manifests, DOM evidence, classification, section images, thumbnails, and cleanup diagnostics. Images belong to one capture; tags reference them rather than duplicate them.
-
-Captured, complete, classified, and approved mean different things. Every automatically captured page begins unreviewed. Uncertain section boundaries and style labels remain explicit. Library labels retain their source provenance. Static images do not establish an interaction flow.
-
-The thirteen retrieval axes cover experience, page purpose, section purpose, composition, aesthetic, typography, palette, density, imagery, surface treatment, industry, audience, and observed interaction patterns. The report shows four default filters (aesthetic, composition, section, viewport); specialist fields stay under More filters. It combines filters **within the same section**, with relevant page-level labels inherited. `index.json` includes section-level category references for Folio; filtering a hero by an aesthetic never borrows that aesthetic from an unrelated footer.
-
-Cookie cleanup rejects optional consent through known adapters, dismisses positively identified promotional overlays, and logs interventions. Intentional product modals and sticky design content are preserved. Login walls, CAPTCHAs, unknown blockers, broken media, and incomplete coverage appear as exceptions.
-
-Infinite-scroll discovery reports an **observed plateau** separately from an explicit end. Failed loading checks never count toward completion. Refero entries without an explicit original-site link stay unresolved. Other reference libraries require dedicated adapters; `kind: library` marks them unsupported rather than treating their homepage as collected.
+Neither capture nor export generates or opens a frontend automatically. The optional report is a collection ledger, not the accepted catalog.
 
 ## Verification
 
 ```sh
 npm run build
 npm test
-npm run test:live
 ```
 
-Optional live verification writes to a separate folder and uses model-free captures. Technical checks establish recorded capture coverage and recovery behavior; visual inspection establishes whether references are useful. See [validation evidence](docs/validation.md), the [classification research](docs/classification-research.md), the [useful source inventory](docs/reference-sources.md), and the [classification and curation plan](docs/classification-plan.md). Taxonomy v2, its benchmark, and a calibrated 9–10 gate remain planned work. Captured references are not automatically curated. Recent curated sources help discover promising work; publication age does not determine quality. Curation focuses on design fundamentals, without requiring exhaustive accessibility audits.
+The suite uses browser fixtures and mock classifiers: no live collection or authenticated model calls. It covers capture cleanup, coordinates, recovery, scoped selection, shared-image pruning, schema validation and adapter traversal. [Quality evaluation](docs/quality-evaluation.md) explains the independently reviewed benchmark input, precision, coverage and uncertainty. [Implementation notes](docs/engine-v2.md), [research](docs/classification-research.md), and [prior capture evidence](docs/validation.md) document scope and limitations.

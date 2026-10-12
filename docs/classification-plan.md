@@ -1,3 +1,5 @@
+> Historical research proposal. The accepted automatic-selection implementation supersedes its manual-approval-first workflow; see [engine v2](engine-v2.md). Benchmark quality remains unvalidated.
+
 # Classification and curation plan
 
 Research reviewed on 2026-10-11. This is the implementation plan for the next phase, not a claim that its taxonomy, model accuracy, or quality gate has already been validated. The supporting [research review](classification-research.md) distinguishes findings from our proposed decisions.

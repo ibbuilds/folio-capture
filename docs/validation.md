@@ -25,3 +25,7 @@ Large captures classify in bounded image batches. A failed enrichment leaves the
 ## Scope
 
 This repository contains the collection/classification engine and its local capture report. Product-design demos are excluded. The completed [classification research review](classification-research.md) supports the [next implementation plan](classification-plan.md); no live captures or model runs were added for that review. Human benchmark collection, calibrated editorial acceptance, manual trials, and Design Kit integration remain future work.
+
+## Engine v2 implementation
+
+The current normal pipeline adds persisted assessment and critique, section/viewport selection, accepted-only classification, local catalog generations and safe quarantine pruning. Deterministic fixtures validate these contracts and Recent/site traversal; they do not validate aesthetic judgment accuracy. No new live capture, model run or design demo was performed for v2. See [engine contracts](engine-v2.md) and the [independent benchmark protocol](quality-evaluation.md). Earlier visual exercises above describe v1 only.

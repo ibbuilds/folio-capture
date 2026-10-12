@@ -283,12 +283,12 @@ test('unconfigured model is explicitly recorded as the existing CLI default', as
   assert(result.warnings.some(warning => warning.includes('exact model/version')));
 });
 
-test('all thirteen retrieval axes abstain explicitly while measured typography and named audience retain evidence', () => {
+test('all fourteen retrieval axes abstain explicitly while measured typography and named audience retain evidence', () => {
   const { manifest, evidence } = fixture();
   (evidence[0]!.value as Record<string, unknown>).text = 'Our service is built for developers. Get started with features for customers.';
   (evidence[1]!.value as Record<string, unknown>).styles = { fontFamily: 'Inter, sans-serif', backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(12px)' };
   const result = heuristicClassification(manifest, evidence);
-  assert.equal(TAXONOMY_AXES.length, 13);
+  assert.equal(TAXONOMY_AXES.length, 14);
   assert(result.labels.some(label => label.axis === 'audience' && label.label === 'developers' && label.evidenceIds.includes('page-dom')));
   assert(result.labels.some(label => label.axis === 'typography' && label.label === 'sans-serif' && label.provenance === 'measured'));
   assert(!result.labels.some(label => label.axis === 'typography' && label.label === 'serif'));

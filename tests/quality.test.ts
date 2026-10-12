@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import sharp from 'sharp';
+import { evaluateQuality } from '../src/evaluation.ts';
+import { validateStoredCapture } from '../src/pipeline.ts';
 import { Store } from '../src/store.ts';
 import { parseConfig } from '../src/config.ts';
 import { curateCapture, validateQualityPass, validateScopedLabels, CRITERIA, combinePasses } from '../src/quality.ts';
@@ -80,6 +82,7 @@ test('scopes, mixed labels and viewport acceptance preserve images once and reje
   await access(join(root,directory,'desktop-0.png'));
   await assert.rejects(access(join(root,directory,'desktop-1.png')));
   assert.equal((await exportAccepted(store)).references.length,1);
+  assert.equal(await validateStoredCapture(store,store.capture('fixture')!),true,'Pruned rejected frames do not trigger recapture');
   assert.ok(store.references().some(r=>r.pruned && r.quality.reasons.length && r.subject.frames[0].sha256));
 });
 
@@ -130,4 +133,25 @@ test('unassessed captures and assets shared with accepted pages survive quaranti
   rejected.quality.verdict='rejected';store.saveReference(rejected);
   assert.equal((await pruneQuarantine(store,0)).removed,0);
   await access(join(root,directory,rejected.subject.frames[0].path));
+});
+
+test('offline evaluation reports precision uncertainty and rejects changed benchmark pixels',async t=>{
+  const {store,config}=await setup(t);await curateCapture(store,'fixture',config,{runProcess:mockRunner()});
+  const records=store.references();
+  const dataset={schemaVersion:1,datasetVersion:'synthetic-contract-only',frozenAt:'2026-10-12T00:00:00Z',independentReview:true,
+    reviewProtocol:'Synthetic contract fixture; this is not an actual human-reviewed aesthetic benchmark.',
+    items:records.map(r=>({subjectId:r.subject.id,imageHashes:r.subject.frames.map(f=>f.sha256),aesthetic:'minimal',viewport:r.subject.viewport,
+      grade:r.quality.verdict==='accepted'?'excellent':'weak',reviewer:'fixture-only',reviewedAt:'2026-10-11T00:00:00Z',reason:'Synthetic expected label for evaluator mechanics only.'}))};
+  const result=evaluateQuality(dataset,records);assert.equal(result.overall.precision.observed,1);assert.ok(result.overall.precision.wilson95![0]<.98);
+  assert.equal(result.overall.selectionCoverage,1/6);assert.equal(result.independentSites,1);
+  for(const r of records)r.quality.verdict='uncertain';assert.equal(evaluateQuality(dataset,records).overall.precision.observed,null);
+  dataset.items[0].imageHashes=['0'.repeat(64)];assert.throws(()=>evaluateQuality(dataset,records),/pixels changed/);
+});
+
+test('usage limits disable subsequent curation calls in the same collection run',async t=>{
+  const {store,config}=await setup(t);const runtime={unavailable:false};let calls=0;
+  await curateCapture(store,'fixture',config,{runtime,runProcess:mockRunner({failure:()=>{calls++;return true;}})});
+  assert.equal(runtime.unavailable,true);assert.equal(calls,1);
+  await curateCapture(store,'fixture',config,{runtime,runProcess:mockRunner({counter:()=>calls++})});
+  assert.equal(calls,1);assert.ok(store.references().every(r=>r.quality.verdict==='pending'));
 });

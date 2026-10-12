@@ -36,7 +36,8 @@ export function referenceSubjects(manifest: PageManifest): ReferenceSubject[] {
     const viewport = variant.profile.width <= 600 ? 'mobile' : variant.profile.width <= 1100 ? 'tablet' : 'desktop';
     const pageVariantId = idFor([manifest.captureId, 'page', variant.profile.id]);
     const common = { siteId, pageId: manifest.pageId, captureId: manifest.captureId, profileId: variant.profile.id, viewport } as const;
-    const issues = variant.warnings.filter(w => /broken|obstruct|blocked|uncovered|truncat|unrelated|failed|missing|unhandled/i.test(w));
+    // Unlocalized capture warnings cannot safely be interpreted as design weaknesses.
+    const issues = variant.warnings.filter(w => !/^(Capture coverage contains gaps|Exploration limit reached)/.test(w));
     if (variant.status === 'blocked' || variant.status === 'failed') issues.push(`Capture ${variant.status}`);
     if (variant.interventions.some(i => !i.verified)) issues.push('Unverified nuisance intervention');
     let covered = 0;
