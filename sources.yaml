@@ -1,0 +1,18 @@
+# Add original pages or supported reference-library URLs here.
+# The output folder is resolved relative to this file; an absolute path also works.
+output: ./output
+freshnessDays: 730
+classifier:
+  runner: codex # Use none for a completely model-free run.
+  model: gpt-6.1-sol
+  reasoning: high
+quality:
+  maxImages: 24 # Larger subjects remain uncertain rather than sampling unseen frames.
+  quarantineDays: 30 # Applied only by the explicit prune command.
+sources:
+  - https://linear.app/
+  - https://vercel.com/
+  - https://www.flyhyer.com/
+  # Uncomment to collect Refero Styles. It can contain thousands of entries.
+  # - url: https://styles.refero.design/
+  #   kind: library

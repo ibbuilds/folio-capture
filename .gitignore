@@ -1,0 +1,8 @@
+node_modules/
+.cache/
+output/
+validation-output/
+.folio-test-output/
+*.sqlite*
+.env
+dist/
