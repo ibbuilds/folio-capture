@@ -24,4 +24,4 @@ Large captures classify in bounded image batches. A failed enrichment leaves the
 
 ## Scope
 
-This repository contains the collection/classification engine and its local capture report. Product-design demos are excluded. Manual trials, deeper aesthetic research, editorial acceptance, and Design Kit integration will follow after the foundation is reviewed with us.
+This repository contains the collection/classification engine and its local capture report. Product-design demos are excluded. The completed [classification research review](classification-research.md) supports the [next implementation plan](classification-plan.md); no live captures or model runs were added for that review. Human benchmark collection, calibrated editorial acceptance, manual trials, and Design Kit integration remain future work.
