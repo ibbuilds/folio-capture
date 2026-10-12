@@ -49,5 +49,6 @@ export async function delay(ms: number, signal?: AbortSignal): Promise<void> {
 export function isRelatedDestination(requested: string, destination: string): boolean {
   const a = new URL(requested).hostname.replace(/^www\./, '');
   const b = new URL(destination).hostname.replace(/^www\./, '');
+  if(a==='godly.website' && b==='recent.design')return true; // Known library successor only.
   return a === b || a.endsWith(`.${b}`) || b.endsWith(`.${a}`);
 }

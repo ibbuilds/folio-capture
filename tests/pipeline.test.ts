@@ -44,6 +44,7 @@ test('end-to-end capture resumes, publishes atomically, reuses pixels, and repor
     const second=await runPipeline(config,{captureOnly:true,log:()=>{}});
     assert.equal(second.reused,1);assert.equal(second.captured,0);assert.equal(requests,requestsBefore);
     const index=JSON.parse(await readFile(join(root,'index.json'),'utf8'));assert.equal(index.pages.length,1);
-    assert.equal(index.pages[0].variants.length,6);assert.ok((await readFile(join(root,'report.html'),'utf8')).includes('tablet-landscape'));
+    assert.equal(index.pages[0].variants.length,6);assert.equal(JSON.parse(await readFile(join(root,'catalog.json'),'utf8')).references.length,0);
+    await assert.rejects(readFile(join(root,'report.html'),'utf8')); // Report is explicitly opt-in.
   }finally{inspectedStore?.close();await new Promise<void>(resolve=>server.close(()=>resolve()));await rm(root,{recursive:true,force:true,maxRetries:3,retryDelay:100});}
 });
