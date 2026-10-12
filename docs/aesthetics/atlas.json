@@ -1,0 +1,2398 @@
+{
+  "schemaVersion": 1,
+  "researchVersion": "2026.10.11",
+  "reviewedOn": "2026-10-11",
+  "preparedOn": "2026-10-12",
+  "runtimeTaxonomyChanged": false,
+  "aliasPolicy": "aliases are proposed exact normalization within this atlas; queryExpansions are related search terms, never evidence or automatic label equivalences.",
+  "purpose": "Research atlas and proposed retrieval rules; not an automatically installed or semantically validated classifier taxonomy.",
+  "latestScopeDecision": "Flat design and semi-flat variants are included following the user correction.",
+  "coverageLimits": [
+    "Broad documented map, not a universal exhaustive ontology.",
+    "Original period, revival, naming, source publication and capture dates are different.",
+    "Operational families, community names, official platform systems and surface treatments need different evidence.",
+    "No prevalence survey, quality calibration, live collection run or runtime classifier change was performed."
+  ],
+  "families": [
+    {
+      "id": "minimal",
+      "name": "Minimal"
+    },
+    {
+      "id": "editorial",
+      "name": "Editorial / typographic"
+    },
+    {
+      "id": "graphic",
+      "name": "Graphic / bold"
+    },
+    {
+      "id": "technical",
+      "name": "Technical / industrial"
+    },
+    {
+      "id": "playful",
+      "name": "Playful / tactile"
+    },
+    {
+      "id": "organic",
+      "name": "Organic / romantic"
+    },
+    {
+      "id": "cinematic",
+      "name": "Cinematic / immersive"
+    },
+    {
+      "id": "retro",
+      "name": "Retro / internet nostalgia"
+    },
+    {
+      "id": "futuristic",
+      "name": "Futuristic / cyber"
+    },
+    {
+      "id": "experimental",
+      "name": "Experimental / surreal"
+    }
+  ],
+  "concepts": [
+    {
+      "id": "minimal",
+      "name": "Minimal / minimalist",
+      "kind": "aesthetic",
+      "familyIds": [
+        "minimal"
+      ],
+      "definition": "Restrained ornament and competing devices, with deliberate hierarchy; information density can still be high.",
+      "aliases": [
+        "minimalist",
+        "minimalistic",
+        "minimalism"
+      ],
+      "positiveEvidence": [
+        "Controlled graphic vocabulary",
+        "Clear hierarchy",
+        "Deliberate negative space"
+      ],
+      "counterexamples": [
+        "An unfinished empty page",
+        "White alone"
+      ],
+      "confusingNeighbors": [
+        "flat",
+        "clean",
+        "swiss-typographic"
+      ],
+      "sourceIds": [
+        "N01",
+        "L01"
+      ],
+      "historicalContext": "Older roots; contemporary digital adaptations.",
+      "retrievalRole": "primary",
+      "documentationNote": "Operational visual rule synthesized for retrieval; not a validated classification boundary.",
+      "queryExpansions": []
+    },
+    {
+      "id": "swiss-typographic",
+      "name": "Swiss / international typographic",
+      "kind": "aesthetic",
+      "familyIds": [
+        "editorial",
+        "technical"
+      ],
+      "definition": "Precise typographic communication organized through systematic alignment and proportional relationships.",
+      "aliases": [
+        "international typographic style"
+      ],
+      "positiveEvidence": [
+        "Grid rhythm",
+        "Typographic hierarchy",
+        "Controlled asymmetry"
+      ],
+      "counterexamples": [
+        "Helvetica alone",
+        "Any grid"
+      ],
+      "confusingNeighbors": [
+        "minimal",
+        "editorial",
+        "vectorheart"
+      ],
+      "sourceIds": [
+        "P01",
+        "P02",
+        "P03"
+      ],
+      "historicalContext": "Mid-century roots; continuing digital reinterpretation.",
+      "retrievalRole": "variant",
+      "documentationNote": "Operational visual rule synthesized for retrieval; not a validated classification boundary.",
+      "queryExpansions": []
+    },
+    {
+      "id": "editorial",
+      "name": "Editorial",
+      "kind": "aesthetic",
+      "familyIds": [
+        "editorial"
+      ],
+      "definition": "Publication-like type, imagery and reading rhythm organize the experience.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Reading hierarchy",
+        "Publication-like type relationships",
+        "Text/image pacing"
+      ],
+      "counterexamples": [
+        "One serif heading",
+        "An article page alone"
+      ],
+      "confusingNeighbors": [
+        "swiss-typographic",
+        "retro-print",
+        "refined-luxury"
+      ],
+      "sourceIds": [
+        "Q01",
+        "Q09",
+        "Q10"
+      ],
+      "historicalContext": "Print lineage; contemporary examples through October 2026.",
+      "retrievalRole": "primary",
+      "documentationNote": "Operational visual rule synthesized for retrieval; not a validated classification boundary.",
+      "queryExpansions": []
+    },
+    {
+      "id": "refined-luxury",
+      "name": "Refined / luxury",
+      "kind": "operational-family",
+      "familyIds": [
+        "minimal",
+        "editorial",
+        "cinematic"
+      ],
+      "definition": "Composed, material-conscious presentation with controlled emphasis and staged content.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Refined type",
+        "Controlled emphasis",
+        "Purposeful material staging"
+      ],
+      "counterexamples": [
+        "An expensive brand",
+        "Gold alone"
+      ],
+      "confusingNeighbors": [
+        "austurbane",
+        "minimal",
+        "romantic-botanical"
+      ],
+      "sourceIds": [
+        "C12",
+        "Q02"
+      ],
+      "historicalContext": "Enduring brand language; current 2026 example.",
+      "retrievalRole": "variant",
+      "documentationNote": "A retrieval descriptor; price and awards do not establish quality.",
+      "queryExpansions": [
+        "quiet luxury",
+        "premium"
+      ]
+    },
+    {
+      "id": "technical-utilitarian",
+      "name": "Technical / utilitarian",
+      "kind": "operational-family",
+      "familyIds": [
+        "technical"
+      ],
+      "definition": "Instrument-like clarity uses systematic notation and precise information grouping.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Systematic labels",
+        "Functional hierarchy",
+        "Consistent information units"
+      ],
+      "counterexamples": [
+        "Monospace alone",
+        "A broken unstyled app"
+      ],
+      "confusingNeighbors": [
+        "refined-tech",
+        "hexatron",
+        "vectorheart"
+      ],
+      "sourceIds": [
+        "L01",
+        "P01",
+        "C05"
+      ],
+      "historicalContext": "Industrial roots; contemporary software applications.",
+      "retrievalRole": "primary",
+      "documentationNote": "Operational visual rule synthesized for retrieval; not a validated classification boundary.",
+      "queryExpansions": [
+        "industrial UI",
+        "technical UI"
+      ]
+    },
+    {
+      "id": "refined-tech",
+      "name": "Refined tech",
+      "kind": "operational-family",
+      "familyIds": [
+        "technical",
+        "minimal",
+        "futuristic"
+      ],
+      "definition": "Restrained technological framing combines precision with controlled luminous or dimensional accents.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Precise type/spacing",
+        "Controlled depth",
+        "Coherent technical imagery"
+      ],
+      "counterexamples": [
+        "Dark SaaS alone",
+        "Purple gradients alone"
+      ],
+      "confusingNeighbors": [
+        "cyberpunk",
+        "hexatron",
+        "glassmorphism"
+      ],
+      "sourceIds": [
+        "C11",
+        "L01",
+        "L02"
+      ],
+      "historicalContext": "Late-2010s/2020s context.",
+      "retrievalRole": "variant",
+      "documentationNote": "Cyberbougie is a related archive nickname; Fluent, glass and neumorphism are distinct.",
+      "queryExpansions": [
+        "sleek tech",
+        "Cyberbougie"
+      ]
+    },
+    {
+      "id": "neobrutalism",
+      "name": "Neobrutalism",
+      "kind": "aesthetic",
+      "familyIds": [
+        "graphic"
+      ],
+      "definition": "Orderly graphic boldness combines pronounced outlines, solid offset depth and emphatic type or color.",
+      "aliases": [
+        "neo-brutalism",
+        "neo-brutalist",
+        "neubrutalism"
+      ],
+      "positiveEvidence": [
+        "Pronounced outlines",
+        "Hard offset shadows",
+        "Emphatic graphic hierarchy"
+      ],
+      "counterexamples": [
+        "A bold headline",
+        "One outlined card"
+      ],
+      "confusingNeighbors": [
+        "raw-web-brutalism",
+        "geometric-pop",
+        "flat"
+      ],
+      "sourceIds": [
+        "N02"
+      ],
+      "historicalContext": "Contemporary vocabulary documented in 2025.",
+      "retrievalRole": "variant",
+      "documentationNote": "Operational visual rule synthesized for retrieval; not a validated classification boundary.",
+      "queryExpansions": []
+    },
+    {
+      "id": "raw-web-brutalism",
+      "name": "Raw web brutalism",
+      "kind": "aesthetic",
+      "familyIds": [
+        "experimental",
+        "technical"
+      ],
+      "definition": "Intentional raw digital presentation exposes simple structures or confrontational graphic choices.",
+      "aliases": [
+        "web brutalism"
+      ],
+      "positiveEvidence": [
+        "Exposed structure",
+        "Deliberately raw composition",
+        "Coherent convention-breaking"
+      ],
+      "counterexamples": [
+        "A missing stylesheet",
+        "A site about concrete"
+      ],
+      "confusingNeighbors": [
+        "neobrutalism",
+        "anti-design",
+        "webcore"
+      ],
+      "sourceIds": [
+        "N02",
+        "Q06",
+        "Q07"
+      ],
+      "historicalContext": "Web vernacular and later deliberate revivals.",
+      "retrievalRole": "variant",
+      "documentationNote": "An error-looking screenshot cannot establish intentionality; successful capture and coherent context are required.",
+      "queryExpansions": [
+        "brutalist"
+      ]
+    },
+    {
+      "id": "anti-design",
+      "name": "Anti-design",
+      "kind": "operational-family",
+      "familyIds": [
+        "experimental",
+        "graphic"
+      ],
+      "definition": "Deliberate graphic dissonance challenges conventional order and presentation.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Repeated rule-breaking system",
+        "Dissonant scale",
+        "Designed visual tension"
+      ],
+      "counterexamples": [
+        "Accidental overlap",
+        "Broken responsiveness"
+      ],
+      "confusingNeighbors": [
+        "raw-web-brutalism",
+        "expressive-maximalism",
+        "digital-collage"
+      ],
+      "sourceIds": [
+        "P03",
+        "Q08"
+      ],
+      "historicalContext": "Earlier graphic roots; alternative-web practice.",
+      "retrievalRole": "variant",
+      "documentationNote": "Broad critical/retrieval term, not a standardized UI system.",
+      "queryExpansions": []
+    },
+    {
+      "id": "expressive-maximalism",
+      "name": "Expressive maximalism",
+      "kind": "aesthetic",
+      "familyIds": [
+        "graphic",
+        "experimental"
+      ],
+      "definition": "Visual abundance remains organized by an intentional expressive system.",
+      "aliases": [
+        "maximalist",
+        "maximalism"
+      ],
+      "positiveEvidence": [
+        "Layered variety",
+        "Expressive type/graphics",
+        "Designed density"
+      ],
+      "counterexamples": [
+        "Accidental clutter",
+        "Failed rendering"
+      ],
+      "confusingNeighbors": [
+        "anti-design",
+        "acid-graphics",
+        "digital-collage"
+      ],
+      "sourceIds": [
+        "I03",
+        "I04"
+      ],
+      "historicalContext": "Earlier roots; documented designer practices in 2021/2025.",
+      "retrievalRole": "variant",
+      "documentationNote": "Operational visual rule synthesized for retrieval; not a validated classification boundary.",
+      "queryExpansions": []
+    },
+    {
+      "id": "digital-collage",
+      "name": "Digital collage / zine",
+      "kind": "aesthetic",
+      "familyIds": [
+        "experimental",
+        "graphic",
+        "retro"
+      ],
+      "definition": "Assembled cutouts, mixed media and print fragments create a graphic narrative.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Assembled media logic",
+        "Print/handmade references",
+        "Intentional fragment relationships"
+      ],
+      "counterexamples": [
+        "Ordinary overlapping product cards",
+        "Random stock pictures"
+      ],
+      "confusingNeighbors": [
+        "expressive-maximalism",
+        "retro-print",
+        "webcore"
+      ],
+      "sourceIds": [
+        "R02",
+        "Q05",
+        "I04"
+      ],
+      "historicalContext": "2000s net-art/print crossover; later reinterpretations.",
+      "retrievalRole": "variant",
+      "documentationNote": "A collage technique can be an imagery tag rather than the whole aesthetic.",
+      "queryExpansions": [
+        "zine",
+        "scrapbook"
+      ]
+    },
+    {
+      "id": "acid-graphics",
+      "name": "Acid graphics / digital rave",
+      "kind": "aesthetic",
+      "familyIds": [
+        "graphic",
+        "experimental",
+        "futuristic",
+        "retro"
+      ],
+      "definition": "Psychedelic and digital-futurist graphics mix rave motifs, distorted type and synthetic imagery.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Psychedelic/digital combination",
+        "Distorted type",
+        "Coherent synthetic intensity"
+      ],
+      "counterexamples": [
+        "Neon alone",
+        "Meaningless decorative script"
+      ],
+      "confusingNeighbors": [
+        "neo-y2k",
+        "vectorheart",
+        "expressive-maximalism"
+      ],
+      "sourceIds": [
+        "I01"
+      ],
+      "historicalContext": "Older psychedelic/rave roots; documented contemporary usage by 2022.",
+      "retrievalRole": "variant",
+      "documentationNote": "Digital rave is related vocabulary, not a proven exact synonym.",
+      "queryExpansions": [
+        "acid design",
+        "digital rave"
+      ]
+    },
+    {
+      "id": "retro-print",
+      "name": "Retro print / newspaper",
+      "kind": "aesthetic",
+      "familyIds": [
+        "editorial",
+        "retro"
+      ],
+      "definition": "Identifiable period print language is adapted to an interface.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Period type/layout",
+        "Print hierarchy",
+        "Paper/ink metaphor"
+      ],
+      "counterexamples": [
+        "Sepia alone",
+        "An old publication date"
+      ],
+      "confusingNeighbors": [
+        "editorial",
+        "digital-collage",
+        "dark-academia"
+      ],
+      "sourceIds": [
+        "Q09"
+      ],
+      "historicalContext": "Historical print references; modern paper-portfolio case.",
+      "retrievalRole": "variant",
+      "documentationNote": "Operational visual rule synthesized for retrieval; not a validated classification boundary.",
+      "queryExpansions": [
+        "paper editorial",
+        "newspaper aesthetic"
+      ]
+    },
+    {
+      "id": "geometric-pop",
+      "name": "Geometric pop",
+      "kind": "operational-family",
+      "familyIds": [
+        "graphic",
+        "playful"
+      ],
+      "definition": "Repeated expressive geometry organizes color and graphic rhythm.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Repeated geometric vocabulary",
+        "Coherent lively palette",
+        "Graphic rhythm"
+      ],
+      "counterexamples": [
+        "A decorative circle",
+        "Flat rendering alone"
+      ],
+      "confusingNeighbors": [
+        "neobrutalism",
+        "corporate-illustration",
+        "flat"
+      ],
+      "sourceIds": [
+        "C16",
+        "G03"
+      ],
+      "historicalContext": "Pop/postmodern roots; recurring digital interpretations.",
+      "retrievalRole": "variant",
+      "documentationNote": "Do not infer historic Memphis authorship or Material implementation from geometry.",
+      "queryExpansions": [
+        "Memphis-inspired",
+        "graphic pop"
+      ]
+    },
+    {
+      "id": "warm-organic",
+      "name": "Warm organic",
+      "kind": "operational-family",
+      "familyIds": [
+        "organic",
+        "minimal"
+      ],
+      "definition": "Natural material, gentle forms and warm textures integrate with controlled content organization.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Material/botanical vocabulary",
+        "Warm coherent tonality",
+        "Integrated organic forms"
+      ],
+      "counterexamples": [
+        "Green alone",
+        "Unverified sustainability"
+      ],
+      "confusingNeighbors": [
+        "romantic-botanical",
+        "austurbane",
+        "solarpunk"
+      ],
+      "sourceIds": [
+        "C12",
+        "AD02",
+        "I07"
+      ],
+      "historicalContext": "Craft/natural roots; current branding applications.",
+      "retrievalRole": "primary",
+      "documentationNote": "Operational visual rule synthesized for retrieval; not a validated classification boundary.",
+      "queryExpansions": [
+        "organic",
+        "earthy",
+        "warm minimal"
+      ]
+    },
+    {
+      "id": "romantic-botanical",
+      "name": "Romantic botanical",
+      "kind": "operational-family",
+      "familyIds": [
+        "organic",
+        "editorial"
+      ],
+      "definition": "Botanical ornament and traditional print/type references form a romantic visual world.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Integrated botanical motifs",
+        "Traditional type",
+        "Craft/antique references"
+      ],
+      "counterexamples": [
+        "A flower photograph",
+        "Pink alone"
+      ],
+      "confusingNeighbors": [
+        "cottagecore",
+        "dark-academia",
+        "austurbane"
+      ],
+      "sourceIds": [
+        "AD02",
+        "I07"
+      ],
+      "historicalContext": "Historic roots; modern creative direction.",
+      "retrievalRole": "variant",
+      "documentationNote": "Adobe uses Austere Romanticism for a particular 2021 direction; our family is broader.",
+      "queryExpansions": [
+        "austere romanticism"
+      ]
+    },
+    {
+      "id": "playful-3d",
+      "name": "Playful tactile 3D",
+      "kind": "operational-family",
+      "familyIds": [
+        "playful"
+      ],
+      "definition": "Soft toy-like forms establish a coherent friendly presentation.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Rounded friendly forms",
+        "Tactile toy-like material",
+        "Expressive character relationships"
+      ],
+      "counterexamples": [
+        "Any 3D model",
+        "An isolated blob"
+      ],
+      "confusingNeighbors": [
+        "claymorphism",
+        "blob-world",
+        "kawaii"
+      ],
+      "sourceIds": [
+        "D02",
+        "C13"
+      ],
+      "historicalContext": "Late-2010s/2020s design context.",
+      "retrievalRole": "primary",
+      "documentationNote": "Operational visual rule synthesized for retrieval; not a validated classification boundary.",
+      "queryExpansions": [
+        "soft 3D",
+        "fluffy 3D"
+      ]
+    },
+    {
+      "id": "cinematic",
+      "name": "Cinematic",
+      "kind": "aesthetic",
+      "familyIds": [
+        "cinematic"
+      ],
+      "definition": "Staged imagery, atmosphere and composition create a film-like presentation.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Scene composition",
+        "Atmospheric lighting",
+        "Dramatic coherent hierarchy"
+      ],
+      "counterexamples": [
+        "Any full-bleed photo",
+        "A video element alone"
+      ],
+      "confusingNeighbors": [
+        "spatial-immersive",
+        "surreal-digital",
+        "refined-luxury"
+      ],
+      "sourceIds": [
+        "Q02",
+        "Q08"
+      ],
+      "historicalContext": "Film roots; contemporary web adaptations.",
+      "retrievalRole": "primary",
+      "documentationNote": "Operational visual rule synthesized for retrieval; not a validated classification boundary.",
+      "queryExpansions": []
+    },
+    {
+      "id": "spatial-immersive",
+      "name": "Spatial / immersive",
+      "kind": "presentation-mode",
+      "familyIds": [
+        "cinematic",
+        "experimental",
+        "futuristic"
+      ],
+      "definition": "Content appears as a perceptible environment or spatial scene.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Spatial relationships",
+        "Environment-positioned content",
+        "Observed viewpoint states"
+      ],
+      "counterexamples": [
+        "An isolated 3D render",
+        "A WebGL library name"
+      ],
+      "confusingNeighbors": [
+        "cinematic",
+        "hexatron",
+        "surreal-digital"
+      ],
+      "sourceIds": [
+        "Q03",
+        "Q08",
+        "A04"
+      ],
+      "historicalContext": "Interactive media roots; current web/native applications.",
+      "retrievalRole": "context-only",
+      "documentationNote": "A still cannot verify spatial navigation or interaction.",
+      "queryExpansions": [
+        "immersive web",
+        "spatial UI"
+      ]
+    },
+    {
+      "id": "surreal-digital",
+      "name": "Surreal digital",
+      "kind": "operational-family",
+      "familyIds": [
+        "experimental",
+        "cinematic"
+      ],
+      "definition": "Impossible or uncanny relationships among familiar forms create a coherent digital world.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Impossible spatial relationships",
+        "Uncanny material/scale",
+        "Dreamlike visual logic"
+      ],
+      "counterexamples": [
+        "One abstract shape",
+        "Image failure"
+      ],
+      "confusingNeighbors": [
+        "dreamcore",
+        "weirdcore",
+        "blob-world"
+      ],
+      "sourceIds": [
+        "R02",
+        "C13",
+        "Q08"
+      ],
+      "historicalContext": "2000s net art and subsequent transformations.",
+      "retrievalRole": "primary",
+      "documentationNote": "Operational visual rule synthesized for retrieval; not a validated classification boundary.",
+      "queryExpansions": [
+        "digital surrealism"
+      ]
+    },
+    {
+      "id": "y2k-futurism",
+      "name": "Y2K futurism",
+      "kind": "internet-aesthetic",
+      "familyIds": [
+        "retro",
+        "futuristic"
+      ],
+      "definition": "Millennium technological optimism is expressed through synthetic materials and fluid futuristic forms.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Chrome/translucent materials",
+        "Millennium graphic forms",
+        "Optimistic technological world"
+      ],
+      "counterexamples": [
+        "All 2000s fashion",
+        "One old phone"
+      ],
+      "confusingNeighbors": [
+        "neo-y2k",
+        "mcbling",
+        "metalheart",
+        "frutiger-aero"
+      ],
+      "sourceIds": [
+        "C01",
+        "C02",
+        "A01"
+      ],
+      "historicalContext": "Late-1990s/early-2000s reference period.",
+      "retrievalRole": "variant",
+      "documentationNote": "Original references, naming and later revival are separate facts.",
+      "queryExpansions": [
+        "Y2K aesthetic",
+        "millennium futurism"
+      ]
+    },
+    {
+      "id": "neo-y2k",
+      "name": "Neo-Y2K",
+      "kind": "internet-aesthetic",
+      "familyIds": [
+        "retro",
+        "futuristic",
+        "graphic"
+      ],
+      "definition": "A later revival intensifies or remixes millennium graphic and synthetic forms.",
+      "aliases": [
+        "Y2K revival"
+      ],
+      "positiveEvidence": [
+        "Revived millennium forms",
+        "Synthetic graphic vocabulary",
+        "Coherent retro-futurist remix"
+      ],
+      "counterexamples": [
+        "A recent date alone",
+        "Any colorful graphic"
+      ],
+      "confusingNeighbors": [
+        "y2k-futurism",
+        "metalheart",
+        "acid-graphics"
+      ],
+      "sourceIds": [
+        "C03",
+        "C01"
+      ],
+      "historicalContext": "Late-2010s onward in CARI.",
+      "retrievalRole": "variant",
+      "documentationNote": "Pixels alone may establish Y2K-inspired language without establishing original-versus-revival provenance.",
+      "queryExpansions": []
+    },
+    {
+      "id": "metalheart",
+      "name": "Metalheart",
+      "kind": "internet-aesthetic",
+      "familyIds": [
+        "retro",
+        "futuristic",
+        "experimental"
+      ],
+      "definition": "Abstract engineered digital depth recalls the Metalheart/Depthcore-era design milieu.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Interlocking synthetic forms",
+        "Engineered depth",
+        "Technical graphic framing"
+      ],
+      "counterexamples": [
+        "Generic metallic text",
+        "A chrome product photo"
+      ],
+      "confusingNeighbors": [
+        "y2k-futurism",
+        "neo-y2k",
+        "vectorheart"
+      ],
+      "sourceIds": [
+        "C04"
+      ],
+      "historicalContext": "Late-1990s/mid-2000s references.",
+      "retrievalRole": "variant",
+      "documentationNote": "Depthcore is also an artist collective/archive; resemblance does not establish membership.",
+      "queryExpansions": [
+        "Depthcore-inspired"
+      ]
+    },
+    {
+      "id": "vectorheart",
+      "name": "Vectorheart",
+      "kind": "internet-aesthetic",
+      "familyIds": [
+        "retro",
+        "futuristic",
+        "technical"
+      ],
+      "definition": "Futuristic vector structures and high-contrast utilitarian type convey graphic speed and precision.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Angular vector systems",
+        "Technical notation",
+        "High-contrast typographic structure"
+      ],
+      "counterexamples": [
+        "Any vector logo",
+        "A minimal grid"
+      ],
+      "confusingNeighbors": [
+        "metalheart",
+        "neo-vectorheart",
+        "swiss-typographic"
+      ],
+      "sourceIds": [
+        "C05"
+      ],
+      "historicalContext": "Late-1990s/mid-2000s references.",
+      "retrievalRole": "variant",
+      "documentationNote": "Operational visual rule synthesized for retrieval; not a validated classification boundary.",
+      "queryExpansions": []
+    },
+    {
+      "id": "neo-vectorheart",
+      "name": "Neo-Vectorheart",
+      "kind": "internet-aesthetic",
+      "familyIds": [
+        "futuristic",
+        "retro",
+        "graphic"
+      ],
+      "definition": "A later intensified angular graphic language combines Vectorheart references with gamer/grunge energy.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Angular technical forms",
+        "Punchy contrast",
+        "Deliberate graphic density"
+      ],
+      "counterexamples": [
+        "A gaming topic",
+        "Random diagonal cuts"
+      ],
+      "confusingNeighbors": [
+        "vectorheart",
+        "hexatron",
+        "acid-graphics"
+      ],
+      "sourceIds": [
+        "C06"
+      ],
+      "historicalContext": "Late-2010s onward in CARI.",
+      "retrievalRole": "variant",
+      "documentationNote": "Operational visual rule synthesized for retrieval; not a validated classification boundary.",
+      "queryExpansions": []
+    },
+    {
+      "id": "mcbling",
+      "name": "McBling",
+      "kind": "internet-aesthetic",
+      "familyIds": [
+        "retro",
+        "graphic",
+        "playful"
+      ],
+      "definition": "Early-2000s conspicuous glamour and decorative pop excess organize the visual identity.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Bling/glamour motifs",
+        "Ornamental excess",
+        "Consumer-pop references"
+      ],
+      "counterexamples": [
+        "Any pink page",
+        "Generic chrome futurism"
+      ],
+      "confusingNeighbors": [
+        "y2k-futurism",
+        "scene-myspace",
+        "refined-luxury"
+      ],
+      "sourceIds": [
+        "C07"
+      ],
+      "historicalContext": "Early/late-2000s references and later remixes.",
+      "retrievalRole": "variant",
+      "documentationNote": "Operational visual rule synthesized for retrieval; not a validated classification boundary.",
+      "queryExpansions": [
+        "2000s bling"
+      ]
+    },
+    {
+      "id": "gen-x-soft-club",
+      "name": "Gen X Soft Club",
+      "kind": "internet-era-consumer-aesthetic",
+      "familyIds": [
+        "minimal",
+        "organic",
+        "retro"
+      ],
+      "definition": "Muted urbane presentation combines natural tones and understated city/club visual references.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Muted urban/natural palette",
+        "Unforced material photography",
+        "Understated graphic rhythm"
+      ],
+      "counterexamples": [
+        "Beige alone",
+        "Chrome-intensive futurism"
+      ],
+      "confusingNeighbors": [
+        "y2k-futurism",
+        "austurbane",
+        "minimal"
+      ],
+      "sourceIds": [
+        "C08"
+      ],
+      "historicalContext": "1990s roots through mid-2000s.",
+      "retrievalRole": "variant",
+      "documentationNote": "Operational visual rule synthesized for retrieval; not a validated classification boundary.",
+      "queryExpansions": []
+    },
+    {
+      "id": "frutiger-aero",
+      "name": "Frutiger Aero",
+      "kind": "internet-era-consumer-aesthetic",
+      "familyIds": [
+        "retro",
+        "futuristic",
+        "organic"
+      ],
+      "definition": "Glossy humanist technology imagery combines transparent forms with idealized natural worlds.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Glossy/translucent tech forms",
+        "Idealized nature/water",
+        "Humanist approachable tone"
+      ],
+      "counterexamples": [
+        "Frosted glass alone",
+        "A grass photograph"
+      ],
+      "confusingNeighbors": [
+        "aqua",
+        "frutiger-eco",
+        "glassmorphism",
+        "y2k-futurism"
+      ],
+      "sourceIds": [
+        "C09",
+        "C01"
+      ],
+      "historicalContext": "Mid-2000s/early-2010s references; later nostalgia.",
+      "retrievalRole": "variant",
+      "documentationNote": "Aqua and Windows Aero are related platform languages, not exact aliases for the consumer aesthetic.",
+      "queryExpansions": [
+        "Web 2.0 gloss"
+      ]
+    },
+    {
+      "id": "frutiger-eco",
+      "name": "Frutiger Eco",
+      "kind": "community-variant",
+      "familyIds": [
+        "retro",
+        "organic",
+        "futuristic"
+      ],
+      "definition": "Eco-optimistic glossy technology/nature imagery constructs a harmonious future.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Green/technological coexistence",
+        "Aero-like glossy world",
+        "Environmental visual narrative"
+      ],
+      "counterexamples": [
+        "Any green website",
+        "Proof of sustainability"
+      ],
+      "confusingNeighbors": [
+        "frutiger-aero",
+        "solarpunk",
+        "warm-organic"
+      ],
+      "sourceIds": [
+        "B02"
+      ],
+      "historicalContext": "Community naming for mid-2000s/early-2010s references.",
+      "retrievalRole": "watchlist",
+      "documentationNote": "Qualified community variant; visual imagery does not prove ecological practices or ideology.",
+      "queryExpansions": []
+    },
+    {
+      "id": "frutiger-metro",
+      "name": "Frutiger Metro / vector-pop nostalgia",
+      "kind": "community-variant",
+      "familyIds": [
+        "retro",
+        "graphic",
+        "playful"
+      ],
+      "definition": "Decorative 2000s vector graphics combine flourishes, silhouettes and music/pop motifs.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Ornamental vector flourishes",
+        "Human/music motif system",
+        "Period pop palette"
+      ],
+      "counterexamples": [
+        "Official Metro typography alone",
+        "All flat design"
+      ],
+      "confusingNeighbors": [
+        "frutiger-aero",
+        "geometric-pop",
+        "scene-myspace"
+      ],
+      "sourceIds": [
+        "B01"
+      ],
+      "historicalContext": "Retrospective mid-2000s/early-2010s terminology.",
+      "retrievalRole": "watchlist",
+      "documentationNote": "Community guides conflate this with Windows Metro; prefer observable traits until a dedicated corpus resolves boundaries.",
+      "queryExpansions": [
+        "vector-pop nostalgia"
+      ]
+    },
+    {
+      "id": "vaporwave",
+      "name": "Vaporwave",
+      "kind": "internet-aesthetic",
+      "familyIds": [
+        "retro",
+        "experimental"
+      ],
+      "definition": "Consumer and early-digital imagery is recombined into surreal nostalgic worlds.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Period consumer/digital artifacts",
+        "Surreal collage relationships",
+        "Nostalgic atmosphere"
+      ],
+      "counterexamples": [
+        "Pink-purple gradients alone",
+        "Neon roads without consumer references"
+      ],
+      "confusingNeighbors": [
+        "synthwave-outrun",
+        "webcore",
+        "seapunk"
+      ],
+      "sourceIds": [
+        "C15",
+        "AD01",
+        "J02"
+      ],
+      "historicalContext": "Early-2010s music/internet context; subsequent reinterpretations.",
+      "retrievalRole": "variant",
+      "documentationNote": "Operational visual rule synthesized for retrieval; not a validated classification boundary.",
+      "queryExpansions": []
+    },
+    {
+      "id": "synthwave-outrun",
+      "name": "Synthwave / outrun",
+      "kind": "internet-aesthetic",
+      "familyIds": [
+        "retro",
+        "futuristic",
+        "cinematic"
+      ],
+      "definition": "Cinematic neon reconstruction of older technological, driving and night-world imagery.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Neon cinematic retro-futurism",
+        "Perspective road/grid/sunset motifs",
+        "Period technological atmosphere"
+      ],
+      "counterexamples": [
+        "Any neon gradient",
+        "Consumer collage alone"
+      ],
+      "confusingNeighbors": [
+        "vaporwave",
+        "cyberpunk",
+        "y2k-futurism"
+      ],
+      "sourceIds": [
+        "AD03"
+      ],
+      "historicalContext": "Internet-era reconstruction of older film/game/music imagery.",
+      "retrievalRole": "variant",
+      "documentationNote": "Grouped for retrieval; outrun is a related branch, not an assertion that genres are identical.",
+      "queryExpansions": [
+        "retrowave",
+        "outrun"
+      ]
+    },
+    {
+      "id": "seapunk",
+      "name": "Seapunk",
+      "kind": "internet-aesthetic",
+      "familyIds": [
+        "retro",
+        "playful",
+        "experimental"
+      ],
+      "definition": "Aquatic fantasy and synthetic nostalgic graphics create an internet-native visual world.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Aquatic fantasy system",
+        "Early-digital imagery",
+        "Coherent watery world"
+      ],
+      "counterexamples": [
+        "One dolphin image",
+        "Any underwater illustration"
+      ],
+      "confusingNeighbors": [
+        "vaporwave",
+        "frutiger-aero",
+        "cybercore"
+      ],
+      "sourceIds": [
+        "S01"
+      ],
+      "historicalContext": "Creator interview documents the community in 2012.",
+      "retrievalRole": "variant",
+      "documentationNote": "Creator context exceeds decorative resemblance; pixels do not establish community membership.",
+      "queryExpansions": []
+    },
+    {
+      "id": "cyberpunk",
+      "name": "Cyberpunk / neon noir",
+      "kind": "internet-aesthetic",
+      "familyIds": [
+        "futuristic",
+        "cinematic",
+        "technical"
+      ],
+      "definition": "Technological urban fiction and human-machine tension shape a speculative visual identity.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Technological urban world",
+        "Industrial/digital motifs",
+        "Coherent neon-noir atmosphere"
+      ],
+      "counterexamples": [
+        "An AI logo",
+        "Darkness alone"
+      ],
+      "confusingNeighbors": [
+        "hexatron",
+        "synthwave-outrun",
+        "refined-tech"
+      ],
+      "sourceIds": [
+        "I05",
+        "AD03"
+      ],
+      "historicalContext": "Pre-2000 roots with continuing reinterpretation.",
+      "retrievalRole": "variant",
+      "documentationNote": "Visible motifs do not prove narrative ideology.",
+      "queryExpansions": [
+        "neon noir"
+      ]
+    },
+    {
+      "id": "hexatron",
+      "name": "Hexatron / futuristic HUD",
+      "kind": "internet-aesthetic",
+      "familyIds": [
+        "futuristic",
+        "technical"
+      ],
+      "definition": "Angular science-fiction instruments combine segmented structures and holographic or terminal-like graphics.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Angular HUD structures",
+        "Technical notation",
+        "Holographic/grid motifs"
+      ],
+      "counterexamples": [
+        "Any real dashboard",
+        "One hexagon"
+      ],
+      "confusingNeighbors": [
+        "cyberpunk",
+        "technical-utilitarian",
+        "neo-vectorheart"
+      ],
+      "sourceIds": [
+        "C10"
+      ],
+      "historicalContext": "2010s science-fiction reference period.",
+      "retrievalRole": "variant",
+      "documentationNote": "A fictional HUD picture does not prove interactive application behavior.",
+      "queryExpansions": [
+        "sci-fi HUD",
+        "10s futurism"
+      ]
+    },
+    {
+      "id": "cybercore",
+      "name": "Cybercore",
+      "kind": "community-aesthetic",
+      "familyIds": [
+        "retro",
+        "futuristic",
+        "experimental"
+      ],
+      "definition": "Edited digital nostalgia combines obsolete devices with ethereal or celestial references.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Obsolete device/GUI references",
+        "Ethereal/celestial combination",
+        "Synthetic nostalgic atmosphere"
+      ],
+      "counterexamples": [
+        "All cyberpunk",
+        "A flip phone alone"
+      ],
+      "confusingNeighbors": [
+        "neo-y2k",
+        "webcore",
+        "vaporwave"
+      ],
+      "sourceIds": [
+        "B03",
+        "J01"
+      ],
+      "historicalContext": "2020s community usage; exact origins unsettled.",
+      "retrievalRole": "watchlist",
+      "documentationNote": "Do not silently normalize all cyber labels to Y2K; imagery boundaries need examples.",
+      "queryExpansions": []
+    },
+    {
+      "id": "y3k",
+      "name": "Y3K / speculative hyper-futurism",
+      "kind": "emerging-query-label",
+      "familyIds": [
+        "futuristic",
+        "experimental"
+      ],
+      "definition": "Current future-facing graphic/fashion terminology describes speculative synthetic bodies and materials.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Coherent speculative material/body world",
+        "Future-oriented framing",
+        "Multiple technological motifs"
+      ],
+      "counterexamples": [
+        "One chrome button",
+        "A hashtag treated as a mature UI system"
+      ],
+      "confusingNeighbors": [
+        "neo-y2k",
+        "cyberpunk",
+        "cybersigilism"
+      ],
+      "sourceIds": [
+        "B08"
+      ],
+      "historicalContext": "2025–2026 editorial usage.",
+      "retrievalRole": "watchlist",
+      "documentationNote": "Stable UI boundaries and prevalence are unverified; broad futuristic traits are safer.",
+      "queryExpansions": [
+        "hyper-futurist"
+      ]
+    },
+    {
+      "id": "webcore",
+      "name": "Webcore / old-web nostalgia",
+      "kind": "community-aesthetic",
+      "familyIds": [
+        "retro",
+        "experimental"
+      ],
+      "definition": "Intentional personal-web decoration references early online artifacts and digital self-expression.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Old-web artifact system",
+        "Personalized decoration",
+        "Period GUI/web references"
+      ],
+      "counterexamples": [
+        "Any plain HTML site",
+        "An abandoned broken page"
+      ],
+      "confusingNeighbors": [
+        "retro-gui",
+        "raw-web-brutalism",
+        "cybercore"
+      ],
+      "sourceIds": [
+        "W01",
+        "W02",
+        "B04"
+      ],
+      "historicalContext": "Old-web roots; modern creators documented through 2025.",
+      "retrievalRole": "variant",
+      "documentationNote": "Internetcore is a broader query, not an exact synonym; creator labels retain source provenance.",
+      "queryExpansions": [
+        "old-web inspired",
+        "internetcore"
+      ]
+    },
+    {
+      "id": "retro-gui",
+      "name": "Retro GUI / desktop nostalgia",
+      "kind": "aesthetic",
+      "familyIds": [
+        "retro",
+        "technical",
+        "playful"
+      ],
+      "definition": "Recognizable historical software/window grammar is deliberately reproduced as an interface language.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Period window/control system",
+        "Consistent desktop metaphors",
+        "Matching graphic/type assets"
+      ],
+      "counterexamples": [
+        "One pixel font",
+        "An embedded screenshot of old software"
+      ],
+      "confusingNeighbors": [
+        "webcore",
+        "skeuomorphism",
+        "pixel-arcade"
+      ],
+      "sourceIds": [
+        "A01",
+        "Q04"
+      ],
+      "historicalContext": "Historical GUI references adapted in later design.",
+      "retrievalRole": "variant",
+      "documentationNote": "Name a particular OS only with distinctive evidence or provenance.",
+      "queryExpansions": [
+        "desktop nostalgia"
+      ]
+    },
+    {
+      "id": "pixel-arcade",
+      "name": "Pixel / arcade",
+      "kind": "aesthetic",
+      "familyIds": [
+        "retro",
+        "playful",
+        "graphic"
+      ],
+      "definition": "Pixel-constructed imagery and period-game graphics organize the presentation.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Intentional pixel artwork",
+        "Period-game vocabulary",
+        "Consistent graphic rhythm"
+      ],
+      "counterexamples": [
+        "Low-resolution damage",
+        "One pixel icon"
+      ],
+      "confusingNeighbors": [
+        "retro-gui",
+        "webcore",
+        "kidcore"
+      ],
+      "sourceIds": [
+        "AD01",
+        "R01"
+      ],
+      "historicalContext": "Older game roots; continuing internet revivals.",
+      "retrievalRole": "variant",
+      "documentationNote": "Operational visual rule synthesized for retrieval; not a validated classification boundary.",
+      "queryExpansions": [
+        "pixel art",
+        "arcade-inspired"
+      ]
+    },
+    {
+      "id": "glitch",
+      "name": "Glitch / corrupted-media language",
+      "kind": "aesthetic",
+      "familyIds": [
+        "experimental",
+        "futuristic"
+      ],
+      "definition": "Deliberate image/text signal disruption forms a designed visual system.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Repeated intentional disruption",
+        "Artifact vocabulary",
+        "Designed-corruption context"
+      ],
+      "counterexamples": [
+        "Broken images",
+        "Unexplained browser errors"
+      ],
+      "confusingNeighbors": [
+        "weirdcore",
+        "acid-graphics",
+        "cyberpunk"
+      ],
+      "sourceIds": [
+        "R04"
+      ],
+      "historicalContext": "Media-art roots; documented artist theory in 2011.",
+      "retrievalRole": "variant",
+      "documentationNote": "Datamoshing is a technique; a still cannot establish the codec/process or a transition.",
+      "queryExpansions": [
+        "glitch art",
+        "datamosh-inspired"
+      ]
+    },
+    {
+      "id": "dreamcore",
+      "name": "Dreamcore",
+      "kind": "community-aesthetic",
+      "familyIds": [
+        "experimental",
+        "retro",
+        "cinematic"
+      ],
+      "definition": "Dreamlike associative imagery and hazy familiar environments create ambiguous nostalgic worlds.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Dreamlike relationships",
+        "Edited nostalgic media",
+        "Associative scene logic"
+      ],
+      "counterexamples": [
+        "A dreamy gradient",
+        "Inferred personal trauma"
+      ],
+      "confusingNeighbors": [
+        "weirdcore",
+        "liminal-space",
+        "surreal-digital"
+      ],
+      "sourceIds": [
+        "B05",
+        "J01",
+        "J03",
+        "R02"
+      ],
+      "historicalContext": "2020s scenes; older dream-themed art is a precedent, not a proven origin.",
+      "retrievalRole": "watchlist",
+      "documentationNote": "Visual boundary is proposed and culturally variable; dedicated community-aware examples are required.",
+      "queryExpansions": []
+    },
+    {
+      "id": "weirdcore",
+      "name": "Weirdcore",
+      "kind": "community-aesthetic",
+      "familyIds": [
+        "experimental",
+        "retro"
+      ],
+      "definition": "Disorienting familiar imagery and ambiguous digital/text relationships create intentional unease.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Coherent disorientation",
+        "Familiar/strange contradiction",
+        "Ambiguous digital messages"
+      ],
+      "counterexamples": [
+        "A malformed page",
+        "A creator pseudonym"
+      ],
+      "confusingNeighbors": [
+        "dreamcore",
+        "glitch",
+        "liminal-space"
+      ],
+      "sourceIds": [
+        "B06",
+        "J01",
+        "J03"
+      ],
+      "historicalContext": "2020s usage; overlapping community labels.",
+      "retrievalRole": "watchlist",
+      "documentationNote": "The aesthetic and an artist named Weirdcore are different facts; do not infer mental state.",
+      "queryExpansions": []
+    },
+    {
+      "id": "liminal-space",
+      "name": "Liminal-space atmosphere",
+      "kind": "mood-context",
+      "familyIds": [
+        "cinematic",
+        "experimental",
+        "retro"
+      ],
+      "definition": "Empty familiar or transitional spaces create a suspended uncanny atmosphere.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Transitional spatial cues",
+        "Meaningful emptiness",
+        "Suspended atmosphere"
+      ],
+      "counterexamples": [
+        "Minimal-layout whitespace",
+        "Any empty room"
+      ],
+      "confusingNeighbors": [
+        "dreamcore",
+        "weirdcore",
+        "cinematic"
+      ],
+      "sourceIds": [
+        "J01"
+      ],
+      "historicalContext": "Older conceptual roots; contemporary nostalgic scenes.",
+      "retrievalRole": "context-only",
+      "documentationNote": "Primarily imagery/mood context, not a complete UI system.",
+      "queryExpansions": [
+        "liminalcore"
+      ]
+    },
+    {
+      "id": "solarpunk",
+      "name": "Solarpunk / eco-futurism",
+      "kind": "internet-aesthetic",
+      "familyIds": [
+        "organic",
+        "futuristic"
+      ],
+      "definition": "Craft and technology coexist within an inhabited ecological-future world.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Integrated nature/technology",
+        "Craft/architectural ecological motifs",
+        "Coherent future narrative"
+      ],
+      "counterexamples": [
+        "Green palette alone",
+        "Proof of sustainable practice"
+      ],
+      "confusingNeighbors": [
+        "frutiger-eco",
+        "warm-organic",
+        "romantic-botanical"
+      ],
+      "sourceIds": [
+        "S02"
+      ],
+      "historicalContext": "Formative artist vision documented in the 2010s.",
+      "retrievalRole": "variant",
+      "documentationNote": "Eco-futurist is broader vocabulary; imagery cannot certify sustainability or ideology.",
+      "queryExpansions": [
+        "eco-futurist"
+      ]
+    },
+    {
+      "id": "cottagecore",
+      "name": "Cottagecore",
+      "kind": "community-aesthetic",
+      "familyIds": [
+        "organic",
+        "retro"
+      ],
+      "definition": "Idealized pastoral craft and domestic/natural imagery form a romantic escape.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Pastoral/handmade narrative",
+        "Floral/antique references",
+        "Gentle historical world"
+      ],
+      "counterexamples": [
+        "One flower",
+        "Any food brand"
+      ],
+      "confusingNeighbors": [
+        "romantic-botanical",
+        "warm-organic",
+        "dark-academia"
+      ],
+      "sourceIds": [
+        "AD02"
+      ],
+      "historicalContext": "Pandemic-era creative-direction context; exact first use not asserted.",
+      "retrievalRole": "variant",
+      "documentationNote": "Operational visual rule synthesized for retrieval; not a validated classification boundary.",
+      "queryExpansions": []
+    },
+    {
+      "id": "dark-academia",
+      "name": "Dark academia",
+      "kind": "community-aesthetic",
+      "familyIds": [
+        "editorial",
+        "organic",
+        "retro"
+      ],
+      "definition": "Literary/collegiate references form a moody antique scholarly world.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Scholarly references",
+        "Antique print/material vocabulary",
+        "Integrated moody atmosphere"
+      ],
+      "counterexamples": [
+        "Dark serif type alone",
+        "Any university page"
+      ],
+      "confusingNeighbors": [
+        "light-academia",
+        "retro-print",
+        "refined-luxury"
+      ],
+      "sourceIds": [
+        "AD02"
+      ],
+      "historicalContext": "Modern internet usage; exact first-use dates unsettled.",
+      "retrievalRole": "watchlist",
+      "documentationNote": "Do not infer education, audience or cultural identity from this styling.",
+      "queryExpansions": []
+    },
+    {
+      "id": "light-academia",
+      "name": "Light academia",
+      "kind": "provisional-query-variant",
+      "familyIds": [
+        "editorial",
+        "organic",
+        "retro"
+      ],
+      "definition": "A proposed query variant for airy bright treatments of a literary/collegiate visual world.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Scholarly visual references",
+        "Airy warm atmosphere",
+        "Consistent antique presentation"
+      ],
+      "counterexamples": [
+        "A cream editorial page",
+        "A light theme alone"
+      ],
+      "confusingNeighbors": [
+        "dark-academia",
+        "editorial",
+        "romantic-botanical"
+      ],
+      "sourceIds": [
+        "AD02"
+      ],
+      "historicalContext": "Related community vocabulary.",
+      "retrievalRole": "watchlist",
+      "documentationNote": "Query expansion only; no independently reviewed UI boundary is established here.",
+      "queryExpansions": []
+    },
+    {
+      "id": "kawaii",
+      "name": "Kawaii / character-led cute",
+      "kind": "cultural-visual-language",
+      "familyIds": [
+        "playful"
+      ],
+      "definition": "Coherent charming character/forms emphasize softness and expressive approachable proportions.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Consistent character grammar",
+        "Soft expressive proportions",
+        "Character-world relationships"
+      ],
+      "counterexamples": [
+        "Pastel alone",
+        "Any anime image"
+      ],
+      "confusingNeighbors": [
+        "kidcore",
+        "playful-3d",
+        "cybercore"
+      ],
+      "sourceIds": [
+        "K01",
+        "I02"
+      ],
+      "historicalContext": "Older Japanese roots; continuing digital adaptations.",
+      "retrievalRole": "variant",
+      "documentationNote": "Visual resemblance does not establish Japanese authorship or a specific subculture.",
+      "queryExpansions": [
+        "cute character-led"
+      ]
+    },
+    {
+      "id": "kidcore",
+      "name": "Kidcore",
+      "kind": "community-aesthetic",
+      "familyIds": [
+        "playful",
+        "retro",
+        "graphic"
+      ],
+      "definition": "Childhood/toy nostalgia combines exuberant graphics with a coherent play world.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Integrated toy/cartoon references",
+        "Playful graphic system",
+        "Nostalgic atmosphere"
+      ],
+      "counterexamples": [
+        "Any children's app",
+        "Primary colors alone"
+      ],
+      "confusingNeighbors": [
+        "kawaii",
+        "pixel-arcade",
+        "webcore"
+      ],
+      "sourceIds": [
+        "B07"
+      ],
+      "historicalContext": "Late-2010s/2020s community usage.",
+      "retrievalRole": "watchlist",
+      "documentationNote": "Community-source definition; broader UI sampling is required.",
+      "queryExpansions": []
+    },
+    {
+      "id": "scene-myspace",
+      "name": "Scene / MySpace-era grunge",
+      "kind": "research-lead",
+      "familyIds": [
+        "retro",
+        "graphic",
+        "experimental"
+      ],
+      "definition": "A possible cluster combines personalized 2000s profile graphics with distressed pop excess.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Profile-era decoration",
+        "Distressed ornament",
+        "Repeated scene references"
+      ],
+      "counterexamples": [
+        "Black/pink alone",
+        "Any MySpace screenshot"
+      ],
+      "confusingNeighbors": [
+        "mcbling",
+        "frutiger-metro",
+        "digital-collage"
+      ],
+      "sourceIds": [
+        "B01",
+        "W01"
+      ],
+      "historicalContext": "2000s references; primary corpus still needed.",
+      "retrievalRole": "watchlist",
+      "documentationNote": "Research lead, not an established classifier class; cybergrunge overlaps without being identical.",
+      "queryExpansions": [
+        "scene-inspired",
+        "cybergrunge"
+      ]
+    },
+    {
+      "id": "cybersigilism",
+      "name": "Cybersigilism",
+      "kind": "graphic-motif-context",
+      "familyIds": [
+        "futuristic",
+        "graphic",
+        "experimental"
+      ],
+      "definition": "Sharp organic/digital ornament produces a sigil-like graphic vocabulary.",
+      "aliases": [
+        "cyber sigilism"
+      ],
+      "positiveEvidence": [
+        "Blade-like ornamental forms",
+        "Organic/technical tension",
+        "Coherent glyph motifs"
+      ],
+      "counterexamples": [
+        "Any tribal-looking logo",
+        "Assumed occult meaning"
+      ],
+      "confusingNeighbors": [
+        "y3k",
+        "neo-y2k",
+        "acid-graphics"
+      ],
+      "sourceIds": [
+        "X01",
+        "B08"
+      ],
+      "historicalContext": "Creator/editorial examples dated 2026; origins unresolved.",
+      "retrievalRole": "context-only",
+      "documentationNote": "Tattoo/streetwear evidence is not evidence of a complete UI language or UI prevalence.",
+      "queryExpansions": []
+    },
+    {
+      "id": "flat",
+      "name": "Flat",
+      "kind": "surface-language",
+      "familyIds": [],
+      "definition": "Planar interface graphics use little simulated physical depth.",
+      "aliases": [
+        "flat design"
+      ],
+      "positiveEvidence": [
+        "Planar fills/forms",
+        "Minimal relief",
+        "Type/color/spacing hierarchy"
+      ],
+      "counterexamples": [
+        "Minimalism inferred from flatness",
+        "Invisible actions accepted automatically"
+      ],
+      "confusingNeighbors": [
+        "semi-flat",
+        "minimal",
+        "neobrutalism"
+      ],
+      "sourceIds": [
+        "N04",
+        "M01",
+        "A02"
+      ],
+      "historicalContext": "Early-2010s adoption with older graphic roots.",
+      "retrievalRole": "appearance",
+      "documentationNote": "Can span many aesthetics, densities and quality levels.",
+      "queryExpansions": []
+    },
+    {
+      "id": "semi-flat",
+      "name": "Semi-flat / selective depth",
+      "kind": "surface-language",
+      "familyIds": [],
+      "definition": "Mostly planar graphics use limited dimensional cues for groups or actions.",
+      "aliases": [
+        "flat 2.0",
+        "almost flat"
+      ],
+      "positiveEvidence": [
+        "Mostly planar surfaces",
+        "Selective depth cues",
+        "Consistent layer hierarchy"
+      ],
+      "counterexamples": [
+        "Arbitrary long shadows",
+        "Every glossy interface"
+      ],
+      "confusingNeighbors": [
+        "flat",
+        "material-design",
+        "clean"
+      ],
+      "sourceIds": [
+        "N04",
+        "N05",
+        "G01"
+      ],
+      "historicalContext": "2010s terminology; current hybrid applications.",
+      "retrievalRole": "appearance",
+      "documentationNote": "Operational visual rule synthesized for retrieval; not a validated classification boundary.",
+      "queryExpansions": []
+    },
+    {
+      "id": "skeuomorphism",
+      "name": "Skeuomorphic",
+      "kind": "surface-language",
+      "familyIds": [],
+      "definition": "Physical-object conventions are adapted to interface controls or roles.",
+      "aliases": [
+        "skeuomorphic design"
+      ],
+      "positiveEvidence": [
+        "Identifiable physical precedent",
+        "Role-supporting visual metaphor",
+        "Consistent object grammar"
+      ],
+      "counterexamples": [
+        "Generic soft shadows",
+        "Realistic background photographs"
+      ],
+      "confusingNeighbors": [
+        "aqua",
+        "neumorphism",
+        "retro-gui"
+      ],
+      "sourceIds": [
+        "A01"
+      ],
+      "historicalContext": "Older GUI roots; 2000s prominence and later selective use.",
+      "retrievalRole": "appearance",
+      "documentationNote": "Realism and role-supporting physical metaphors are distinguishable; resemblance alone may not establish behavior.",
+      "queryExpansions": []
+    },
+    {
+      "id": "aqua",
+      "name": "Apple Aqua",
+      "kind": "platform-language",
+      "familyIds": [],
+      "definition": "Apple's named desktop language introduced luminous and semi-transparent controls.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Platform/source provenance",
+        "Native control grammar",
+        "Luminous material treatment"
+      ],
+      "counterexamples": [
+        "Any shiny web button",
+        "All Frutiger Aero"
+      ],
+      "confusingNeighbors": [
+        "frutiger-aero",
+        "skeuomorphism",
+        "liquid-glass"
+      ],
+      "sourceIds": [
+        "A01"
+      ],
+      "historicalContext": "Official introduction: 2000-01-05.",
+      "retrievalRole": "context-only",
+      "documentationNote": "Operational visual rule synthesized for retrieval; not a validated classification boundary.",
+      "queryExpansions": []
+    },
+    {
+      "id": "glassmorphism",
+      "name": "Glassmorphism",
+      "kind": "surface-language",
+      "familyIds": [],
+      "definition": "Translucent foreground panels form visible frosted/background-dependent layers.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Translucent foreground surface",
+        "Background-dependent blur/depth",
+        "Legible foreground relationships"
+      ],
+      "counterexamples": [
+        "Glass objects in photography",
+        "Opaque gray panels"
+      ],
+      "confusingNeighbors": [
+        "liquid-glass",
+        "fluent-materials",
+        "neumorphism"
+      ],
+      "sourceIds": [
+        "N03",
+        "Q02"
+      ],
+      "historicalContext": "Older precedents; contemporary descriptive usage.",
+      "retrievalRole": "appearance",
+      "documentationNote": "Operational visual rule synthesized for retrieval; not a validated classification boundary.",
+      "queryExpansions": [
+        "glassy UI",
+        "frosted glass"
+      ]
+    },
+    {
+      "id": "neumorphism",
+      "name": "Neumorphism",
+      "kind": "surface-language",
+      "familyIds": [],
+      "definition": "Paired shading makes controls appear inset into or extruded from continuous material.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Paired light/dark shading",
+        "Shared base material",
+        "Low-relief control forms"
+      ],
+      "counterexamples": [
+        "Ordinary card shadows",
+        "Inflated clay alone"
+      ],
+      "confusingNeighbors": [
+        "claymorphism",
+        "skeuomorphism",
+        "glassmorphism"
+      ],
+      "sourceIds": [
+        "D01"
+      ],
+      "historicalContext": "Late-2010s UI discussion; later selective applications.",
+      "retrievalRole": "appearance",
+      "documentationNote": "Operational visual rule synthesized for retrieval; not a validated classification boundary.",
+      "queryExpansions": [
+        "soft UI",
+        "neomorphic"
+      ]
+    },
+    {
+      "id": "claymorphism",
+      "name": "Claymorphism",
+      "kind": "surface-language",
+      "familyIds": [],
+      "definition": "Inflated rounded forms combine internal shading with external separation.",
+      "aliases": [
+        "clay UI"
+      ],
+      "positiveEvidence": [
+        "Dome-like geometry",
+        "Soft internal shading",
+        "Tactile separated surfaces"
+      ],
+      "counterexamples": [
+        "All 3D illustrations",
+        "Ordinary rounded cards"
+      ],
+      "confusingNeighbors": [
+        "neumorphism",
+        "playful-3d",
+        "glassmorphism"
+      ],
+      "sourceIds": [
+        "D02",
+        "D03"
+      ],
+      "historicalContext": "Creator terminology documented in December 2021.",
+      "retrievalRole": "appearance",
+      "documentationNote": "Operational visual rule synthesized for retrieval; not a validated classification boundary.",
+      "queryExpansions": [
+        "puffy UI"
+      ]
+    },
+    {
+      "id": "fluent-materials",
+      "name": "Fluent material system",
+      "kind": "platform-language",
+      "familyIds": [],
+      "definition": "Microsoft's named system assigns different roles to solid, acrylic, mica and dimming materials.",
+      "aliases": [],
+      "positiveEvidence": [
+        "System/source provenance",
+        "Material role evidence",
+        "Layer/focus context"
+      ],
+      "counterexamples": [
+        "All blur called Fluent",
+        "Mica called transparent glass"
+      ],
+      "confusingNeighbors": [
+        "glassmorphism",
+        "liquid-glass",
+        "material-design"
+      ],
+      "sourceIds": [
+        "M02"
+      ],
+      "historicalContext": "Official contemporary Fluent 2 guidance.",
+      "retrievalRole": "context-only",
+      "documentationNote": "Mica is opaque/tinted; acrylic is translucent. A still cannot verify implementation or focus behavior.",
+      "queryExpansions": []
+    },
+    {
+      "id": "liquid-glass",
+      "name": "Apple Liquid Glass",
+      "kind": "platform-language",
+      "familyIds": [],
+      "definition": "Apple's named adaptive optical/translucent material supports a content-oriented software system.",
+      "aliases": [],
+      "positiveEvidence": [
+        "System/source provenance",
+        "Optical control layering",
+        "Inspected adaptive behavior"
+      ],
+      "counterexamples": [
+        "Any blur filter",
+        "A still claimed to prove adaptation"
+      ],
+      "confusingNeighbors": [
+        "glassmorphism",
+        "aqua",
+        "fluent-materials"
+      ],
+      "sourceIds": [
+        "A03",
+        "A04",
+        "L02"
+      ],
+      "historicalContext": "Official introduction in June 2025.",
+      "retrievalRole": "context-only",
+      "documentationNote": "Inspired appearance and native material are different claims; stills cannot establish motion, lensing or implementation.",
+      "queryExpansions": [
+        "Liquid Glass-inspired"
+      ]
+    },
+    {
+      "id": "material-design",
+      "name": "Material Design",
+      "kind": "platform-language",
+      "familyIds": [],
+      "definition": "Google's named system combines paper-like surfaces with consistent spatial and behavioral hierarchy.",
+      "aliases": [],
+      "positiveEvidence": [
+        "System/source provenance",
+        "Elevation/role relationships",
+        "Component/behavior evidence"
+      ],
+      "counterexamples": [
+        "Every rounded card",
+        "Entire system called fully flat"
+      ],
+      "confusingNeighbors": [
+        "semi-flat",
+        "m3-expressive",
+        "fluent-materials"
+      ],
+      "sourceIds": [
+        "G01",
+        "G02"
+      ],
+      "historicalContext": "Official launch in 2014; subsequent evolution.",
+      "retrievalRole": "context-only",
+      "documentationNote": "Operational visual rule synthesized for retrieval; not a validated classification boundary.",
+      "queryExpansions": []
+    },
+    {
+      "id": "m3-expressive",
+      "name": "Material 3 Expressive",
+      "kind": "platform-language",
+      "familyIds": [],
+      "definition": "Google's expressive component system emphasizes shape, color and task hierarchy.",
+      "aliases": [],
+      "positiveEvidence": [
+        "System/source provenance",
+        "Expressive shape/color relations",
+        "Purposeful emphasis"
+      ],
+      "counterexamples": [
+        "Any colorful UI",
+        "Universal superiority inferred"
+      ],
+      "confusingNeighbors": [
+        "material-design",
+        "geometric-pop",
+        "playful-3d"
+      ],
+      "sourceIds": [
+        "G03"
+      ],
+      "historicalContext": "Contemporary official expressive-design research.",
+      "retrievalRole": "context-only",
+      "documentationNote": "Generic expressive traits can be labeled independently; platform identity requires provenance.",
+      "queryExpansions": []
+    },
+    {
+      "id": "austurbane",
+      "name": "Austurbane",
+      "kind": "archive-query-context",
+      "familyIds": [
+        "minimal",
+        "organic",
+        "editorial"
+      ],
+      "definition": "A curator category combines restrained urbane refinement with staged tactile/natural materials.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Staged material imagery",
+        "Refined muted type/palette",
+        "Coherent urban-luxury world"
+      ],
+      "counterexamples": [
+        "Any beige serif page",
+        "Gen X Soft Club treated as identical"
+      ],
+      "confusingNeighbors": [
+        "refined-luxury",
+        "warm-organic",
+        "gen-x-soft-club"
+      ],
+      "sourceIds": [
+        "C12"
+      ],
+      "historicalContext": "Late-2010s onward in CARI.",
+      "retrievalRole": "context-only",
+      "documentationNote": "Keep archive vocabulary searchable while prioritizing clear visible traits.",
+      "queryExpansions": [
+        "austere-urbane"
+      ]
+    },
+    {
+      "id": "blob-world",
+      "name": "Blob World",
+      "kind": "archive-query-context",
+      "familyIds": [
+        "playful",
+        "experimental"
+      ],
+      "definition": "A curator category describes unusual soft rendered worlds that can feel playful or uncanny.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Unusual synthetic forms",
+        "Expressive material logic",
+        "Coherent rendered world"
+      ],
+      "counterexamples": [
+        "Any rounded card",
+        "A single sphere"
+      ],
+      "confusingNeighbors": [
+        "playful-3d",
+        "surreal-digital",
+        "claymorphism"
+      ],
+      "sourceIds": [
+        "C13"
+      ],
+      "historicalContext": "Mid-2010s onward in CARI.",
+      "retrievalRole": "context-only",
+      "documentationNote": "Operational visual rule synthesized for retrieval; not a validated classification boundary.",
+      "queryExpansions": []
+    },
+    {
+      "id": "polychrome-fluid",
+      "name": "Polychrome / fluid-color imagery",
+      "kind": "imagery-treatment",
+      "familyIds": [],
+      "definition": "Fluid pigment, smoke or liquid-like color mixing shapes imagery or surfaces.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Fluid color form",
+        "Material-color mixing",
+        "Spatially related hues"
+      ],
+      "counterexamples": [
+        "Any multicolor page",
+        "Routine linear gradients"
+      ],
+      "confusingNeighbors": [
+        "glassmorphism",
+        "acid-graphics",
+        "blob-world"
+      ],
+      "sourceIds": [
+        "C14"
+      ],
+      "historicalContext": "2010s onward in CARI.",
+      "retrievalRole": "appearance",
+      "documentationNote": "Primarily imagery/appearance; not sufficient for a whole-page aesthetic.",
+      "queryExpansions": []
+    },
+    {
+      "id": "corporate-illustration",
+      "name": "Corporate expressive illustration",
+      "kind": "imagery-language",
+      "familyIds": [
+        "playful",
+        "graphic"
+      ],
+      "definition": "A consistent illustrative character/shape language supports brand communication.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Illustrative grammar",
+        "Repeated stylized relationships",
+        "Communication hierarchy"
+      ],
+      "counterexamples": [
+        "All illustration called Corporate Memphis",
+        "Nickname used as rejection evidence"
+      ],
+      "confusingNeighbors": [
+        "geometric-pop",
+        "kawaii",
+        "playful-3d"
+      ],
+      "sourceIds": [
+        "C16"
+      ],
+      "historicalContext": "Late-2010s/2020s creative direction.",
+      "retrievalRole": "context-only",
+      "documentationNote": "Alegria is a specific creator/system context, not an alias for all illustration.",
+      "queryExpansions": [
+        "Corporate Memphis",
+        "Alegria-inspired"
+      ]
+    },
+    {
+      "id": "clean",
+      "name": "Clean",
+      "kind": "appearance-quality-descriptor",
+      "familyIds": [],
+      "definition": "Controlled grouping and hierarchy reduce interference while keeping content readable.",
+      "aliases": [],
+      "positiveEvidence": [
+        "Readable hierarchy",
+        "Controlled alignment",
+        "Little irrelevant interference"
+      ],
+      "counterexamples": [
+        "White alone",
+        "Minimal assumed to guarantee usability"
+      ],
+      "confusingNeighbors": [
+        "minimal",
+        "flat",
+        "semi-flat"
+      ],
+      "sourceIds": [
+        "L01",
+        "Q02"
+      ],
+      "historicalContext": "Cross-period descriptor.",
+      "retrievalRole": "appearance",
+      "documentationNote": "Independent of aesthetic and date; a rich retro interface can be clean.",
+      "queryExpansions": []
+    }
+  ]
+}

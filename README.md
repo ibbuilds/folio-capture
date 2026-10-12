@@ -102,3 +102,5 @@ npm test
 ```
 
 The suite uses browser fixtures and mock classifiers: no live collection or authenticated model calls. It covers capture cleanup, coordinates, recovery, scoped selection, shared-image pruning, schema validation and adapter traversal. [Quality evaluation](docs/quality-evaluation.md) explains the independently reviewed benchmark input, precision, coverage and uncertainty. [Implementation notes](docs/engine-v2.md), [research](docs/classification-research.md), and [prior capture evidence](docs/validation.md) document scope and limitations.
+
+The [2000–2026 aesthetics study](docs/aesthetics/README.md) maps internet aesthetics, contemporary professional directions and surface treatments, including flat design. Its classifier recommendations are research proposals; the runtime taxonomy is unchanged.
