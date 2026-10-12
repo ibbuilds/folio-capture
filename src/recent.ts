@@ -34,6 +34,7 @@ export async function* discoverRecent(options:ReferoDiscoveryOptions):AsyncGener
       const response=await page.goto(listing,{waitUntil:'domcontentloaded',timeout:settings.navigationTimeoutMs});
       if(response && response.status()>=400)throw new Error(`Recent HTTP ${response.status()}`);
       if(!recentHost(page.url()) || !/^\/websites(?:\/|$)/.test(new URL(page.url()).pathname))throw new Error('Unsupported Recent collection redirect');
+      let observedEntries=false;
       let plateau=0,reason:'explicit_end'|'observed_plateau'|undefined;
       for(let step=0;step<settings.maxScrollSteps;step++) {
         signal?.throwIfAborted();
@@ -50,6 +51,7 @@ export async function* discoverRecent(options:ReferoDiscoveryOptions):AsyncGener
             explicit:[...document.querySelectorAll('p,[role="status"]')].some(e=>dom.visible(e)&&/^(no more (websites|results)|end of results|all websites loaded)[.!]?$/i.test(e.textContent?.trim()??'')),
             height:document.documentElement.scrollHeight,bottom:window.scrollY+window.innerHeight>=document.documentElement.scrollHeight-4};
         });
+        if(snapshot.entries.length)observedEntries=true;
         if(failedRequest)throw new Error('Recent loading request failed; cannot establish exhaustion');
         const batch:DiscoveredEntry[]=[];
         for(const item of snapshot.entries) {
@@ -72,7 +74,7 @@ export async function* discoverRecent(options:ReferoDiscoveryOptions):AsyncGener
         if(plateau>=settings.plateauChecks){reason='observed_plateau';break;}
         await page.evaluate(()=>window.scrollBy(0,Math.max(200,window.innerHeight*.8)));
       }
-      if(!seen.size)throw new Error('Unsupported Recent structure: no website entries were observed');
+      if(!observedEntries && reason!=='explicit_end')throw new Error('Unsupported Recent structure: no website entries were observed');
       if(!reason)throw new Error('Recent discovery step limit');
       // A plateau is never upgraded to an explicit end, even if other pages have end markers.
       if(reason==='observed_plateau')observedPlateau=true;

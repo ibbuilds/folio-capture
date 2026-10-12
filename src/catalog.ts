@@ -23,7 +23,7 @@ export async function exportAccepted(store:Store) {
       }
       references.push({id:record.subject.id,parentId:record.subject.parentId,siteId:record.subject.siteId,pageId:record.subject.pageId,
         sectionId:record.subject.sectionId,captureId:record.subject.captureId,scope:record.subject.scope,profileId:record.subject.profileId,
-        viewport:record.subject.viewport,title:record.subject.title,order:record.subject.order,url:record.sourceUrl,
+        viewport:record.subject.viewport,finalUrl:store.capture(record.subject.captureId)?.manifest?.variants.find(v=>v.profile.id===record.subject.profileId)?.finalUrl,title:record.subject.title,order:record.subject.order,url:record.sourceUrl,
         labels:record.classification!.labels,quality:record.quality,
         provenance:store.capture(record.subject.captureId)?.manifest?.provenance??[],
         images:record.subject.frames.map((f,order)=>({id:idFor([record.subject.captureId,f.path]),order,path:`${record.directory}/${f.path}`,

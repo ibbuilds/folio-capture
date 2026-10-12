@@ -87,3 +87,8 @@ test('normal pipeline captures the supplied library independently and queues its
     assert.ok(store.references().every(r=>r.quality.verdict!=='accepted'));
   }finally{store.close();}
 });
+
+test('an unknown secondary collection cannot hide behind earlier recognized entries',async()=>{
+  const result=await recent(routed(async route=>route.fulfill({contentType:'text/html',body:html(new URL(route.request().url()).pathname==='/websites'?'<a href="/i/first">First</a><a href="/websites/other">Other</a><p>No more websites</p>':'Unrecognized collection structure')})));
+  assert.equal((result.at(-1) as any).reason,'incomplete');assert.match((result.at(-1) as any).error,/Unsupported/);
+});
