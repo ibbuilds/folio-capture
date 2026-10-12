@@ -93,8 +93,13 @@ export const resolveRecentEntry:typeof resolveReferoEntry=async ({browser,entryU
     if(response && response.status()>=400)throw new Error(`Recent HTTP ${response.status()}`);
     if(!recentHost(page.url()) || !/^\/i\/[^/]+\/?$/.test(new URL(page.url()).pathname))throw new Error('Unsupported Recent detail redirect');
     await page.locator('body').waitFor({timeout:settings.settleTimeoutMs});
+    // A hydrated detail can render its original link after DOMContentLoaded.
+    try {
+      await page.getByRole('link',{name:/^(visit|view|open)( (the|original|live))? (website|site)(\s*[\u2197\u2192])?$/i}).first()
+        .waitFor({state:'visible',timeout:settings.settleTimeoutMs});
+    } catch(error) {if(signal?.aborted)throw error;throw new Error('Missing original website link after detail hydration wait');}
     const candidates=await page.locator('a[href]').evaluateAll(nodes=>nodes.map(node=>({url:(node as HTMLAnchorElement).href,text:(node.getAttribute('aria-label')||node.textContent||'').trim()})));
-    const links=candidates.filter(a=>/^(visit|view|open)( (the|original|live))? (website|site)(\s*[↗→])?$/i.test(a.text)).map(a=>a.url).filter(value=>{
+    const links=candidates.filter(a=>/^(visit|view|open)( (the|original|live))? (website|site)(\s*[\u2197\u2192])?$/i.test(a.text)).map(a=>a.url).filter(value=>{
       const url=new URL(value);return ['http:','https:'].includes(url.protocol)&&!url.username&&!url.password&&!/(^|\.)(recent.design|godly.website|dribbble.com|behance.net|figma.com|x.com|twitter.com|instagram.com)$/.test(url.hostname);
     });
     const unique=[...new Set(links.map(canonicalUrl))];

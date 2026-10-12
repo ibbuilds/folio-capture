@@ -92,3 +92,8 @@ test('an unknown secondary collection cannot hide behind earlier recognized entr
   const result=await recent(routed(async route=>route.fulfill({contentType:'text/html',body:html(new URL(route.request().url()).pathname==='/websites'?'<a href="/i/first">First</a><a href="/websites/other">Other</a><p>No more websites</p>':'Unrecognized collection structure')})));
   assert.equal((result.at(-1) as any).reason,'incomplete');assert.match((result.at(-1) as any).error,/Unsupported/);
 });
+
+test('Recent detail resolution waits for the original link to hydrate',async()=>{
+  const result=await resolveRecentEntry({browser:routed(async route=>route.fulfill({contentType:'text/html',body:html(`<p>Loading detail</p><script>setTimeout(()=>document.body.insertAdjacentHTML("beforeend", '<a href="https://original.test/late">Visit website</a>'),100)</script>`)})),entryUrl:'https://recent.design/i/late',settings});
+  assert.equal(result.originalUrl,'https://original.test/late');
+});
