@@ -1,5 +1,7 @@
 # Classification research review
 
+Historical implementation review. Its proposed manual-first acceptance policy was superseded by the automatic, experimental workflow in [engine v2](engine-v2.md). The broader [2000–2026 aesthetics study](aesthetics/README.md) expands the vocabulary research, including flat design, without changing the runtime taxonomy.
+
 Reviewed on 2026-10-11, local time. This review supports the [implementation plan](classification-plan.md): classify contemporary UI aesthetics, keep retrieval simple, and establish a demanding editorial standard. It is a literature/documentation review, not a new image benchmark or a claim of measured classifier accuracy. The user's additional source list is assessed in the [reference-source inventory](reference-sources.md).
 
 ## Findings and their implications
