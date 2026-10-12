@@ -22,8 +22,6 @@ The inspection identified Apple's locale banner and ElevenLabs' floating voice-c
 
 Large captures classify in bounded image batches. A failed enrichment leaves the images and completed batches available for retry. Classification may still require human correction; confidence and provenance remain visible.
 
-## Design Kit exercise
+## Scope
 
-The [paired exercise](design-comparison/README.md) uses one fixed brief for a Relay team-handoff concept: hero, product demonstration, three-step process, final call to action, dark neutrals and mint, responsive desktop/tablet/mobile behavior, and clearly illustrative data. Independent implementations were created with and without selected catalog images. Standalone artifacts are included in `docs/design-comparison`.
-
-Browser inspection covered desktop, tablet, and mobile, with working tab changes, keyboard navigation, and anchor actions. The reference condition produced a more specific layered source-to-handoff scene and compact mobile hero; the baseline remained usable and gave its tablet output more space. The accompanying comparison records these tradeoffs. One paired exercise is evidence about that brief, not a general proof of better design output.
+This repository contains the collection/classification engine and its local capture report. Product-design demos are excluded. Manual trials, deeper aesthetic research, editorial acceptance, and Design Kit integration will follow after the foundation is reviewed with us.

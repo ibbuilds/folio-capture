@@ -73,4 +73,4 @@ npm test
 npm run test:live
 ```
 
-Live validation writes to a separate folder and uses model-free captures. See its report before promoting material to our catalog. Technical checks establish recorded capture coverage and recovery behavior; visual inspection establishes whether references are useful. See [validation evidence](docs/validation.md), the [paired Design Kit exercise](docs/design-comparison/README.md), and the [future curation standard](docs/curation-next.md). Aesthetic research and a calibrated 9–10 acceptance gate are the next phase; captured references are not automatically curated.
+Optional live verification writes to a separate folder and uses model-free captures. Technical checks establish recorded capture coverage and recovery behavior; visual inspection establishes whether references are useful. See [validation evidence](docs/validation.md) and the [future curation standard](docs/curation-next.md). Aesthetic research and a calibrated 9–10 acceptance gate are the next phase; captured references are not automatically curated.
