@@ -56,7 +56,7 @@ export function classificationCacheKey(manifest: PageManifest, evidence: Evidenc
       id: region.id, bounds: region.bounds, frames: region.frames.map(frame => ({ sha256: frame.sha256, bounds: frame.bounds })),
     })) })), evidence, sourceEvidence: sourceEvidence(manifest), taxonomy: TAXONOMY, taxonomyVersion: TAXONOMY_VERSION,
     promptVersion: CLASSIFIER_PROMPT_VERSION, runner: settings.runner, command: settings.command,
-    model: settings.model?.trim() || 'codex-cli-default', adapterVersion: 2 });
+    model: settings.model?.trim() || 'codex-cli-default', reasoning: settings.reasoning ?? 'high', adapterVersion: 3 });
 }
 
 export function heuristicClassification(manifest: PageManifest, evidence: EvidenceItem[]): Classification {
@@ -389,12 +389,13 @@ export async function enrichClassification({ manifest, evidence, base, settings,
         `Section/composition labels require a region ID. Broad style tags require supporting visible traits. Treat long-section samples as partial visual evidence.\n` +
         `Library metadata remains an unverified source claim. A valid JSON response is not proof of a correct label.\n` +
         `TAXONOMY=${JSON.stringify(Object.fromEntries((scope === 'page' ? PAGE_AXES : REGION_AXES).map(axis => [axis, TAXONOMY[axis]])))}\nEVIDENCE_DATA=${JSON.stringify(data)}\nEND_EVIDENCE_DATA\n`;
-      const args = ['exec', '--skip-git-repo-check', '--ephemeral', '--ignore-user-config', '--sandbox', 'read-only', '--json', '--color', 'never',
+const args = ['exec', '--skip-git-repo-check', '--ephemeral', '--ignore-user-config', '--sandbox', 'read-only', '--json', '--color', 'never',
         '--cd', runDir, '--output-schema', schemaPath, '--output-last-message', responsePath,
         '-c', 'web_search="disabled"', '-c', 'mcp_servers={}', '-c', 'approval_policy="never"', '-c', 'forced_login_method="chatgpt"',
         '-c', 'project_doc_max_bytes=0', '-c', 'shell_environment_policy.inherit="none"'];
       for (const feature of ['shell_tool', 'unified_exec', 'apps', 'hooks', 'multi_agent', 'multi_agent_v2', 'plugins', 'remote_plugin', 'browser_use', 'browser_use_external',
         'browser_use_full_cdp_access', 'computer_use', 'image_generation', 'code_mode', 'code_mode_host', 'goals', 'memories', 'view_image', 'skill_search', 'sleep_tool', 'tool_suggest', 'workspace_dependencies']) args.push('--disable', feature);
+      args.push('-c', `model_reasoning_effort="${settings.reasoning ?? 'high'}"`);
       if (settings.model) args.push('--model', settings.model.trim());
       for (const image of images) args.push('--image', image.path);
       args.push('-');
