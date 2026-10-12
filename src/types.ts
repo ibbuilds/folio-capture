@@ -4,7 +4,7 @@ export type CaptureStatus = 'complete' | 'incomplete' | 'blocked' | 'failed';
 export type JobStatus = 'pending' | 'running' | 'complete' | 'incomplete' | 'blocked' | 'failed' | 'unsupported';
 export type Rect = { x: number; y: number; width: number; height: number };
 export type CaptureProfile = { id: string; width: number; height: number; dpr: number; isMobile: boolean; hasTouch: boolean };
-export type Source = { url: string; kind: 'auto' | 'page' | 'library'; name?: string; preserveSelectors?: string[]; dismissSelectors?: string[] };
+export type Source = { url: string; kind: 'auto' | 'page' | 'library' | 'site'; name?: string; maxPages?: number; maxDepth?: number; preserveSelectors?: string[]; dismissSelectors?: string[] };
 export type CaptureSettings = {
   navigationTimeoutMs: number; mediaTimeoutMs: number; settleTimeoutMs: number;
   screenshotTimeoutMs: number; attemptTimeoutMs: number; maxAttempts: number;
@@ -16,10 +16,11 @@ export type DiscoverySettings = {
   navigationTimeoutMs: number; settleTimeoutMs: number; plateauChecks: number;
   maxScrollSteps: number; maxDurationMs: number; minDelayMs: number; maxEntries?: number;
 };
-export type ClassifierSettings = { runner: 'codex' | 'none'; command: string; model?: string; timeoutMs: number; maxAttempts: number };
+export type ClassifierSettings = { runner: 'codex' | 'none'; command: string; model?: string; reasoning?: 'low' | 'medium' | 'high' | 'xhigh'; timeoutMs: number; maxAttempts: number };
 export type Config = {
   output: string; freshnessDays: number; sources: Source[]; profiles: CaptureProfile[];
   capture: CaptureSettings; discovery: DiscoverySettings; classifier: ClassifierSettings;
+  quality?: { maxImages: number; quarantineDays: number };
 };
 export type Intervention = { at: string; frameUrl: string; action: string; target: string; method: string; verified: boolean; note?: string };
 export type EvidenceItem = { id: string; regionId?: string; kind: string; value: unknown };
@@ -56,7 +57,7 @@ export type DiscoveryEvent =
   | { type: 'end'; reason: 'explicit_end' | 'observed_plateau' | 'incomplete'; error?: string; collections: string[]; discovered: number };
 export type ResolvedReference = { originalUrl: string; title: string; sourceLabels: string[]; previewUrl?: string; metadata: Record<string, unknown> };
 export type DiscoveryOptions = { browser: Browser; seed: Source; settings: DiscoverySettings; onProgress?: (message: string) => void; signal?: AbortSignal };
-export type TaxonomyAxis = 'experience' | 'page_purpose' | 'section_purpose' | 'composition' | 'visual_style' | 'typography' | 'color_palette' | 'density' | 'imagery' | 'surface_treatment' | 'industry' | 'audience' | 'interaction_pattern';
+export type TaxonomyAxis = 'experience' | 'page_purpose' | 'section_purpose' | 'composition' | 'visual_style' | 'appearance' | 'typography' | 'color_palette' | 'density' | 'imagery' | 'surface_treatment' | 'industry' | 'audience' | 'interaction_pattern';
 export type Label = {
   axis: TaxonomyAxis; label: string; regionId: string | null; evidenceIds: string[];
   provenance: 'source' | 'measured' | 'heuristic' | 'model' | 'human';

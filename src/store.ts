@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { JobStatus, PageManifest, Provenance, Classification } from './types.ts';
 import { canonicalUrl, idFor, now } from './utils.ts';
+import type { ReferenceRecord } from './references.ts';
 
 export type Job = { id: string; stage: string; key: string; status: JobStatus; attempts: number; payload: any; result: any; error: string | null; stoppingReason: string | null; createdAt: string; updatedAt: string };
 export type PageRecord = { id: string; url: string; provenance: Provenance[]; latestCaptureId: string | null };
@@ -22,6 +23,7 @@ export class Store {
       CREATE TABLE IF NOT EXISTS captures (id TEXT PRIMARY KEY, page_id TEXT NOT NULL REFERENCES pages(id), signature TEXT NOT NULL, directory TEXT NOT NULL, staging_directory TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, manifest TEXT, classification TEXT);
       CREATE INDEX IF NOT EXISTS jobs_stage_status ON jobs(stage,status);
       CREATE INDEX IF NOT EXISTS captures_page_signature ON captures(page_id,signature,created_at);
+      CREATE TABLE IF NOT EXISTS reference_records (id TEXT PRIMARY KEY, capture_id TEXT NOT NULL REFERENCES captures(id), record TEXT NOT NULL);
     `);
     this.db.prepare("INSERT OR IGNORE INTO meta VALUES ('schema_version','1')").run();
   }
@@ -95,6 +97,15 @@ export class Store {
     } catch (e) { this.db.exec('ROLLBACK'); throw e; }
   }
   saveClassification(captureId: string, result: Classification) { this.db.prepare('UPDATE captures SET classification=? WHERE id=?').run(JSON.stringify(result),captureId); }
+  saveReference(record: ReferenceRecord) {
+    this.db.prepare('INSERT INTO reference_records(id,capture_id,record) VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET record=excluded.record')
+      .run(record.subject.id, record.subject.captureId, JSON.stringify(record));
+  }
+  references(captureId?: string): ReferenceRecord[] {
+    const rows = captureId ? this.db.prepare('SELECT record FROM reference_records WHERE capture_id=? ORDER BY id').all(captureId)
+      : this.db.prepare('SELECT record FROM reference_records ORDER BY id').all();
+    return rows.map(row => JSON.parse(String(row.record)) as ReferenceRecord);
+  }
   captures(): CaptureRecord[] { return this.db.prepare('SELECT * FROM captures ORDER BY created_at,id').all().map(r=>this.decodeCapture(r)); }
   latestCaptures(): CaptureRecord[] { return this.db.prepare('SELECT c.* FROM captures c JOIN pages p ON p.latest_capture_id=c.id ORDER BY c.created_at,c.id').all().map(r=>this.decodeCapture(r)); }
   capture(id: string): CaptureRecord | undefined { const row=this.db.prepare('SELECT * FROM captures WHERE id=?').get(id);return row?this.decodeCapture(row):undefined; }

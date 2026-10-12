@@ -1,11 +1,11 @@
 import type { TaxonomyAxis } from './types.ts';
 
-export const TAXONOMY_VERSION = '1.2.0';
-export const CLASSIFIER_PROMPT_VERSION = '1.2.0';
+export const TAXONOMY_VERSION = '2.0.0';
+export const CLASSIFIER_PROMPT_VERSION = '2.0.0';
 
-export type TaxonomyDefinition = { label: string; definition: string };
+export type TaxonomyDefinition = { label: string; definition: string; aliases: string[]; supportingTraits: string[]; counterexamples: string[]; confusingNeighbors: string[] };
 const entries = (values: Record<string, string>): TaxonomyDefinition[] =>
-  Object.entries(values).map(([label, definition]) => ({ label, definition }));
+  Object.entries(values).map(([label, definition]) => ({ label, definition, aliases: [], supportingTraits: [definition], counterexamples: ['A source tag alone does not establish this concept.'], confusingNeighbors: [] }));
 
 /** Labels describe the captured evidence, not the unseen product or brand. */
 export const TAXONOMY: Record<TaxonomyAxis, TaxonomyDefinition[]> = {
@@ -43,6 +43,7 @@ export const TAXONOMY: Record<TaxonomyAxis, TaxonomyDefinition[]> = {
     features: 'Product capabilities, benefits, or feature explanations.',
     process: 'How something works or a sequence of explanatory steps.',
     pricing: 'Plans, prices, or purchasing options.',
+    testimonials: 'Visible attributed customer statements about their experience; logos alone are not testimonials.',
     'social-proof': 'Testimonials, customer logos, endorsements, or review evidence.',
     metrics: 'Quantified results or prominent statistical evidence.',
     comparison: 'Explicit comparison of alternatives.',
@@ -84,10 +85,17 @@ export const TAXONOMY: Record<TaxonomyAxis, TaxonomyDefinition[]> = {
     industrial: 'Technical labeling, exposed structural motifs, or utilitarian visual choices materially shape the aesthetic.',
     futuristic: 'Several visible technological or speculative visual motifs materially shape the design.',
     cinematic: 'Immersive imagery and dramatic visual hierarchy create a film-like presentation.',
+    vaporwave: 'A coherent retro-futurist treatment using nostalgic digital motifs with surreal pastel or neon color, simulated early computer graphics, or classical imagery. A gradient alone is insufficient.',
     retro: 'Several identifiable historical visual conventions materially shape the aesthetic.',
     organic: 'Natural forms, irregular curves, or tactile natural motifs materially shape the aesthetic.',
     luxurious: 'Several visible restrained, refined, or material-rich traits form a luxury aesthetic; brand or price alone is insufficient.',
     unknown: 'The supplied evidence does not establish a visual style.',
+  }),
+  appearance: entries({
+    clean: 'Clear hierarchy, controlled alignment, readable typography, and low visual interference; may coexist with dense content or expressive aesthetics.',
+    glassmorphism: 'Visibly translucent layered surfaces with background-dependent blur and legible foreground content.',
+    neumorphism: 'Continuous surfaces appear extruded or inset through complementary light and dark shading.',
+    unknown: 'Insufficient visible evidence of a coherent appearance treatment.',
   }),
   typography: entries({
     'sans-serif': 'Visible sans-serif typography or an explicitly observed declared sans-serif font stack.',
@@ -215,6 +223,11 @@ export const SOURCE_LABEL_ALIASES: Record<string, { axis: TaxonomyAxis; label: s
   'e-commerce': { axis: 'experience', label: 'commerce' },
   dashboard: { axis: 'page_purpose', label: 'dashboard' },
   minimal: { axis: 'visual_style', label: 'minimal' },
+  minimalistic: { axis: 'visual_style', label: 'minimal' },
+  clean: { axis: 'appearance', label: 'clean' },
+  vaporwave: { axis: 'visual_style', label: 'vaporwave' },
+  retro: { axis: 'visual_style', label: 'retro' },
+  neobrutalism: { axis: 'visual_style', label: 'neo-brutalist' },
   minimalist: { axis: 'visual_style', label: 'minimal' },
   minimalism: { axis: 'visual_style', label: 'minimal' },
   brutalism: { axis: 'visual_style', label: 'brutalist' },
@@ -238,3 +251,25 @@ export const SOURCE_LABEL_ALIASES: Record<string, { axis: TaxonomyAxis; label: s
   'oversized typography': { axis: 'typography', label: 'oversized-type' },
   'oversized-typography': { axis: 'typography', label: 'oversized-type' },
 };
+
+// Versioned distinctions used by both validators and model prompts.
+const distinctions: Record<string, { aliases: string[]; traits: string[]; counter: string[]; neighbors: string[] }> = {
+  minimal: { aliases: ['minimalist','minimalistic','minimalism'], traits: ['Restrained ornament','Deliberate hierarchy','Limited competing graphic devices'], counter: ['An empty unfinished page','Whitespace with no hierarchy'], neighbors: ['clean','editorial'] },
+  clean: { aliases: ['clear'], traits: ['Readable type','Consistent alignment','Clear separation of information'], counter: ['White background with clutter','Low contrast tiny typography'], neighbors: ['minimal','editorial'] },
+  brutalist: { aliases: ['brutalism'], traits: ['Raw exposed structure','Confrontational composition','Deliberate rejection of conventional polish'], counter: ['A single bold headline'], neighbors: ['neo-brutalist','industrial'] },
+  'neo-brutalist': { aliases: ['neobrutalism','neo-brutalism','neobrutalist'], traits: ['Hard offset shadows','Pronounced outlines','Bold flat colors'], counter: ['Conventional outlined cards alone'], neighbors: ['brutalist','playful'] },
+  glassmorphism: { aliases: ['glassy'], traits: ['Translucent layered panels','Background-dependent blur','Apparent depth'], counter: ['Opaque gray panel','A gradient without translucency'], neighbors: ['neumorphism','layered'] },
+  neumorphism: { aliases: ['soft-ui'], traits: ['Continuous base material','Paired light and dark shadows','Inset or extruded controls'], counter: ['An ordinary floating card shadow'], neighbors: ['skeuomorphic','glassmorphism'] },
+  retro: { aliases: ['vintage'], traits: ['Identifiable historical typographic or graphic conventions','Intentional nostalgic treatment'], counter: ['Merely old publication date','Accidentally broken legacy styling'], neighbors: ['vaporwave','skeuomorphic'] },
+  vaporwave: { aliases: ['vapor-wave'], traits: ['Retro-futurist nostalgia','Surreal digital motifs','Pastel/neon with historical computing or classical references'], counter: ['Pink gradient alone','Any futuristic dark interface'], neighbors: ['retro','futuristic','maximalist'] },
+  futuristic: { aliases: ['sci-fi'], traits: ['Speculative technological motifs','Coherent advanced-interface visual language'], counter: ['An AI product name','Dark palette alone'], neighbors: ['industrial','vaporwave'] },
+};
+for (const concepts of Object.values(TAXONOMY)) for (const concept of concepts) {
+  const distinction = distinctions[concept.label];
+  if (distinction) Object.assign(concept, { aliases: distinction.aliases, supportingTraits: distinction.traits, counterexamples: distinction.counter, confusingNeighbors: distinction.neighbors });
+  else concept.confusingNeighbors = concepts.filter(other => other.label !== concept.label && other.label !== 'unknown').slice(0, 3).map(other => other.label);
+}
+export function normalizeLabel(axis: TaxonomyAxis, input: string): string | undefined {
+  const value = input.trim().toLowerCase();
+  return TAXONOMY[axis].find(concept => concept.label === value || concept.aliases.includes(value))?.label;
+}

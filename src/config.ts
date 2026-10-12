@@ -14,7 +14,7 @@ export const DEFAULT_PROFILES = [
   { id: 'mobile-small', width: 360, height: 800, dpr: 2, isMobile: true, hasTouch: true },
 ];
 const positive = z.number().int().positive();
-const sourceSchema = z.union([z.string(), z.object({ url: z.string(), kind: z.enum(['auto','page','library']).default('auto'), name: z.string().optional(), preserveSelectors: z.array(z.string()).optional(), dismissSelectors: z.array(z.string()).optional() }).strict()]);
+const sourceSchema = z.union([z.string(), z.object({ url: z.string(), kind: z.enum(['auto','page','library','site']).default('auto'), name: z.string().optional(), maxPages: positive.max(1000).optional(), maxDepth: z.number().int().min(0).max(10).optional(), preserveSelectors: z.array(z.string()).optional(), dismissSelectors: z.array(z.string()).optional() }).strict()]);
 const configSchema = z.object({
   output: z.string().default('./output'), freshnessDays: positive.default(730), sources: z.array(sourceSchema).min(1),
   profiles: z.array(z.object({ id: z.string().regex(/^[a-z][a-z0-9-]*$/), width: positive.max(7680), height: positive.max(7680), dpr: z.number().min(1).max(3), isMobile: z.boolean(), hasTouch: z.boolean() }).strict()).min(1).default(DEFAULT_PROFILES),
@@ -26,7 +26,8 @@ const configSchema = z.object({
     preserveSelectors: z.array(z.string()).default([]), dismissSelectors: z.array(z.string()).default([]),
   }).strict().prefault({}),
   discovery: z.object({ navigationTimeoutMs: positive.default(45000), settleTimeoutMs: positive.default(10000), plateauChecks: positive.default(3), maxScrollSteps: positive.default(500), maxDurationMs: positive.default(1800000), minDelayMs: positive.default(1000), maxEntries: positive.optional() }).strict().prefault({}),
-  classifier: z.object({ runner: z.enum(['codex','none']).default('codex'), command: z.string().default('codex'), model: z.string().optional(), timeoutMs: positive.default(900000), maxAttempts: positive.max(3).default(2) }).strict().prefault({}),
+  quality: z.object({ maxImages: positive.max(100).default(24), quarantineDays: positive.default(30) }).strict().prefault({}),
+  classifier: z.object({ runner: z.enum(['codex','none']).default('codex'), command: z.string().default('codex'), model: z.string().default('gpt-6.1-sol'), reasoning: z.enum(['low','medium','high','xhigh']).default('high'), timeoutMs: positive.default(900000), maxAttempts: positive.max(3).default(2) }).strict().prefault({}),
 }).strict();
 
 export function parseConfig(raw: unknown, base = process.cwd()): Config {
