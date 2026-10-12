@@ -1,0 +1,15 @@
+# Add original pages or supported reference-library URLs here.
+# The output folder is resolved relative to this file; an absolute path also works.
+output: ./output
+freshnessDays: 730
+classifier:
+  runner: codex # Use none for a completely model-free run.
+  # model: your-available-vision-model
+sources:
+  - https://linear.app/
+  - https://vercel.com/
+  - https://www.flyhyer.com/
+  # Uncomment to collect Refero Styles. It can contain thousands of entries.
+  # - url: https://styles.refero.design/
+  #   kind: library
+

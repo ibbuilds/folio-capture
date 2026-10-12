@@ -1,0 +1,27 @@
+{
+  "name": "folio-capture",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Our local, resumable design-reference collection pipeline",
+  "type": "module",
+  "engines": { "node": ">=24.15.0 <25" },
+  "scripts": {
+    "capture": "tsx src/cli.ts run",
+    "folio": "tsx src/cli.ts",
+    "setup": "playwright install chromium --no-shell",
+    "build": "tsc --noEmit",
+    "test": "tsx --test --test-concurrency=1 tests/*.test.ts",
+    "test:live": "tsx scripts/live-smoke.ts"
+  },
+  "dependencies": {
+    "playwright": "1.62.1",
+    "sharp": "0.34.5",
+    "tsx": "4.21.0",
+    "yaml": "2.8.2",
+    "zod": "4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "typescript": "5.9.3"
+  }
+}
