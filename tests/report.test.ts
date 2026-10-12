@@ -95,6 +95,8 @@ test('HTML facets conjunct on the same region, inherit page labels, filter viewp
     await page.goto('http://folio.test/report.html');
     const visible = () => page.locator('[data-region-ref]:not([hidden])');
     assert.equal(await visible().count(), 4);
+    assert.equal(await page.locator('[data-facet]:visible').count(),4,'Default controls stay limited to aesthetic, composition, section, and viewport');
+    assert.equal(await page.locator('.advanced').getAttribute('open'),null);
     assert.equal(await page.evaluate('globalThis.injected'), undefined);
     await page.locator('#facet-section_purpose').selectOption('hero');
     await page.locator('#facet-visual_style').selectOption('minimal');
@@ -102,6 +104,7 @@ test('HTML facets conjunct on the same region, inherit page labels, filter viewp
     assert.equal(await visible().getAttribute('data-region-ref'), 'second-capture:desktop:second-hero');
     assert.equal(await page.locator('#pages article:not([hidden])').count(), 1);
     assert.equal(await page.locator('.variant:not([hidden])').count(), 1);
+    await page.locator('.advanced > summary').click();
     await page.locator('#facet-industry').selectOption('software');
     assert.equal(await visible().count(), 0);
     assert.equal(await page.locator('#no-matches').isVisible(), true);

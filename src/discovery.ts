@@ -1,5 +1,12 @@
 import type { Browser, BrowserContext, Page, Request } from 'playwright';
-import type { DiscoveryEvent, DiscoveryOptions, DiscoverySettings, ResolvedReference } from './types.ts';
+import type { DiscoveredEntry, DiscoveryEvent, DiscoveryOptions, DiscoverySettings, ResolvedReference } from './types.ts';
+
+export type ReferoDiscoveryOptions = DiscoveryOptions & {
+  /** Persist the entire newly observed batch synchronously, before any entry is yielded. */
+  onDiscovered?: (entries: DiscoveredEntry[]) => void;
+};
+
+class DiscoveryBatchError extends Error {}
 
 const HOST = 'styles.refero.design';
 const EXPLICIT_END = /^(?:you(?:'|’)ve reached the end[.!]?|no more (?:designs|styles|results)[.!]?|all (?:designs|styles) loaded[.!]?|end of results[.!]?|no (?:designs|styles|results) found[.!]?)$/i;
@@ -134,7 +141,7 @@ async function advanceListing(page: Page): Promise<void> {
 }
 
 /** Yields each discovered identity once. Consumer capture time is excluded from the discovery budget. */
-export async function* discoverRefero(options: DiscoveryOptions): AsyncGenerator<DiscoveryEvent> {
+export async function* discoverRefero(options: ReferoDiscoveryOptions): AsyncGenerator<DiscoveryEvent> {
   const { browser, seed, settings, signal } = options;
   if (!isReferoLibrary(seed.url)) throw new Error(`Unsupported Refero library URL: ${seed.url}`);
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'en-US' });
@@ -203,23 +210,24 @@ export async function* discoverRefero(options: DiscoveryOptions): AsyncGenerator
         let previousHeight = -1;
         while (true) {
           const snapshot = await settleListing(page, settings, pending, failures, budget(settings.settleTimeoutMs), signal);
-          let added = 0;
+          const batch: DiscoveredEntry[] = [];
+          const batchIdentities = new Set<string>();
+          const available = settings.maxEntries === undefined ? Infinity : Math.max(0, settings.maxEntries - seen.size);
+          const discoveredAt = new Date().toISOString();
+          let truncated = false;
           for (const raw of snapshot.entries) {
             const parsed = new URL(raw.detailUrl);
             parsed.search = '';
             parsed.hash = '';
             parsed.pathname = parsed.pathname.replace(/\/+$/, '');
             const detailUrl = parsed.href;
-            if (seen.has(detailUrl)) continue;
-            if (settings.maxEntries !== undefined && seen.size >= settings.maxEntries) throw new Error('Discovery entry limit reached');
-            seen.add(detailUrl);
-            added++;
-            activeMs += Date.now() - activeStarted;
-            yield { type: 'entry', entry: {
+            if (seen.has(detailUrl) || batchIdentities.has(detailUrl)) continue;
+            if (batch.length >= available) { truncated = true; break; }
+            batchIdentities.add(detailUrl);
+            batch.push({
               id: parsed.pathname.split('/').pop()!, seedUrl: seed.url, listingUrl,
-              detailUrl, title: raw.title, discoveredAt: new Date().toISOString(),
-            } };
-            activeStarted = Date.now();
+              detailUrl, title: raw.title, discoveredAt,
+            });
           }
           if (expandCollections) {
             for (const value of snapshot.collections) {
@@ -231,9 +239,23 @@ export async function* discoverRefero(options: DiscoveryOptions): AsyncGenerator
               if (!queued.has(parsed.href)) { queued.add(parsed.href); collections.push(parsed.href); }
             }
           }
+          if (batch.length) {
+            try { options.onDiscovered?.(batch); }
+            catch (error) {
+              throw new DiscoveryBatchError(`Could not persist discovered entries: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+            }
+            for (const entry of batch) seen.add(entry.detailUrl);
+            for (const entry of batch) {
+              checkAbort(signal);
+              activeMs += Date.now() - activeStarted;
+              yield { type: 'entry', entry };
+              activeStarted = Date.now();
+            }
+          }
+          if (truncated) throw new Error('Discovery entry limit reached');
           if (snapshot.explicitEnd) break;
           const atBottom = snapshot.scrollTop + snapshot.clientHeight >= snapshot.height - 4;
-          plateau = added === 0 && atBottom && snapshot.height === previousHeight ? plateau + 1 : 0;
+          plateau = batch.length === 0 && atBottom && snapshot.height === previousHeight ? plateau + 1 : 0;
           previousHeight = snapshot.height;
           if (plateau >= Math.max(3, settings.plateauChecks)) { allExplicit = false; break; }
           if (settings.maxEntries !== undefined && seen.size >= settings.maxEntries) throw new Error('Discovery entry limit reached without a verified end');
@@ -244,7 +266,7 @@ export async function* discoverRefero(options: DiscoveryOptions): AsyncGenerator
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        if (signal?.aborted || /limit reached/.test(message)) throw error;
+        if (signal?.aborted || error instanceof DiscoveryBatchError || /limit reached/.test(message)) throw error;
         collectionErrors.push(`${listingUrl}: ${message}`);
       } finally {
         page.off('request', onRequest).off('requestfinished', onFinished).off('requestfailed', onFailed).off('response', onResponse);

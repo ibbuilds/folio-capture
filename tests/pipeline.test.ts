@@ -19,7 +19,7 @@ test('end-to-end capture resumes, publishes atomically, reuses pixels, and repor
   });
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
   const address=server.address() as {port:number};const url=`http://127.0.0.1:${address.port}/`;
-  const config=parseConfig({output:root,sources:[url],classifier:{runner:'none'},capture:{maxAttempts:1,mediaTimeoutMs:500,settleTimeoutMs:1000,cleanupTimeoutMs:800,explorationTimeoutMs:8000,attemptTimeoutMs:20000}},root);
+  const config=parseConfig({output:root,sources:[url,{url:'https://unsupported.example/catalog',kind:'library'}],classifier:{runner:'none'},capture:{maxAttempts:1,mediaTimeoutMs:500,settleTimeoutMs:1000,cleanupTimeoutMs:800,explorationTimeoutMs:8000,attemptTimeoutMs:20000}},root);
   const abort=new AbortController();
   let inspectedStore:Store|undefined;
   try{
@@ -27,6 +27,8 @@ test('end-to-end capture resumes, publishes atomically, reuses pixels, and repor
     assert.equal(interrupted.interrupted,true);
     const first=await runPipeline(config,{captureOnly:true,log:()=>{}});
     assert.equal(first.captured,1);
+    assert.equal(first.incomplete,0);
+    assert.equal(first.unsupported,1);
     const store=new Store(root);inspectedStore=store;
     const captures=store.captures();const saved=captures.find(c=>c.manifest)!;
     assert.ok(saved);assert.equal(saved.manifest!.variants.length,6);
@@ -34,6 +36,7 @@ test('end-to-end capture resumes, publishes atomically, reuses pixels, and repor
     assert.ok(saved.manifest!.variants.every(v=>v.regions.some(r=>r.frames.length)));
     assert.ok(await validateCaptureFiles(join(root,saved.directory),saved.manifest!));
     assert.ok(store.jobs('viewport').every(j=>j.status!=='running'));
+    assert.equal(store.getJob('discovery','https://unsupported.example/catalog')?.status,'unsupported');
     const manifestBefore=await readFile(join(root,saved.directory,'manifest.json'),'utf8');
     assert.equal((JSON.parse(manifestBefore) as PageManifest).captureId,saved.id);
     store.close();inspectedStore=undefined;

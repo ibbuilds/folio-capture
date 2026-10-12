@@ -6,4 +6,3 @@ validation-output/
 *.sqlite*
 .env
 dist/
-

@@ -8,10 +8,10 @@ const escape = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, c => 
 const artifactUrl = (path: string) => path.replaceAll('\\', '/').split('/').map(encodeURIComponent).join('/');
 const dimensions: Array<{ axis: TaxonomyAxis; title: string; secondary?: boolean }> = [
   { axis: 'visual_style', title: 'Aesthetic / style' }, { axis: 'composition', title: 'Composition' },
-  { axis: 'section_purpose', title: 'Section purpose' }, { axis: 'typography', title: 'Typography' },
-  { axis: 'color_palette', title: 'Palette' }, { axis: 'density', title: 'Density' },
-  { axis: 'imagery', title: 'Imagery' }, { axis: 'industry', title: 'Industry' },
-  { axis: 'page_purpose', title: 'Page purpose' }, { axis: 'experience', title: 'Experience', secondary: true },
+  { axis: 'section_purpose', title: 'Section purpose' }, { axis: 'typography', title: 'Typography', secondary: true },
+  { axis: 'color_palette', title: 'Palette', secondary: true }, { axis: 'density', title: 'Density', secondary: true },
+  { axis: 'imagery', title: 'Imagery', secondary: true }, { axis: 'industry', title: 'Industry', secondary: true },
+  { axis: 'page_purpose', title: 'Page purpose', secondary: true }, { axis: 'experience', title: 'Experience', secondary: true },
   { axis: 'surface_treatment', title: 'Surface treatment', secondary: true },
   { axis: 'audience', title: 'Audience', secondary: true }, { axis: 'interaction_pattern', title: 'Interaction pattern', secondary: true },
 ];
@@ -95,7 +95,7 @@ export async function exportCatalog(store: Store) {
       for (const label of relevant.filter(knownLabel)) { facets[label.axis] ??= []; if (!facets[label.axis].includes(label.label)) facets[label.axis].push(label.label); }
       const search = [m.title, m.requestedUrl, v.profile.id, r.title, ...relevant.filter(knownLabel).flatMap(label => [label.axis, label.label])].join(' ').toLowerCase();
       const tags = labelTags(relevant.filter(label => label.regionId === r.id)) + labelTags(pageLabels, true);
-      return `<section data-region-ref="${escape(`${c.id}:${v.profile.id}:${r.id}`)}" data-profile="${escape(v.profile.id)}" data-search="${escape(search)}" data-labels="${escape(JSON.stringify(facets))}"><header><strong>${r.order}. ${escape(r.title)}</strong><small>${escape(r.method)} · boundary ${escape(r.boundaryConfidence)}</small><div class="tags region-tags">${tags || '<span>Classification pending / uncertain</span>'}</div></header><div class="frames">${r.frames.map((f, frameIndex) => {
+      return `<section data-region-ref="${escape(`${c.id}:${v.profile.id}:${r.id}`)}" data-profile="${escape(v.profile.id)}" data-search="${escape(search)}" data-labels="${escape(JSON.stringify(facets))}"><header><strong>${r.order+1}. ${escape(r.title)}</strong><small>${escape(r.method)} · boundary ${escape(r.boundaryConfidence)}</small><div class="tags region-tags">${tags || '<span>Classification pending / uncertain</span>'}</div></header><div class="frames">${r.frames.map((f, frameIndex) => {
         const image = localHref(`${c.directory}/${f.path}`);
         const thumbnail = localHref(`${c.directory}/${f.thumbnail}`);
         if (image === undefined || thumbnail === undefined) return '<p class="warnings">Image unavailable: invalid artifact path.</p>';

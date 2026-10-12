@@ -59,7 +59,7 @@ npm run folio -- report
 
 Captured, complete, classified, and approved mean different things. Every automatically captured page begins unreviewed. Uncertain section boundaries and style labels remain explicit. Library labels retain their source provenance. Static images do not establish an interaction flow.
 
-The thirteen retrieval axes cover experience, page purpose, section purpose, composition, aesthetic, typography, palette, density, imagery, surface treatment, industry, audience, and observed interaction patterns. The report combines filters **within the same section**, with relevant page-level labels inherited. `index.json` includes section-level category references for Folio; filtering a hero by an aesthetic never borrows that aesthetic from an unrelated footer.
+The thirteen retrieval axes cover experience, page purpose, section purpose, composition, aesthetic, typography, palette, density, imagery, surface treatment, industry, audience, and observed interaction patterns. The report shows four default filters (aesthetic, composition, section, viewport); specialist fields stay under More filters. It combines filters **within the same section**, with relevant page-level labels inherited. `index.json` includes section-level category references for Folio; filtering a hero by an aesthetic never borrows that aesthetic from an unrelated footer.
 
 Cookie cleanup rejects optional consent through known adapters, dismisses positively identified promotional overlays, and logs interventions. Intentional product modals and sticky design content are preserved. Login walls, CAPTCHAs, unknown blockers, broken media, and incomplete coverage appear as exceptions.
 
@@ -73,4 +73,4 @@ npm test
 npm run test:live
 ```
 
-Live validation writes to a separate folder and uses model-free captures. See its report before promoting material to our catalog. Technical checks establish recorded capture coverage and recovery behavior; visual inspection establishes whether references are useful. The Design Kit comparison is documented separately when performed.
+Live validation writes to a separate folder and uses model-free captures. See its report before promoting material to our catalog. Technical checks establish recorded capture coverage and recovery behavior; visual inspection establishes whether references are useful. See [validation evidence](docs/validation.md), the [paired Design Kit exercise](docs/design-comparison/README.md), and the [future curation standard](docs/curation-next.md). Aesthetic research and a calibrated 9–10 acceptance gate are the next phase; captured references are not automatically curated.

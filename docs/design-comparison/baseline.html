@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111412">
+  <meta name="description" content="Explore Relay, a concept for turning product-team discussions into clear handoffs.">
+  <title>Relay — Carry the context forward</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --canvas: #111412;
+      --surface: #191d1a;
+      --raised: #202622;
+      --line: #343d36;
+      --text: #f0f2ec;
+      --muted: #aeb7ae;
+      --subtle: #839084;
+      --mint: #b8f3ce;
+      --mint-ink: #15241b;
+      --gutter: clamp(20px, 4.5vw, 72px);
+      --width: 1296px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-synthesis: none;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 32px; }
+    body { margin: 0; background: var(--canvas); color: var(--text); }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    button { font: inherit; }
+    a { color: inherit; }
+    a:focus-visible, button:focus-visible, .panel:focus-visible { outline: 2px solid var(--mint); outline-offset: 5px; }
+    button { cursor: pointer; }
+    h1, h2, h3, p { margin: 0; }
+    button, a { touch-action: manipulation; }
+    [hidden] { display: none !important; }
+    .wrap { width: min(var(--width), calc(100% - var(--gutter) * 2)); margin-inline: auto; }
+    .skip { position: absolute; top: -100px; left: 20px; z-index: 5; padding: 14px 20px; background: var(--mint); color: var(--mint-ink); }
+    .skip:focus { top: 16px; }
+    .header { min-height: 104px; display: flex; align-items: center; justify-content: space-between; gap: 32px; border-bottom: 1px solid var(--line); }
+    .wordmark { font-size: 30px; font-weight: 650; letter-spacing: -.065em; text-decoration: none; line-height: 1; }
+    .wordmark span { color: var(--mint); }
+    .nav { display: flex; align-items: center; gap: 32px; }
+    .nav-link { text-decoration: none; color: var(--muted); font-size: 14px; padding-block: 12px; transition: color 160ms; }
+    .nav-link:hover { color: var(--text); }
+    .header-cta { display: inline-flex; align-items: center; min-height: 44px; padding: 0 19px; border: 1px solid #5c6c60; border-radius: 5px; font-size: 14px; font-weight: 550; text-decoration: none; transition: border-color 160ms, background 160ms; }
+    .header-cta:hover { border-color: var(--mint); background: var(--surface); }
+    .eyebrow { color: var(--mint); font-size: 12px; line-height: 1.4; font-weight: 600; letter-spacing: .11em; text-transform: uppercase; }
+    .hero { padding: 77px 0 70px; }
+    .hero h1 { margin-top: 26px; max-width: 1120px; font-size: clamp(60px, 7.2vw, 104px); line-height: .99; font-weight: 500; letter-spacing: -.066em; }
+    .hero h1 span { display: block; color: var(--mint); }
+    .hero-bottom { display: grid; grid-template-columns: 1fr 1fr; align-items: end; gap: 70px; margin-top: 42px; }
+    .hero-copy { color: var(--muted); font-size: 18px; line-height: 1.65; max-width: 550px; }
+    .hero-actions { display: flex; gap: 12px; align-items: center; justify-content: flex-end; padding-bottom: 5px; }
+    .button { min-height: 52px; display: inline-flex; justify-content: center; align-items: center; padding: 0 24px; border-radius: 5px; font-size: 15px; line-height: 1.3; font-weight: 600; text-decoration: none; border: 1px solid transparent; transition: background 160ms, border-color 160ms, transform 160ms; }
+    .button-primary { background: var(--mint); color: var(--mint-ink); }
+    .button-primary:hover { background: #d1f9df; transform: translateY(-1px); }
+    .button-secondary { border-color: #4a574d; color: var(--text); }
+    .button-secondary:hover { border-color: var(--mint); background: var(--surface); }
+    .flow-line { display: flex; align-items: center; gap: 18px; margin-top: 58px; color: var(--subtle); font-size: 12px; line-height: 1.5; letter-spacing: .035em; }
+    .flow-line .rule { flex: 1; height: 1px; background: var(--line); }
+    .flow-line .destination { color: var(--mint); }
+    .demo-section { padding-top: 23px; padding-bottom: 118px; }
+    .section-heading { display: grid; grid-template-columns: 1fr 2fr; gap: 44px; align-items: start; margin-bottom: 38px; }
+    .section-heading .eyebrow { padding-top: 9px; }
+    .section-heading h2 { max-width: 770px; font-size: clamp(32px, 3.2vw, 46px); line-height: 1.14; letter-spacing: -.043em; font-weight: 500; }
+    .section-heading h2 span { color: var(--muted); }
+    .product { border: 1px solid #445248; border-radius: 14px; background: var(--surface); box-shadow: 0 24px 80px #0003; overflow: hidden; }
+    .product-top { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 64px; padding: 0 26px; background: #202622; border-bottom: 1px solid var(--line); }
+    .product-breadcrumb { display: flex; align-items: center; gap: 16px; font-size: 13px; color: var(--muted); }
+    .product-brand { font-weight: 650; color: var(--text); letter-spacing: -.04em; font-size: 18px; }
+    .slash { color: #657267; }
+    .demo-tag { font-size: 11px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+    .product-body { display: grid; grid-template-columns: 330px minmax(0, 1fr); }
+    .source { padding: 30px 26px; border-right: 1px solid var(--line); background: #171c18; }
+    .pane-label { font-size: 11px; line-height: 1.3; letter-spacing: .1em; text-transform: uppercase; color: var(--subtle); font-weight: 600; }
+    .source h3 { margin-top: 12px; font-size: 20px; line-height: 1.3; letter-spacing: -.025em; font-weight: 550; }
+    .source-context { margin-top: 10px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+    .source-thread { margin-top: 25px; }
+    .source-message { padding: 17px 0; border-top: 1px solid var(--line); }
+    .person { display: flex; align-items: center; gap: 9px; font-size: 12px; font-weight: 600; }
+    .person span { color: var(--subtle); font-weight: 400; }
+    .source-message p { margin-top: 9px; color: #c5cdc4; font-size: 13px; line-height: 1.65; }
+    .source-message .fragment { color: var(--mint); background: #b8f3ce0a; }
+    .source-footer { margin-top: 13px; padding-top: 19px; border-top: 1px solid var(--line); font-size: 11px; color: var(--subtle); line-height: 1.7; }
+    .work-area { min-width: 0; padding: 23px 34px 32px; }
+    .tabs { display: flex; gap: 24px; min-height: 44px; border-bottom: 1px solid var(--line); }
+    .tab { position: relative; padding: 0 0 15px; border: 0; background: transparent; color: var(--muted); font-size: 13px; font-weight: 550; text-align: left; }
+    .tab:hover { color: var(--text); }
+    .tab[aria-selected="true"] { color: var(--mint); }
+    .tab[aria-selected="true"]::after { content: ""; position: absolute; height: 2px; background: var(--mint); bottom: -1px; left: 0; right: 0; }
+    .panel { min-height: 590px; padding-top: 28px; }
+    .doc-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .doc-status { display: inline-flex; align-items: center; padding: 6px 9px; color: var(--mint); background: #b8f3ce09; border: 1px solid #536951; border-radius: 4px; font-size: 10px; font-weight: 550; letter-spacing: .045em; }
+    .doc-meta .pane-label { font-size: 10px; }
+    .doc-title { font-size: clamp(28px, 3vw, 37px); letter-spacing: -.045em; line-height: 1.15; font-weight: 550; }
+    .doc-intro { max-width: 690px; margin-top: 12px; font-size: 14px; line-height: 1.65; color: var(--muted); }
+    .owners { display: flex; flex-wrap: wrap; gap: 17px; margin-top: 20px; font-size: 11px; color: var(--subtle); }
+    .owners strong { color: #c3cdc2; font-weight: 500; }
+    .decision { margin-top: 25px; padding: 23px 24px; border-left: 2px solid var(--mint); background: #242d25; }
+    .decision .pane-label { color: var(--mint); font-size: 10px; }
+    .decision h4 { margin: 10px 0 8px; font-size: 18px; letter-spacing: -.022em; line-height: 1.45; font-weight: 550; }
+    .decision p { color: #bac6ba; font-size: 13px; line-height: 1.65; }
+    .text-button { border: 0; background: none; display: inline-flex; align-items: center; color: var(--mint); padding: 11px 0 0; min-height: 36px; font-size: 11px; font-weight: 550; text-decoration: underline; text-decoration-color: #688d74; text-underline-offset: 4px; }
+    .handoff-detail { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-top: 25px; }
+    .detail-block { padding-top: 18px; border-top: 1px solid var(--line); }
+    .detail-block .pane-label { font-size: 10px; }
+    .detail-block h4 { margin: 10px 0 6px; font-size: 15px; line-height: 1.5; font-weight: 550; letter-spacing: -.015em; }
+    .detail-block p { color: var(--muted); font-size: 12px; line-height: 1.7; }
+    .detail-owner { display: block; margin-top: 12px; color: #c6d0c5; font-size: 11px; }
+    .doc-bottom { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-top: 24px; padding-top: 15px; border-top: 1px solid var(--line); color: var(--subtle); font-size: 10px; line-height: 1.6; }
+    .doc-bottom .mint { color: var(--mint); }
+    .original-thread { margin-top: 23px; display: grid; gap: 0; }
+    .full-message { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; padding: 18px 0; border-top: 1px solid var(--line); }
+    .initial { display: flex; justify-content: center; align-items: center; width: 29px; height: 29px; border: 1px solid #465347; border-radius: 50%; color: var(--muted); font-size: 11px; }
+    .full-message p { color: #c6cec5; font-size: 13px; line-height: 1.65; margin-top: 8px; }
+    .thread-note { margin-top: 18px; font-size: 12px; color: var(--mint); line-height: 1.7; }
+    .demo-caption { display: flex; align-items: flex-start; justify-content: space-between; gap: 32px; margin-top: 20px; }
+    .demo-caption p { color: var(--muted); font-size: 14px; line-height: 1.65; max-width: 620px; }
+    .demo-caption small { color: var(--subtle); font-size: 11px; line-height: 1.8; max-width: 265px; text-align: right; }
+    .process-section { padding: 83px 0 104px; border-top: 1px solid var(--line); background: #151a16; }
+    .process-heading { display: grid; grid-template-columns: 1fr 2fr; gap: 44px; margin-bottom: 68px; }
+    .process-heading .eyebrow { padding-top: 8px; }
+    .process-heading h2 { font-size: clamp(32px, 3.2vw, 46px); line-height: 1.15; font-weight: 500; letter-spacing: -.045em; max-width: 630px; }
+    .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .step { padding: 0 40px; border-left: 1px solid var(--line); }
+    .step:first-child { padding-left: 0; border-left: 0; }
+    .step:last-child { padding-right: 0; }
+    .step-number { display: block; color: var(--mint); font-size: 14px; letter-spacing: -.02em; }
+    .step h3 { margin-top: 30px; font-size: 27px; line-height: 1.16; letter-spacing: -.037em; font-weight: 500; max-width: 265px; }
+    .step p { margin-top: 18px; max-width: 315px; color: var(--muted); font-size: 15px; line-height: 1.75; }
+    .step-foot { margin-top: 30px; color: var(--subtle); font-size: 11px; line-height: 1.6; }
+    .final-section { padding: 96px 0 30px; }
+    .final-cta { display: grid; grid-template-columns: 1.55fr 1fr; align-items: end; gap: 48px; padding: 57px 58px; background: var(--mint); color: var(--mint-ink); border-radius: 9px; }
+    .final-cta .eyebrow { color: #375a40; }
+    .final-cta h2 { margin-top: 24px; max-width: 660px; font-size: clamp(40px, 4.6vw, 64px); line-height: 1.03; letter-spacing: -.055em; font-weight: 500; }
+    .final-action { padding-bottom: 5px; }
+    .final-action p { color: #36533e; font-size: 15px; line-height: 1.7; max-width: 335px; }
+    .button-dark { margin-top: 25px; background: var(--mint-ink); color: var(--mint); }
+    .button-dark:hover { background: #253d2d; transform: translateY(-1px); }
+    .button-dark:focus-visible { outline-color: var(--mint-ink); }
+    .footer { display: flex; justify-content: space-between; align-items: center; gap: 40px; min-height: 136px; }
+    .footer-left { display: flex; align-items: center; gap: 31px; }
+    .footer .wordmark { font-size: 26px; }
+    .footer p { color: var(--subtle); font-size: 11px; line-height: 1.7; }
+    .footer a:last-child { font-size: 12px; color: var(--muted); text-underline-offset: 4px; }
+    @media (min-width: 1600px) { .hero { padding-top: 90px; } }
+    @media (max-width: 1100px) {
+      .hero h1 { font-size: clamp(60px, 8.1vw, 88px); }
+      .hero-bottom { gap: 36px; }
+      .hero-actions { gap: 10px; }
+      .button { padding-inline: 18px; }
+      .product-body { grid-template-columns: 285px minmax(0, 1fr); }
+      .source { padding-inline: 22px; }
+      .work-area { padding-inline: 26px; }
+      .handoff-detail { gap: 20px; }
+      .step { padding-inline: 28px; }
+      .final-cta { padding: 46px; gap: 38px; }
+    }
+    @media (max-width: 900px) {
+      .header { min-height: 86px; }
+      .nav { gap: 22px; }
+      .hero { padding-top: 59px; }
+      .hero h1 { font-size: clamp(54px, 8.1vw, 74px); }
+      .hero-bottom { grid-template-columns: 1fr; gap: 25px; margin-top: 30px; }
+      .hero-actions { justify-content: flex-start; padding: 0; }
+      .hero-copy { max-width: 640px; font-size: 17px; }
+      .flow-line { margin-top: 43px; }
+      .section-heading, .process-heading { grid-template-columns: 1fr; gap: 20px; }
+      .product-body { grid-template-columns: 1fr; }
+      .source { border-right: 0; border-bottom: 1px solid var(--line); padding: 24px 28px; }
+      .source h3 { margin-top: 7px; }
+      .source-context { max-width: 560px; margin-top: 7px; }
+      .source-thread { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 23px; margin-top: 18px; }
+      .source-message { padding: 13px 0 0; }
+      .person { flex-wrap: wrap; gap: 3px 7px; }
+      .source-message p { font-size: 12px; }
+      .source-footer { display: none; }
+      .work-area { padding: 23px 28px 29px; }
+      .panel { min-height: 545px; }
+      .doc-intro { max-width: 640px; }
+      .demo-section { padding-bottom: 82px; }
+      .process-section { padding: 63px 0 76px; }
+      .process-heading { margin-bottom: 47px; }
+      .step { padding-inline: 23px; }
+      .step h3 { font-size: 24px; }
+      .step p { font-size: 14px; }
+      .final-section { padding-top: 70px; }
+      .final-cta { grid-template-columns: 1fr; gap: 27px; }
+      .final-action p { max-width: 530px; }
+      .final-cta h2 { max-width: 580px; }
+    }
+    @media (max-width: 600px) {
+      :root { --gutter: 22px; }
+      html { scroll-padding-top: 20px; }
+      .header { min-height: 80px; gap: 18px; }
+      .wordmark { font-size: 27px; }
+      .nav { gap: 0; }
+      .nav-link { display: none; }
+      .header-cta { min-height: 42px; padding-inline: 13px; font-size: 12px; }
+      .hero { padding: 49px 0 44px; }
+      .eyebrow { font-size: 10px; letter-spacing: .095em; }
+      .hero h1 { margin-top: 22px; max-width: 490px; font-size: clamp(43px, 11vw, 62px); line-height: 1.035; letter-spacing: -.06em; }
+      .hero h1 span { margin-top: 3px; }
+      .hero-bottom { gap: 24px; margin-top: 27px; }
+      .hero-copy { font-size: 15px; line-height: 1.75; }
+      .hero-actions { flex-wrap: wrap; gap: 10px; }
+      .button { min-height: 48px; font-size: 13px; padding-inline: 17px; }
+      .flow-line { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 38px; gap: 15px; font-size: 10px; letter-spacing: 0; }
+      .flow-line .rule { display: none; }
+      .flow-line span:not(.rule) { padding-top: 10px; border-top: 1px solid var(--line); }
+      .demo-section { padding-top: 11px; padding-bottom: 59px; }
+      .section-heading { gap: 17px; margin-bottom: 26px; }
+      .section-heading h2, .process-heading h2 { font-size: 30px; line-height: 1.19; }
+      .product { border-radius: 9px; }
+      .product-top { padding: 15px 18px; min-height: 61px; gap: 8px; align-items: flex-start; }
+      .product-breadcrumb { flex-wrap: wrap; gap: 7px; font-size: 10px; }
+      .product-brand { font-size: 16px; }
+      .demo-tag { font-size: 10px; text-align: right; line-height: 1.6; max-width: 65px; }
+      .source { padding: 22px 20px; }
+      .source h3 { font-size: 18px; }
+      .source-context { font-size: 12px; line-height: 1.6; }
+      .source-thread { grid-template-columns: 1fr; gap: 0; margin-top: 16px; }
+      .source-message { padding: 13px 0; }
+      .source-message:last-child { padding-bottom: 0; }
+      .source-message p { font-size: 12px; margin-top: 6px; }
+      .person { font-size: 11px; gap: 7px; }
+      .work-area { padding: 19px 20px 24px; }
+      .tabs { gap: 23px; }
+      .tab { font-size: 12px; padding-bottom: 12px; }
+      .panel { min-height: 0; padding-top: 23px; }
+      .doc-meta { margin-bottom: 15px; gap: 9px; }
+      .doc-status { padding: 5px 7px; font-size: 10px; }
+      .doc-meta .pane-label { font-size: 10px; }
+      .doc-title { font-size: 28px; }
+      .doc-intro { font-size: 12px; line-height: 1.7; }
+      .owners { gap: 7px 14px; font-size: 10px; margin-top: 15px; }
+      .decision { padding: 18px; margin-top: 22px; }
+      .decision h4 { font-size: 16px; line-height: 1.45; }
+      .decision p { font-size: 12px; }
+      .handoff-detail { grid-template-columns: 1fr; gap: 21px; margin-top: 23px; }
+      .detail-block h4 { font-size: 14px; }
+      .detail-block p { font-size: 12px; }
+      .doc-bottom { margin-top: 22px; font-size: 10px; }
+      .full-message { gap: 10px; grid-template-columns: 25px minmax(0, 1fr); }
+      .initial { width: 25px; height: 25px; font-size: 10px; }
+      .full-message p { font-size: 12px; }
+      .demo-caption { flex-direction: column; gap: 10px; margin-top: 17px; }
+      .demo-caption p { font-size: 12px; }
+      .demo-caption small { text-align: left; max-width: none; font-size: 10px; }
+      .process-section { padding: 48px 0 55px; }
+      .process-heading { gap: 16px; margin-bottom: 34px; }
+      .steps { grid-template-columns: 1fr; gap: 30px; }
+      .step, .step:first-child, .step:last-child { padding: 25px 0 0; border: 0; border-top: 1px solid var(--line); }
+      .step-number { font-size: 12px; }
+      .step h3 { margin-top: 16px; font-size: 27px; max-width: none; }
+      .step p { margin-top: 13px; font-size: 14px; max-width: none; }
+      .step-foot { margin-top: 17px; font-size: 10px; }
+      .final-section { padding: 53px 0 10px; }
+      .final-cta { padding: 31px 27px; gap: 24px; border-radius: 7px; }
+      .final-cta h2 { margin-top: 19px; font-size: clamp(37px, 10vw, 53px); line-height: 1.06; }
+      .final-action p { font-size: 13px; }
+      .button-dark { margin-top: 22px; }
+      .footer { min-height: 134px; gap: 22px; align-items: flex-start; padding-block: 32px; }
+      .footer-left { flex-direction: column; align-items: flex-start; gap: 13px; }
+      .footer p { font-size: 10px; max-width: 220px; }
+      .footer a:last-child { font-size: 10px; white-space: nowrap; padding-top: 3px; }
+    }
+    @media (max-width: 360px) {
+      :root { --gutter: 18px; }
+      .hero h1 { font-size: 39px; }
+      .hero-actions { display: grid; grid-template-columns: 1fr; width: 100%; }
+      .button { width: 100%; }
+      .flow-line { gap: 10px; }
+      .source, .work-area { padding-inline: 17px; }
+      .doc-meta { align-items: flex-start; flex-direction: column; }
+      .final-cta { padding: 28px 24px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition: none !important; }
+      .button:hover { transform: none; }
+    }
+  </style>
+</head>
+<body id="top">
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="header wrap">
+    <a class="wordmark" href="#top" aria-label="Relay, back to top">relay<span>.</span></a>
+    <nav class="nav" aria-label="Main navigation">
+      <a class="nav-link" href="#demo">The handoff</a>
+      <a class="nav-link" href="#process">How it works</a>
+      <a class="header-cta" href="#demo">Explore the demo</a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <section class="hero wrap" aria-labelledby="hero-title">
+      <p class="eyebrow">A concept for product-team handoffs</p>
+      <h1 id="hero-title">Give the next team<span>more than a thread.</span></h1>
+      <div class="hero-bottom">
+        <p class="hero-copy">Relay brings the discussion, the decisions, and the next steps into one clear handoff. So the next team can pick up the work with the context still attached.</p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="#demo">See the handoff</a>
+          <a class="button button-secondary" href="#process">How it works</a>
+        </div>
+      </div>
+      <div class="flow-line" aria-hidden="true">
+        <span>A scattered discussion</span><span class="rule"></span><span>A shared decision</span><span class="rule"></span><span class="destination">A clear next step</span>
+      </div>
+    </section>
+
+    <section class="demo-section wrap" id="demo" aria-labelledby="demo-title">
+      <div class="section-heading">
+        <p class="eyebrow">01 / The handoff</p>
+        <h2 id="demo-title">Less digging for context.<br><span>A better place to begin.</span></h2>
+      </div>
+      <div class="product" aria-label="Illustrative Relay product demonstration">
+        <div class="product-top">
+          <div class="product-breadcrumb"><span class="product-brand">relay.</span><span class="slash">/</span><span>Onboarding project</span></div>
+          <span class="demo-tag">Illustrative demo</span>
+        </div>
+        <div class="product-body">
+          <aside class="source" aria-label="Source discussion excerpts">
+            <p class="pane-label">Where it started</p>
+            <h3>A conversation in motion</h3>
+            <p class="source-context">The product team is discussing when new workspace owners should invite their teammates.</p>
+            <div class="source-thread">
+              <article class="source-message">
+                <div class="person">Maya <span>Product</span></div>
+                <p>“Could we ask them to invite the team during setup? Or is that one step too many?”</p>
+              </article>
+              <article class="source-message">
+                <div class="person">Jon <span>Engineering</span></div>
+                <p>“We can make it optional. I’d rather <span class="fragment">keep workspace creation simple</span>.”</p>
+              </article>
+              <article class="source-message">
+                <div class="person">Nia <span>Design</span></div>
+                <p>“Let’s put the invite prompt on the empty workspace. I’ll explore a dismissible version.”</p>
+              </article>
+            </div>
+            <p class="source-footer">Useful context, spread across a thread.<br>The decision is there. The handoff is not.</p>
+          </aside>
+          <div class="work-area">
+            <div class="tabs" role="tablist" aria-label="Explore the illustrative project">
+              <button class="tab" id="tab-handoff" role="tab" aria-selected="true" aria-controls="panel-handoff" tabindex="0">The clear handoff</button>
+              <button class="tab" id="tab-thread" role="tab" aria-selected="false" aria-controls="panel-thread" tabindex="-1">The original thread</button>
+            </div>
+            <section class="panel" id="panel-handoff" role="tabpanel" aria-labelledby="tab-handoff" tabindex="0">
+              <div class="doc-meta"><p class="pane-label">Product → Design</p><span class="doc-status">Ready for design exploration</span></div>
+              <h3 class="doc-title">Workspace invites</h3>
+              <p class="doc-intro">Help new workspace owners bring in their team without adding another required step to setup.</p>
+              <div class="owners"><span>Product owner <strong>Maya</strong></span><span>Next owner <strong>Nia · Design</strong></span></div>
+              <article class="decision">
+                <p class="pane-label">The decision</p>
+                <h4>Invite teammates after workspace creation.</h4>
+                <p>Keep the initial setup focused. Show an optional invite prompt in the empty workspace, where bringing in the team is the natural next step.</p>
+                <button class="text-button" type="button" id="show-reasoning">Read the discussion behind this</button>
+              </article>
+              <div class="handoff-detail">
+                <article class="detail-block">
+                  <p class="pane-label">The next step</p>
+                  <h4>Explore the empty-workspace prompt.</h4>
+                  <p>Show an invitation state and a dismissible state. Keep the prompt separate from required setup.</p>
+                  <span class="detail-owner">Nia · Design exploration</span>
+                </article>
+                <article class="detail-block">
+                  <p class="pane-label">Still open</p>
+                  <h4>When should a dismissed prompt return?</h4>
+                  <p>Consider the return behavior with Product and Engineering before the design is handed over to build.</p>
+                  <span class="detail-owner">Maya + Jon · Follow-up decision</span>
+                </article>
+              </div>
+              <div class="doc-bottom"><span>Context · Decision · Ownership · Next step</span><span class="mint">The reasoning travels with the work.</span></div>
+            </section>
+            <section class="panel" id="panel-thread" role="tabpanel" aria-labelledby="tab-thread" tabindex="0" hidden>
+              <div class="doc-meta"><p class="pane-label">Source discussion</p><span class="doc-status">Illustrative project thread</span></div>
+              <h3 class="doc-title">Where should invites live?</h3>
+              <p class="doc-intro">The same project before the discussion is shaped into a handoff. Decisions, suggestions, and unresolved questions share the same space.</p>
+              <div class="original-thread">
+                <article class="full-message">
+                  <span class="initial" aria-hidden="true">M</span>
+                  <div><div class="person">Maya <span>Product · Monday</span></div><p>Could we ask new owners to invite the team during setup? Or is that one step too many? We want an empty workspace to feel like a starting point, not a dead end.</p></div>
+                </article>
+                <article class="full-message">
+                  <span class="initial" aria-hidden="true">J</span>
+                  <div><div class="person">Jon <span>Engineering · Monday</span></div><p>We can make it optional. I’d rather keep workspace creation simple. An invite prompt can sit in the workspace itself without becoming a required setup step.</p></div>
+                </article>
+                <article class="full-message">
+                  <span class="initial" aria-hidden="true">N</span>
+                  <div><div class="person">Nia <span>Design · Monday</span></div><p>Let’s put the invite prompt on the empty workspace. I’ll explore a dismissible version. Do we want it to come back if they close it?</p></div>
+                </article>
+                <article class="full-message">
+                  <span class="initial" aria-hidden="true">M</span>
+                  <div><div class="person">Maya <span>Product · Tuesday</span></div><p>Agreed: invites after creation. Nia, please explore the empty-workspace prompt. Let’s decide the return behavior together before it goes to Engineering.</p></div>
+                </article>
+              </div>
+              <p class="thread-note">Switch to “The clear handoff” to see the decision, owner, next step, and open question pulled into a shared brief.</p>
+            </section>
+          </div>
+        </div>
+      </div>
+      <div class="demo-caption">
+        <p>A handoff should say what happens next—and preserve enough of the conversation to explain why.</p>
+        <small>All project details, people, and interface states shown here are illustrative.</small>
+      </div>
+    </section>
+
+    <section class="process-section" id="process" aria-labelledby="process-title">
+      <div class="wrap">
+        <div class="process-heading">
+          <p class="eyebrow">02 / The process</p>
+          <h2 id="process-title">Keep the why.<br>Make the next move clear.</h2>
+        </div>
+        <div class="steps">
+          <article class="step">
+            <span class="step-number">01</span>
+            <h3>Bring the context together.</h3>
+            <p>Start with the discussion that matters: the problem, the constraints, and the reasoning behind the work.</p>
+            <div class="step-foot">The starting point / Shared understanding</div>
+          </article>
+          <article class="step">
+            <span class="step-number">02</span>
+            <h3>Separate decisions from questions.</h3>
+            <p>Make the agreed direction visible. Give unresolved questions their own place, so they do not become accidental assumptions.</p>
+            <div class="step-foot">The turning point / A clear direction</div>
+          </article>
+          <article class="step">
+            <span class="step-number">03</span>
+            <h3>Give the next step an owner.</h3>
+            <p>Finish with a useful brief: who picks it up, what they need to do, and what needs another conversation.</p>
+            <div class="step-foot">The handoff / A shared next move</div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="final-section wrap" aria-labelledby="final-title">
+      <div class="final-cta">
+        <div><p class="eyebrow">Context, carried forward</p><h2 id="final-title">Let the work move.<br>Keep the context.</h2></div>
+        <div class="final-action"><p>Explore how a loose project discussion becomes a handoff the next team can pick up.</p><a class="button button-dark" href="#demo">Explore the handoff</a></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer wrap">
+    <div class="footer-left"><a class="wordmark" href="#top" aria-label="Relay, back to top">relay<span>.</span></a><p>Relay is a product concept.<br>This page demonstrates an illustrative handoff.</p></div>
+    <a href="#top">Back to top</a>
+  </footer>
+  <script>
+    (() => {
+      const tabs = [...document.querySelectorAll('[role="tab"]')];
+      const panels = [...document.querySelectorAll('[role="tabpanel"]')];
+      function selectTab(tab, moveFocus = false) {
+        tabs.forEach(item => {
+          const selected = item === tab;
+          item.setAttribute('aria-selected', String(selected));
+          item.tabIndex = selected ? 0 : -1;
+        });
+        panels.forEach(panel => { panel.hidden = panel.id !== tab.getAttribute('aria-controls'); });
+        if (moveFocus) tab.focus();
+      }
+      tabs.forEach((tab, index) => {
+        tab.addEventListener('click', () => selectTab(tab));
+        tab.addEventListener('keydown', event => {
+          let nextIndex;
+          if (event.key === 'ArrowRight') nextIndex = (index + 1) % tabs.length;
+          if (event.key === 'ArrowLeft') nextIndex = (index - 1 + tabs.length) % tabs.length;
+          if (event.key === 'Home') nextIndex = 0;
+          if (event.key === 'End') nextIndex = tabs.length - 1;
+          if (nextIndex !== undefined) {
+            event.preventDefault();
+            selectTab(tabs[nextIndex], true);
+          }
+        });
+      });
+      document.getElementById('show-reasoning').addEventListener('click', () => selectTab(document.getElementById('tab-thread'), true));
+    })();
+  </script>
+</body>
+</html>

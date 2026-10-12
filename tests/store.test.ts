@@ -14,6 +14,23 @@ test('URLs strip tracking while preserving content state and reject credentials'
   assert.throws(()=>inside(process.cwd(),'../outside'));
 });
 
+test('observed discovery batches are durably queued together and roll back partial writes',async()=>{
+  const root=await mkdtemp(join(tmpdir(),'folio-discovery-ledger-'));
+  const store=new Store(root);
+  try{
+    const entries=Array.from({length:20},(_,i)=>({key:`reference-${i}`,payload:{detailUrl:`https://styles.refero.design/style/${i}`}}));
+    store.queueJobs('resolve',entries);
+    assert.equal(store.jobs('resolve',['pending']).length,20);
+    const interrupted=store.getJob('resolve','reference-0')!;store.start(interrupted);
+    store.queueJobs('resolve',entries);
+    assert.equal(store.getJob('resolve','reference-0')?.status,'running','Replaying discovery must not reset an existing job');
+    assert.equal(store.jobs('resolve').length,20);
+    assert.throws(()=>store.queueJobs('resolve',[{key:'partial-new',payload:{}},{key:'invalid-new',payload:{invalid:1n}}]));
+    assert.equal(store.getJob('resolve','partial-new'),undefined);
+    assert.equal(store.jobs('resolve').length,20);
+  }finally{store.close();await rm(root,{recursive:true,force:true});}
+});
+
 test('config defaults cover desktop, tablet, mobile and enforce bounded settings',()=>{
   const config=parseConfig({sources:['https://example.com/']});
   assert.equal(config.freshnessDays,730);assert.equal(config.profiles.length,6);assert.equal(config.classifier.runner,'codex');

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import { chromium, type Browser, type Route } from 'playwright';
 import { discoverRefero, isReferoLibrary, resolveReferoEntry } from '../src/discovery.ts';
-import type { DiscoveryEvent, DiscoverySettings } from '../src/types.ts';
+import type { DiscoveredEntry, DiscoveryEvent, DiscoverySettings } from '../src/types.ts';
 
 let browser: Browser;
 before(async () => { browser = await chromium.launch({ headless: true, channel: 'chromium', executablePath: process.env.FOLIO_TEST_BROWSER_PATH }); });
@@ -30,9 +30,9 @@ function routedBrowser(handler: (route: Route) => Promise<void>): Browser {
   });
 }
 
-async function events(testBrowser: Browser, url = `${origin}/`, overrides: Partial<DiscoverySettings> = {}): Promise<DiscoveryEvent[]> {
+async function events(testBrowser: Browser, url = `${origin}/`, overrides: Partial<DiscoverySettings> = {}, onDiscovered?: (entries: DiscoveredEntry[]) => void): Promise<DiscoveryEvent[]> {
   const result: DiscoveryEvent[] = [];
-  for await (const event of discoverRefero({ browser: testBrowser, seed: { url, kind: 'library' }, settings: { ...settings, ...overrides } })) result.push(event);
+  for await (const event of discoverRefero({ browser: testBrowser, seed: { url, kind: 'library' }, settings: { ...settings, ...overrides }, onDiscovered })) result.push(event);
   return result;
 }
 
@@ -71,13 +71,83 @@ test('infinite scrolling accumulates 20 then 40 entries and verifies an explicit
   assert.equal(browser.contexts().length, 0);
 });
 
+test('the complete first batch is persisted before entry one, including when the consumer stops', async () => {
+  const ids = Array.from({ length: 20 }, (_, index) => `first-${index}`);
+  const testBrowser = routedBrowser(async route => {
+    await route.fulfill({ contentType: 'text/html', body: html(`${cards(ids)}<p>No more designs</p>`) });
+  });
+  const queued: DiscoveredEntry[] = [];
+  const batches: string[][] = [];
+  const iterator = discoverRefero({
+    browser: testBrowser, seed: { url: `${origin}/`, kind: 'library' }, settings,
+    onDiscovered(entries) { queued.push(...entries); batches.push(entries.map(entry => entry.id)); },
+  });
+  try {
+    const first = await iterator.next();
+    assert.equal(first.value?.type, 'entry');
+    if (first.value?.type !== 'entry') assert.fail('The consumer must receive an entry');
+    assert.equal(first.value.entry.id, ids[0]);
+    assert.deepEqual(queued.map(entry => entry.id), ids, 'All 20 identities must survive an interruption after the first entry');
+    assert.deepEqual(batches, [ids]);
+    assert.equal(new Set(queued.map(entry => entry.discoveredAt)).size, 1, 'Observation timestamps precede consumer work');
+  } finally { await iterator.return(undefined); }
+  assert.equal(browser.contexts().length, 0);
+});
+
+test('batch persistence respects maxEntries exactly and deduplicates repeated cards', async () => {
+  const ids = Array.from({ length: 20 }, (_, index) => `first-${index}`);
+  const testBrowser = routedBrowser(async route => {
+    await route.fulfill({ contentType: 'text/html', body: html(`${cards([ids[0], ids[0], ...ids.slice(1)])}<p>No more designs</p>`) });
+  });
+  const queued: DiscoveredEntry[] = [];
+  const batches: string[][] = [];
+  const result: DiscoveryEvent[] = [];
+  for await (const event of discoverRefero({
+    browser: testBrowser, seed: { url: `${origin}/`, kind: 'library' }, settings: { ...settings, maxEntries: 2 },
+    onDiscovered(entries) { queued.push(...entries); batches.push(entries.map(entry => entry.id)); },
+  })) {
+    if (event.type === 'entry') {
+      assert.deepEqual(queued.map(entry => entry.id), ids.slice(0, 2), 'Both allowed identities must be queued before either is consumed');
+    }
+    result.push(event);
+  }
+  assert.deepEqual(batches, [ids.slice(0, 2)]);
+  assert.deepEqual(result.filter(event => event.type === 'entry').map(event => event.entry.id), ids.slice(0, 2));
+  assert.equal(ending(result).discovered, 2);
+  assert.equal(ending(result).reason, 'incomplete', 'An explicit page end cannot override omitted identities');
+  assert.match(ending(result).error || '', /entry limit reached/);
+});
+
+test('a failed batch persistence stops discovery before yielding or traversing another collection', async () => {
+  const requested: string[] = [];
+  const testBrowser = routedBrowser(async route => {
+    requested.push(new URL(route.request().url()).pathname);
+    await route.fulfill({ contentType: 'text/html', body: html(`${cards(['first', 'second'])}<a href="/design-styles/other">Other category</a><p>No more designs</p>`) });
+  });
+  let calls = 0;
+  const result = await events(testBrowser, `${origin}/`, {}, entries => {
+    calls++;
+    assert.equal(entries.length, 2);
+    throw new Error('Queue transaction failed');
+  });
+  assert.equal(calls, 1);
+  assert.deepEqual(requested, ['/']);
+  assert.equal(result.length, 1);
+  assert.equal(ending(result).reason, 'incomplete');
+  assert.equal(ending(result).discovered, 0);
+  assert.match(ending(result).error || '', /Could not persist discovered entries: Queue transaction failed/);
+  assert.equal(browser.contexts().length, 0);
+});
+
 test('virtualized listing keeps identities removed from the DOM and reports an observed plateau', async () => {
   const testBrowser = routedBrowser(async route => {
     await route.fulfill({ contentType: 'text/html', body: html(`<main id="list" style="min-height:2000px">${cards(['first-a', 'first-b'])}</main>
       <script>let changed=false;addEventListener('scroll',()=>{if(!changed && scrollY>0){changed=true;document.querySelector('#list').innerHTML=${JSON.stringify(cards(['second-a', 'second-b']))};}});</script>`) });
   });
-  const result = await events(testBrowser);
+  const batches: string[][] = [];
+  const result = await events(testBrowser, `${origin}/`, {}, entries => { batches.push(entries.map(entry => entry.id)); });
   assert.deepEqual(result.filter(event => event.type === 'entry').map(event => event.entry.id), ['first-a', 'first-b', 'second-a', 'second-b']);
+  assert.deepEqual(batches, [['first-a', 'first-b'], ['second-a', 'second-b']]);
   assert.equal(ending(result).reason, 'observed_plateau');
 });
 
@@ -96,9 +166,11 @@ test('a category stays scoped while the root follows explicit supported collecti
   assert.deepEqual(requested, [category]);
   assert.equal(scoped.filter(event => event.type === 'entry').length, 2);
   requested.length = 0;
-  const broad = await events(testBrowser);
+  const batches: string[][] = [];
+  const broad = await events(testBrowser, `${origin}/`, {}, entries => { batches.push(entries.map(entry => entry.id)); });
   assert.deepEqual(requested, ['/', category, sibling]);
   assert.equal(broad.filter(event => event.type === 'entry').length, 2);
+  assert.deepEqual(batches, [['shared'], ['category-only']]);
 });
 
 test('visible load-more controls are handled without private API cursors', async () => {

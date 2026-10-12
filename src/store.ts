@@ -54,6 +54,13 @@ export class Store {
     this.db.prepare('INSERT INTO jobs(id,stage,job_key,status,payload,created_at,updated_at) VALUES (?,?,?,\'pending\',?,?,?) ON CONFLICT(stage,job_key) DO UPDATE SET payload=excluded.payload').run(idFor([stage,key]),stage,key,JSON.stringify(payload),timestamp,timestamp);
     return this.getJob(stage,key)!;
   }
+  queueJobs(stage:string, entries:Array<{key:string;payload:unknown}>):void {
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      for(const entry of entries)this.job(stage,entry.key,entry.payload);
+      this.db.exec('COMMIT');
+    }catch(error){this.db.exec('ROLLBACK');throw error;}
+  }
   getJob(stage: string, key: string): Job | undefined { return this.decodeJob(this.db.prepare('SELECT * FROM jobs WHERE stage=? AND job_key=?').get(stage,key)); }
   jobs(stage?: string, statuses?: JobStatus[]): Job[] {
     const rows = this.db.prepare('SELECT * FROM jobs ORDER BY created_at,id').all();

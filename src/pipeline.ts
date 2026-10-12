@@ -12,7 +12,7 @@ import { atomicJson, canonicalUrl, delay, errorMessage, hash, inside, isRelatedD
 import type { Config, EvidenceItem, PageManifest, Source, ViewportCapture, Provenance, Classification, DiscoveredEntry } from './types.ts';
 
 export type RunOptions = { captureOnly?: boolean; refresh?: boolean; retry?: boolean; classifyOnly?: boolean; source?: string; limit?: number; signal?: AbortSignal; log?: (message:string)=>void };
-export type RunSummary = { discovered:number; captured:number; reused:number; unresolved:number; blocked:number; failed:number; classified:number; pendingClassification:number; interrupted:boolean };
+export type RunSummary = { discovered:number; captured:number; reused:number; unresolved:number; incomplete:number; unsupported:number; blocked:number; failed:number; classified:number; pendingClassification:number; interrupted:boolean };
 
 export async function validateCaptureFiles(root: string, manifest: PageManifest): Promise<boolean> {
   try {
@@ -66,7 +66,7 @@ async function recoverPublished(store: Store, log: (message:string)=>void) {
 
 export async function runPipeline(config: Config, options: RunOptions = {}): Promise<RunSummary> {
   const log = options.log ?? console.log;
-  const summary:RunSummary={discovered:0,captured:0,reused:0,unresolved:0,blocked:0,failed:0,classified:0,pendingClassification:0,interrupted:false};
+  const summary:RunSummary={discovered:0,captured:0,reused:0,unresolved:0,incomplete:0,unsupported:0,blocked:0,failed:0,classified:0,pendingClassification:0,interrupted:false};
   const store=new Store(config.output);
   let browser:Browser|undefined;
   let locked=false;
@@ -192,7 +192,7 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
       variants.push(result!);
     }
     const status=combinedStatus(variants);
-    const manifest:PageManifest={schemaVersion:1,pageId:page.id,captureId,captureSignature:signature,requestedUrl:page.url,title:variants.find(v=>v.title)?.title ?? page.url,capturedAt:now(),status,reviewStatus:status==='complete' && variants.every(v=>!v.interventions.some(i=>i.method.includes('style')||!i.verified))?'unreviewed':'needs-review',provenance:store.page(page.url).provenance,variants};
+    const manifest:PageManifest={schemaVersion:1,pageId:page.id,captureId,captureSignature:signature,requestedUrl:page.url,title:variants.find(v=>v.title)?.title ?? page.url,capturedAt:now(),status,reviewStatus:status==='complete' && variants.every(v=>!v.interventions.some(i=>/hide|style|recurrence-observer/.test(i.method)||!i.verified))?'unreviewed':'needs-review',provenance:store.page(page.url).provenance,variants};
     await atomicJson(join(root,'evidence.json'),{schemaVersion:1,captureId,items:evidenceFor(manifest)});
     await atomicJson(join(root,'manifest.json'),manifest);
     const base=heuristicClassification(manifest,evidenceFor(manifest));
@@ -201,7 +201,7 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
     await rename(root,inside(config.output,directory));
     store.publishCapture(manifest,directory);store.saveClassification(captureId,base);
     store.finish(job,status,{captureId},status==='complete'?undefined:variants.flatMap(v=>v.warnings).join('; '));
-    summary.captured++;if(status==='blocked')summary.blocked++;if(status==='failed')summary.failed++;
+    summary.captured++;if(status==='incomplete')summary.incomplete++;if(status==='blocked')summary.blocked++;if(status==='failed')summary.failed++;
     const saved=store.capture(captureId)!;
     if(variants.some(v=>v.regions.some(r=>r.frames.length)))await classify(saved);
     if(summary.captured===1 || summary.captured%10===0)await exportCatalog(store);
@@ -245,14 +245,17 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
         await processPage(source.url,{seedUrl:source.url,discoveredAt:now(),sourceLabels:[]},source);continue;
       }
       const discoveryJob=store.job('discovery',source.url,{source});
-      if(!isReferoLibrary(source.url)){store.finish(discoveryJob,'unsupported',undefined,'This library needs a dedicated adapter. Refero Styles is supported in v1.');continue;}
+      if(!isReferoLibrary(source.url)){store.finish(discoveryJob,'unsupported',undefined,'This library needs a dedicated adapter. Refero Styles is supported in v1.');summary.unsupported++;continue;}
       for(const pending of store.jobs('resolve',['pending']).filter(j=>j.payload.entry?.seedUrl===source.url)){await resolveAndCapture(pending.payload.entry,source);if(options.limit && summary.captured+summary.reused>=options.limit)break;}
       if(options.limit && summary.captured+summary.reused>=options.limit){store.finish(discoveryJob,'incomplete',undefined,'Capture limit reached','capture_limit');break;}
       store.start(discoveryJob);log(`Discover ${source.url}`);
-      for await(const event of discoverRefero({browser,seed:source,settings:config.discovery,onProgress:log,signal:options.signal})){
+      for await(const event of discoverRefero({browser,seed:source,settings:config.discovery,onProgress:log,signal:options.signal,onDiscovered:entries=>{
+        checkInterrupted();
+        store.queueJobs('resolve',entries.map(entry=>({key:`${entry.seedUrl}:${entry.id}`,payload:{entry,source}})));
+        summary.discovered+=entries.length;
+      }})){
         checkInterrupted();
         if(event.type==='entry'){
-          store.job('resolve',`${event.entry.seedUrl}:${event.entry.id}`,{entry:event.entry,source});summary.discovered++;
           await resolveAndCapture(event.entry,source);
           if(options.limit && summary.captured+summary.reused>=options.limit){store.finish(discoveryJob,'incomplete',undefined,'Capture limit reached','capture_limit');break;}
         }else store.finish(discoveryJob,event.reason==='incomplete'?'incomplete':'complete',event,event.error,event.reason);

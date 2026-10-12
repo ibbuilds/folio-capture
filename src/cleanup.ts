@@ -1,7 +1,7 @@
 import type { Frame, Page } from 'playwright';
 import type { CaptureSettings, Intervention } from './types.ts';
 
-type Candidate = { id: string; label: string; nuisance: string; confidence: 'known' | 'high'; button?: string; modal: boolean; stableSelector?: string };
+type Candidate = { id: string; label: string; nuisance: string; confidence: 'known' | 'high'; button?: string; modal: boolean; stableSelector?: string; floating?: boolean };
 export type CleanupResult = { removed: number; unresolved: string[]; warnings: string[]; snapshots: unknown[] };
 
 async function activeFrame(frame: Frame, page: Page, preserve: string[]): Promise<boolean> {
@@ -33,9 +33,10 @@ async function cleanupState(frame: Frame, preserve: string[]) {
 /** Only dismiss known nuisance UI. Application dialogs, navigation and gates survive. */
 export async function sweepCleanup(page: Page, settings: CaptureSettings, log: Intervention[], beforeIntervention?: () => Promise<void>): Promise<CleanupResult> {
   const deadline = Date.now() + settings.cleanupTimeoutMs;
-  let removed = 0;
+  let removed = 0, passesUsed = 0;
   const warnings: string[] = [], snapshots: unknown[] = [];
   for (let pass = 0; pass < settings.cleanupPasses && Date.now() < deadline; pass++) {
+    passesUsed++;
     let acted = false;
     for (const frame of page.frames()) {
       if (Date.now() >= deadline) break;
@@ -86,13 +87,19 @@ export async function sweepCleanup(page: Page, settings: CaptureSettings, log: I
           const knownCookie = /^(?:onetrust-banner-sdk|onetrust-consent-sdk|onetrust-pc-sdk|CybotCookiebotDialog|CookiebotWidget)$/.test(element.id);
           const knownChat = /^(?:intercom-container|intercom-frame|crisp-chatbox|tawk-bubble-container|hubspot-messages-iframe-container)$/.test(element.id) ||
             (element.tagName === 'IFRAME' && /(?:intercom|crisp\.chat|tawk\.to|hs-messages)/i.test(element.getAttribute('src') ?? ''));
+          // Verified on Apple's public product page: the locale chooser is an absolute
+          // aside, and its close button is distinct from the country-changing Continue link.
+          const knownLocale = element.matches('aside#ac-localeswitcher[data-analytics-region="locale switcher"]') && !!element.querySelector('button#ac-ls-close.ac-ls-close');
+          const elevenHost = location.hostname === 'elevenlabs.io' || location.hostname.endsWith('.elevenlabs.io');
+          const knownFloating = elevenHost && element.matches('div[data-floating-agent]') && style.position === 'fixed' &&
+            Array.from(element.querySelectorAll('button')).some(button => (button.innerText ?? '').trim().replace(/\s+/g, ' ') === 'Voice chat');
           const explicit = matches(element, dismiss);
           const isModal = element.matches('dialog[open], [role="dialog"], [aria-modal="true"]');
           const overlay = (style.position === 'fixed' || isModal) && rect.width * rect.height > 2000;
-          if (!(knownCookie || knownChat || explicit || overlay) || gate.test(text)) continue;
+          if (!(knownCookie || knownChat || knownLocale || knownFloating || explicit || overlay) || gate.test(text)) continue;
           // A fixed page shell containing ordinary content is not a nuisance overlay.
-          if (!explicit && !knownCookie && !knownChat && element.querySelector('main')) continue;
-          const nuisance = explicit ? 'configured' : knownCookie || cookie.test(text) ? 'cookie' : knownChat || chat.test(text) ? 'chat' : promotion.test(text) ? 'promotion' : '';
+          if (!explicit && !knownCookie && !knownChat && !knownLocale && !knownFloating && element.querySelector('main')) continue;
+          const nuisance = explicit ? 'configured' : knownLocale ? 'locale' : knownCookie || cookie.test(text) ? 'cookie' : knownChat || knownFloating || chat.test(text) ? 'chat' : promotion.test(text) ? 'promotion' : '';
           if (!nuisance) continue;
           const id = `${token}-${index++}`;
           element.setAttribute('data-folio-cleanup-id', id);
@@ -107,13 +114,14 @@ export async function sweepCleanup(page: Page, settings: CaptureSettings, log: I
           if (knownReject && element.contains(knownReject)) controls.unshift(knownReject);
           const reject = /(?:reject (?:all|cookies)|decline (?:all|cookies)|deny (?:all|cookies)|necessary only|only (?:necessary|essential)|continue without accepting|refuse all|rechazar|solo necesarias|tout refuser|alle ablehnen)/i;
           const close = /^(?:close(?: (?:dialog|modal|popup|window|chat|banner))?|dismiss|no thanks|not now|maybe later|x|×|✕|cerrar|fermer|schließen)$/i;
-          const control = controls.find(button => visible(button) && (nuisance === 'cookie' ? reject.test(name(button)) : close.test(name(button))));
+          const localeClose = knownLocale ? element.querySelector('button#ac-ls-close.ac-ls-close') : null;
+          const control = knownFloating ? undefined : knownLocale ? localeClose && visible(localeClose) ? localeClose : undefined : controls.find(button => visible(button) && (nuisance === 'cookie' ? reject.test(name(button)) : close.test(name(button))));
           let buttonId: string | undefined;
           if (control) { buttonId = `${id}-button`; control.setAttribute('data-folio-cleanup-id', buttonId); }
           results.push({ id, label: `${element.tagName.toLowerCase()}${element.id ? `#${element.id}` : ''}: ${text.slice(0, 100)}`, nuisance,
-            confidence: knownCookie || knownChat || explicit ? 'known' : 'high', button: buttonId,
+            confidence: knownCookie || knownChat || knownLocale || knownFloating || explicit ? 'known' : 'high', button: buttonId,
             modal: isModal || rect.width * rect.height > innerWidth * innerHeight * 0.4,
-            stableSelector: element.id ? `#${CSS.escape(element.id)}` : undefined });
+            stableSelector: knownFloating ? 'div[data-floating-agent]' : element.id ? `#${CSS.escape(element.id)}` : undefined, floating: knownFloating });
         }
         // Keep outer nuisance roots; avoid acting twice on nested containers.
         return results.filter(candidate => {
@@ -199,8 +207,8 @@ export async function sweepCleanup(page: Page, settings: CaptureSettings, log: I
           target: candidate.label, method, verified, note: consentNote ?? (method === 'targeted-nuisance-hide' ? 'Capture-only DOM intervention; no consent acceptance or access-gate removal.' : undefined) });
         if (verified) {
           acted = true; removed++;
-          if (candidate.stableSelector) await frame.evaluate(({ selector, target, nuisance, preserve }) => {
-            type CleanupState = { rules: Array<{ selector: string; target: string; nuisance: string }>; events: Array<{ at: string; action: string; target: string }> };
+          if (candidate.stableSelector) await frame.evaluate(({ selector, target, nuisance, preserve, floating }) => {
+            type CleanupState = { rules: Array<{ selector: string; target: string; nuisance: string; floating: boolean }>; events: Array<{ at: string; action: string; target: string }>; apply?: () => void };
             const host = window as unknown as { __folioCleanupState?: CleanupState };
             if (!host.__folioCleanupState) {
               const state: CleanupState = { rules: [], events: [] };
@@ -210,7 +218,8 @@ export async function sweepCleanup(page: Page, settings: CaptureSettings, log: I
                 for (let i = 0; i < roots.length; i++) for (const el of roots[i].querySelectorAll('*')) if (el.shadowRoot) roots.push(el.shadowRoot);
                 for (const rule of state.rules) for (const root of roots) for (const el of root.querySelectorAll<HTMLElement>(rule.selector)) {
                   if (preserve.some(saved => { try { return el.matches(saved) || !!el.closest(saved) || !!el.querySelector(saved); } catch { return false; } })) continue;
-                  if (/(?:captcha|verify (?:that )?you are human|access denied|paywall|sign in to continue|log in to continue|subscribe to (?:continue|read|unlock))/i.test(el.innerText ?? '')) continue;
+                  if (/(?:captcha|verify (?:that )?you are human|security check|access denied|paywall|sign in to continue|log in to continue|subscribe to (?:continue|read|unlock))/i.test(el.innerText ?? '')) continue;
+                  if (rule.floating && (getComputedStyle(el).position !== 'fixed' || !Array.from(el.querySelectorAll('button')).some(button => (button.innerText ?? '').trim().replace(/\s+/g, ' ') === 'Voice chat'))) continue;
                   if (getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().height > 0) {
                     if (el instanceof HTMLDialogElement && el.open) el.close();
                     el.style.setProperty('display', 'none', 'important');
@@ -218,13 +227,17 @@ export async function sweepCleanup(page: Page, settings: CaptureSettings, log: I
                   }
                 }
               };
+              state.apply = apply;
               const observer = new MutationObserver(apply);
               observer.observe(document, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'open'] });
               for (const el of document.querySelectorAll('*')) if (el.shadowRoot) observer.observe(el.shadowRoot, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'open'] });
             }
             const state = host.__folioCleanupState;
-            if (!state.rules.some(rule => rule.selector === selector)) state.rules.push({ selector, target, nuisance });
-          }, { selector: candidate.stableSelector, target: candidate.label, nuisance: candidate.nuisance, preserve: settings.preserveSelectors }).catch(() => {});
+            if (!state.rules.some(rule => rule.selector === selector)) state.rules.push({ selector, target, nuisance, floating });
+            // A replacement can predate observer attachment or rule registration; no future
+            // mutation is guaranteed to arrive. Reconcile the confirmed rule immediately.
+            state.apply?.();
+          }, { selector: candidate.stableSelector, target: candidate.label, nuisance: candidate.nuisance, preserve: settings.preserveSelectors, floating: candidate.floating ?? false }).catch(() => {});
         }
         const after = await cleanupState(frame, settings.preserveSelectors);
         snapshots.push({ target: candidate.label, frameUrl: frame.url(), before, after });
@@ -286,6 +299,15 @@ export async function sweepCleanup(page: Page, settings: CaptureSettings, log: I
       }).map(element => `${element.tagName.toLowerCase()}${element.id ? `#${element.id}` : ''}: ${((element as HTMLElement).innerText ?? '').trim().slice(0, 160)}`).slice(0, 5);
     }, settings.preserveSelectors).catch(() => [] as string[]);
     unresolved.push(...blockers.map(blocker => `${frame === page.mainFrame() ? '' : `${frame.url()}: `}${blocker}`));
+  }
+  // A modal may arrive between an empty candidate snapshot and blocker inspection.
+  // Spend only the original unused passes/time on a fresh sweep, never retain a stale
+  // blocker result after that sweep dismissed it. Unknown gates still survive and report.
+  const remainingMs = deadline - Date.now();
+  if (unresolved.length && passesUsed < settings.cleanupPasses && remainingMs > 0) {
+    const reconciled = await sweepCleanup(page, { ...settings, cleanupPasses: settings.cleanupPasses - passesUsed, cleanupTimeoutMs: remainingMs }, log, beforeIntervention);
+    return { removed: removed + reconciled.removed, unresolved: reconciled.unresolved,
+      warnings: [...new Set([...warnings, ...reconciled.warnings])], snapshots: [...snapshots, ...reconciled.snapshots] };
   }
   return { removed, unresolved: [...new Set(unresolved)], warnings: [...new Set(warnings)], snapshots };
 }

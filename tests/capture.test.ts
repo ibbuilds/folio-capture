@@ -6,8 +6,9 @@ import path from 'node:path';
 import { chromium, type Browser } from 'playwright';
 import sharp from 'sharp';
 import { captureViewport } from '../src/capture.ts';
+import { sweepCleanup } from '../src/cleanup.ts';
 import { documentToViewport, intersectRect, mergeCoverage, pixelCrop, uncoveredRanges } from '../src/geometry.ts';
-import type { CaptureSettings, ViewportCapture } from '../src/types.ts';
+import type { CaptureSettings, Intervention, ViewportCapture } from '../src/types.ts';
 import { captureFixture } from './fixtures-capture.ts';
 
 const settings: CaptureSettings = {
@@ -50,6 +51,125 @@ test('mobile pages without a viewport declaration never produce fictional CSS-co
     const root = path.resolve(os.tmpdir()), target = path.resolve(directory);
     assert(target.startsWith(root + path.sep)); await rm(target, { recursive: true, force: true });
   }
+});
+
+test('cleanup reconciles scan and observer races within existing bounds', { timeout: 60000 }, async t => {
+  const fixture = await captureFixture();
+  let browser: Browser | undefined;
+  try {
+    browser = await chromium.launch({ channel: 'chromium', ...(process.env.FOLIO_TEST_BROWSER ? { executablePath: process.env.FOLIO_TEST_BROWSER } : {}) });
+    for (const route of ['scan-race', 'observer-race', 'observer-gate-race']) await t.test(route, async () => {
+      for (let repeat = 0; repeat < 6; repeat++) {
+        const context = await browser!.newContext({ viewport: { width: 800, height: 600 } });
+        try {
+          await context.addInitScript({ content: 'globalThis.__name ??= function (value) { return value; };' });
+          const page = await context.newPage();
+          await page.goto(`${fixture.url}/${route}`, { waitUntil: 'domcontentloaded' });
+          const log: Intervention[] = [];
+          const cleanup = await sweepCleanup(page, { ...settings, ...(route.startsWith('observer-') ? { cleanupPasses: 1 } : {}) }, log);
+          if (route === 'observer-gate-race') {
+            assert.equal(cleanup.unresolved.length, 1, `gate was hidden on repeat ${repeat}`);
+            assert(await page.locator('#newsletter-popup').isVisible());
+            assert.match(await page.locator('#newsletter-popup').innerText(), /Sign in to continue/);
+          } else {
+            assert.deepEqual(cleanup.unresolved, [], `known nuisance survived on repeat ${repeat}`);
+            assert(await page.locator('#newsletter-popup').isHidden());
+            assert(log.some(item => item.verified));
+            if (route === 'observer-race') assert(log.some(item => item.action === 'dismiss-recurrent-promotion'));
+          }
+          assert.equal(await page.evaluate(() => (window as unknown as { raceInjections: number }).raceInjections), route === 'scan-race' ? 1 : 2);
+        } finally { await context.close(); }
+      }
+    });
+  } finally { await browser?.close(); await fixture.close(); }
+});
+
+test('recurrent newsletter capture stays clean across fresh-context repetitions', { timeout: 90000 }, async () => {
+  const fixture = await captureFixture(), directory = await mkdtemp(path.join(os.tmpdir(), 'folio-recurrent-capture-'));
+  let browser: Browser | undefined;
+  try {
+    browser = await chromium.launch({ channel: 'chromium', ...(process.env.FOLIO_TEST_BROWSER ? { executablePath: process.env.FOLIO_TEST_BROWSER } : {}) });
+    for (let repeat = 0; repeat < 3; repeat++) {
+      const outputDir = path.join(directory, String(repeat));
+      const capture = await captureViewport({ browser, url: `${fixture.url}/recurrent`, settings, outputDir,
+        profile: { id: 'desktop', width: 800, height: 600, dpr: 2, isMobile: false, hasTouch: false } });
+      assert.equal(capture.status, 'complete', JSON.stringify(capture.warnings));
+      assert(capture.interventions.some(item => item.action === 'dismiss-recurrent-promotion'));
+      let magenta = 0;
+      for (const region of capture.regions) for (const frame of region.frames) {
+        const { data, info } = await sharp(await readFile(path.join(outputDir, frame.path))).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+        for (let index = 0; index < data.length; index += info.channels) if (data[index] > 245 && data[index + 1] < 10 && data[index + 2] > 245) magenta++;
+      }
+      assert.equal(magenta, 0, `newsletter pixels survived repeat ${repeat}`);
+    }
+  } finally {
+    await browser?.close(); await fixture.close();
+    const root = path.resolve(os.tmpdir()), target = path.resolve(directory);
+    assert(target.startsWith(root + path.sep)); await rm(target, { recursive: true, force: true });
+  }
+});
+
+test('verified Apple locale chooser closes without selecting a country or touching ordinary country UI', { timeout: 30000 }, async () => {
+  const fixture = await captureFixture();
+  let browser: Browser | undefined;
+  try {
+    browser = await chromium.launch({ channel: 'chromium', ...(process.env.FOLIO_TEST_BROWSER ? { executablePath: process.env.FOLIO_TEST_BROWSER } : {}) });
+    for (const route of ['apple-locale', 'country-design']) {
+      const context = await browser.newContext({ viewport: { width: 800, height: 600 } });
+      try {
+        await context.addInitScript({ content: 'globalThis.__name ??= function (value) { return value; };' });
+        const page = await context.newPage();
+        await page.goto(`${fixture.url}/${route}`, { waitUntil: 'domcontentloaded' });
+        const originalUrl = page.url(), log: Intervention[] = [];
+        const cleanup = await sweepCleanup(page, settings, log);
+        assert.deepEqual(cleanup.unresolved, []);
+        assert.equal(page.url(), originalUrl);
+        assert.equal(await page.evaluate(() => !!(window as unknown as { countryChanged?: boolean }).countryChanged), false);
+        if (route === 'apple-locale') {
+          assert(await page.locator('#ac-localeswitcher').isHidden());
+          assert.equal(await page.evaluate(() => !!(window as unknown as { localeClosed?: boolean }).localeClosed), true);
+          assert(log.some(item => item.action === 'dismiss-locale' && item.method === 'scoped-dismiss-control' && item.verified));
+        } else {
+          assert(await page.locator('#country-product-design').isVisible());
+          assert.equal(log.length, 0);
+        }
+      } finally { await context.close(); }
+    }
+  } finally { await browser?.close(); await fixture.close(); }
+});
+
+test('ElevenLabs floating Voice chat is hidden without opening it or hiding inline examples', { timeout: 30000 }, async () => {
+  const fixture = await captureFixture();
+  let browser: Browser | undefined;
+  try {
+    const html = await (await fetch(`${fixture.url}/eleven-floating`)).text();
+    browser = await chromium.launch({ channel: 'chromium', ...(process.env.FOLIO_TEST_BROWSER ? { executablePath: process.env.FOLIO_TEST_BROWSER } : {}) });
+    for (const variant of ['known', 'preserved', 'other-host']) {
+      const context = await browser.newContext({ viewport: { width: 800, height: 600 } });
+      try {
+        await context.addInitScript({ content: 'globalThis.__name ??= function (value) { return value; };' });
+        const url = `https://${variant === 'other-host' ? 'example.test' : 'elevenlabs.io'}/folio-fixture`;
+        await context.route('**/*', route => route.request().url() === url ? route.fulfill({ status: 200, contentType: 'text/html', body: html }) : route.abort());
+        const page = await context.newPage();
+        await page.goto(url, { waitUntil: 'domcontentloaded' });
+        const log: Intervention[] = [];
+        const cleanup = await sweepCleanup(page, { ...settings, preserveSelectors: variant === 'preserved' ? ['#floating-voice'] : [] }, log);
+        assert.deepEqual(cleanup.unresolved, []);
+        assert(await page.locator('#inline-voice').isVisible());
+        assert.equal(await page.evaluate(() => !!(window as unknown as { microphoneOpened?: boolean }).microphoneOpened), false);
+        if (variant === 'known') {
+          assert(await page.locator('#floating-voice').isHidden());
+          assert(log.some(item => item.action === 'dismiss-chat' && item.method === 'targeted-nuisance-hide' && item.verified));
+          // A later mutation re-runs recurrence policy without erasing the inline example.
+          await page.locator('#inline-voice').evaluate(el => el.setAttribute('style', 'color:blue'));
+          assert(await page.locator('#inline-voice').isVisible());
+        } else {
+          assert(await page.locator('#floating-voice').isVisible());
+          assert.equal(log.length, 0);
+        }
+      } finally { await context.close(); }
+    }
+  } finally { await browser?.close(); await fixture.close(); }
 });
 
 test('browser capture fixtures preserve ordered evidence, remove nuisances and expose failures', { timeout: 180000 }, async t => {
