@@ -582,15 +582,19 @@ test('normal MCP collection preserves resolved entries and pending classificatio
     } finally {
       store.close();
     }
-    await runPipeline(config, {
+    const resumed=await runPipeline(config, {
       limit: 1,
       launchBrowser: async () => wrapper,
       log: () => {},
     });
     const recovered = new Store(root);
     try {
-      assert.equal(recovered.jobs('capture', ['pending']).length, 1);
+      assert.equal(resumed.captured,1,'The queued library page advances after the original is reused');
+      assert.equal(resumed.reused,1);
+      assert.equal(recovered.jobs('capture', ['pending']).length, 0);
       assert.equal(recovered.jobs('resolve', ['complete']).length, 1);
+      assert.equal(recovered.latestCaptures().length,2);
+      assert.equal(recovered.latestCaptures().filter(c=>c.manifest!.requestedUrl==='https://original.test/').length,1);
     } finally {
       recovered.close();
     }

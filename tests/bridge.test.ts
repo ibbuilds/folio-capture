@@ -19,6 +19,8 @@ import { TAXONOMY } from '../src/taxonomy.ts';
 import type { PageManifest } from '../src/types.ts';
 import { Workflow } from '../src/workflow.ts';
 import { chromium } from 'playwright';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
 
 async function fixture(t: test.TestContext, parts = 1) {
   const root = await mkdtemp(join(tmpdir(), 'folio-mcp-'));
@@ -387,6 +389,103 @@ test('an idle chat pauses rather than claiming completion, and its committed ass
   assert.equal(packet.packet.phase, 'critique');
   await workflow.stop(run.runId, run.clientId);
   assert.equal((await bridge.status()).workflow?.phase, 'paused');
+});
+
+test('a restarted engine records an interrupted owner honestly and preserves the saved review stage', async (t) => {
+  const { config, bridge, root } = await fixture(t);
+  const workflow = new Workflow(config);
+  const context = bridge.context();
+  const run = await workflow.start(context.contextId, context.clientId);
+  const task = await workflow.next(context.contextId, run.runId, run.clientId);
+  if ('done' in task) assert.fail();
+  await bridge.submit(task.packet.id, pass(task.images[0].id));
+  await workflow.stop(run.runId, run.clientId);
+  const store = new Store(root);
+  try {
+    const stale = store.getJob('workflow', 'active')!;
+    const state = { ...stale.payload, phase: 'collecting', ownerPid: 2147483000 };
+    store.job('workflow', 'active', state);
+    store.finish(stale, 'running');
+  } finally {
+    store.close();
+  }
+  const restarted = new Workflow(config);
+  const stopped = await restarted.next(context.contextId, run.runId, run.clientId);
+  assert.ok('done' in stopped && stopped.done);
+  assert.equal((stopped as any).phase, 'paused');
+  assert.equal((stopped as any).reason, 'engine_interrupted');
+  const resumed = await restarted.start(context.contextId, context.clientId);
+  const next = await restarted.next(context.contextId, resumed.runId, resumed.clientId);
+  if ('done' in next) assert.fail();
+  assert.equal(next.packet.phase, 'critique');
+  await restarted.stop(resumed.runId, resumed.clientId);
+});
+
+test('the normal MCP capture command starts a waiting engine and carries its capture limit into the chat run', async (t) => {
+  const { root, config } = await fixture(t);
+  const reservation = await serveBridgeHttp(config, 0);
+  const port = (reservation.address() as { port: number }).port;
+  await new Promise<void>((accept) => reservation.close(() => accept()));
+  const file = join(root, 'cli-config.json');
+  await writeFile(file, JSON.stringify(config));
+  const processUnderTest = spawn(
+    process.execPath,
+    [resolve('src/cli.ts'), 'run', '--config', file, '--port', String(port), '--limit', '1'],
+    { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true },
+  );
+  t.after(() => {
+    if (processUnderTest.exitCode === null) processUnderTest.kill();
+  });
+  let output = '';
+  const ready = new Promise<void>((accept, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Engine did not start: ${output}`)), 10000);
+    processUnderTest.stdout.on('data', (chunk) => {
+      output += chunk.toString();
+      if (output.includes('Folio engine:') && output.includes('select @Folio Capture')) {
+        clearTimeout(timer);
+        accept();
+      }
+    });
+    processUnderTest.stderr.on('data', (chunk) => {
+      output += chunk.toString();
+    });
+    processUnderTest.once('exit', () => {
+      clearTimeout(timer);
+      reject(new Error(output));
+    });
+  });
+  await ready;
+  assert.match(output, /select @Folio Capture/);
+  const client = new Client({ name: 'normal-command', version: '1' });
+  await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`)));
+  const call = async (name: string, args: Record<string, unknown> = {}) => {
+    const result = await client.callTool({ name, arguments: args });
+    assert.ok(!result.isError, JSON.stringify(result));
+    return JSON.parse((result.content as any[])[0].text);
+  };
+  try {
+    assert.equal((await call('status')).workflow, null);
+    const context = await call('get_context');
+    const run = await call('start_run', {
+      contextId: context.contextId,
+      clientId: context.clientId,
+      limit: 20,
+    });
+    const status = await call('status');
+    assert.equal(
+      status.workflow.options.limit,
+      1,
+      'The model cannot exceed the startup capture budget',
+    );
+    assert.equal(status.registry.captureVersions, 1);
+    await call('stop_run', { runId: run.runId, clientId: run.clientId });
+    assert.equal((await call('status')).workflow.phase, 'paused');
+  } finally {
+    await client.close();
+    const closed = once(processUnderTest, 'exit');
+    processUnderTest.kill();
+    await closed;
+  }
 });
 
 test('Desktop launcher refuses external endpoints and gives an actionable offline error', async (t) => {
