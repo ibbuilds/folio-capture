@@ -3,6 +3,7 @@ import { join, relative } from 'node:path';
 import type { Store } from './store.ts';
 import { atomicJson, inside, now } from './utils.ts';
 import type { Label, TaxonomyAxis } from './types.ts';
+import { hasCurrentClassification } from './coverage.ts';
 
 const escapeHtml = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 const artifactUrl = (path: string) => path.replaceAll('\\', '/').split('/').map(encodeURIComponent).join('/');
@@ -35,16 +36,25 @@ function labelTags(labels: Label[], inherited = false): string {
 
 export async function exportCatalog(store: Store, includeReport = true) {
   const pages = store.pages();
-  const captures = store.latestCaptures().filter(c => c.manifest);
+  const captures = store.exportCaptures();
   const jobs = store.jobs();
+  const references=store.exportReferences();
+  const scopedCaptures=new Set(references.map(r=>r.subject.captureId));
+  const scoped=new Map(references.map(r=>[`${r.subject.captureId}:${r.subject.profileId}:${r.subject.regionId??'page'}`,r]));
+  const recordFor=(captureId:string,profile:string,regionId='page')=>scoped.get(`${captureId}:${profile}:${regionId}`);
+  const labelsFor=(captureId:string,profile:string,regionId:string|undefined,legacy:Label[])=>{
+    const record=recordFor(captureId,profile,regionId);
+    return scopedCaptures.has(captureId)?record?.quality.verdict==='accepted'&&!record.pruned&&hasCurrentClassification(record)?record.classification!.labels:[]:legacy.filter(l=>l.regionId===(regionId??null));
+  };
   const index = {
-    schemaVersion: 1, generatedAt: now(),
+    schemaVersion: 2, generatedAt: now(),purpose:'collection-ledger',acceptedCatalog:'catalog.json',
+    references:references.map(r=>({id:r.subject.id,captureId:r.subject.captureId,profileId:r.subject.profileId,scope:r.subject.scope,regionId:r.subject.regionId,quality:r.quality.verdict,classification:hasCurrentClassification(r)?'current':'pending-or-stale',labels:r.quality.verdict==='accepted'&&!r.pruned&&hasCurrentClassification(r)?r.classification!.labels:[]})),
     pages: captures.map(c => ({
       pageId: c.pageId, captureId: c.id, url: c.manifest!.requestedUrl, title: c.manifest!.title,
       status: c.status, reviewStatus: c.manifest!.reviewStatus, manifest: `${c.directory}/manifest.json`,
-      classification: `${c.directory}/classification.json`, provenance: pages.find(p => p.id === c.pageId)?.provenance ?? c.manifest!.provenance,
-      labels: c.classification?.labels ?? [], variants: c.manifest!.variants.map(v => ({
-        profile: v.profile.id, status: v.status, regions: [...v.regions].sort((a, b) => a.order - b.order).map(r => ({
+      classification: `${c.directory}/${scopedCaptures.has(c.id)?'references.v2.json':'classification.json'}`, provenance: pages.find(p => p.id === c.pageId)?.provenance ?? c.manifest!.provenance,
+      labels: scopedCaptures.has(c.id)?[]:c.classification?.labels ?? [], variants: c.manifest!.variants.map(v => ({
+        profile: v.profile.id, status: v.status,quality:recordFor(c.id,v.profile.id)?.quality.verdict??'unassessed',labels:labelsFor(c.id,v.profile.id,undefined,c.classification?.labels??[]),regions: [...v.regions].sort((a, b) => a.order - b.order).map(r => ({
           id: r.id, order: r.order, title: r.title, method: r.method,
           frames: r.frames.map((f, frameIndex) => ({ order: frameIndex + 1, image: `${c.directory}/${f.path}`, thumbnail: `${c.directory}/${f.thumbnail}`, width: f.width, height: f.height, sha256: f.sha256, kind: f.kind })),
         })),
@@ -54,15 +64,22 @@ export async function exportCatalog(store: Store, includeReport = true) {
       id: `${c.id}:${v.profile.id}:${r.id}`, pageId: c.pageId, captureId: c.id, url: c.manifest!.requestedUrl,
       profileId: v.profile.id, regionId: r.id, order: r.order, title: r.title, method: r.method,
       boundaryConfidence: r.boundaryConfidence,
-      labels: (c.classification?.labels ?? []).filter(label => label.regionId === r.id),
-      parentContext: (c.classification?.labels ?? []).filter(label => label.regionId === null),
+      quality:recordFor(c.id,v.profile.id,r.id)?.quality.verdict??'unassessed',
+      labels: labelsFor(c.id,v.profile.id,r.id,c.classification?.labels??[]),
+      parentContext: labelsFor(c.id,v.profile.id,undefined,c.classification?.labels??[]),
       frames: r.frames.map((f, frameIndex) => ({ order: frameIndex + 1, image: `${c.directory}/${f.path}`, thumbnail: `${c.directory}/${f.thumbnail}`, width: f.width, height: f.height, sha256: f.sha256, kind: f.kind })),
     })))),
     categoryIndexes: {} as Record<string, string[]>,
     regionCategoryIndexes: {} as Record<string, string[]>,
+    referenceCategoryIndexes: {} as Record<string, string[]>,
     facets: {} as Record<string, string[]>,
     jobs: jobs.map(j => ({ stage: j.stage, key: j.key, status: j.status, attempts: j.attempts, error: j.error, stoppingReason: j.stoppingReason })),
   };
+  for (const reference of index.references) for (const label of reference.labels.filter(knownLabel)) {
+    const key = `${label.axis}:${label.label}`;
+    index.referenceCategoryIndexes[key] ??= [];
+    if (!index.referenceCategoryIndexes[key].includes(reference.id)) index.referenceCategoryIndexes[key].push(reference.id);
+  }
   for (const page of index.pages) for (const label of page.labels.filter(knownLabel)) {
     const key = `${label.axis}:${label.label}`;
     index.categoryIndexes[key] ??= [];
@@ -89,15 +106,20 @@ export async function exportCatalog(store: Store, includeReport = true) {
   const secondary = dimensions.filter(dimension => dimension.secondary).map(dimension => facetControl(dimension.axis, dimension.title)).join('');
   const cards = captures.map(c => {
     const m = c.manifest!;
-    const labels = c.classification?.labels ?? [];
+    const labels = scopedCaptures.has(c.id)?[]:c.classification?.labels ?? [];
     const pageLabels = labels.filter(label => label.regionId === null);
+    const currentReferences=index.references.filter(r=>r.captureId===c.id);
+    const classifierStatus=scopedCaptures.has(c.id)?`${currentReferences.filter(r=>r.quality==='accepted'&&r.classification==='current').length} accepted and classified / ${currentReferences.length} reference subjects`:c.classification?.status??'pending';
     const variants = m.variants.map(v => `<details class="variant" open data-profile="${escapeHtml(v.profile.id)}"><summary>${escapeHtml(v.profile.id)} · ${v.profile.width}×${v.profile.height} · ${escapeHtml(v.status)} · ${v.regions.length} regions</summary>${v.warnings.length ? `<ul class="warnings">${v.warnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul>` : ''}<div class="regions">${[...v.regions].sort((a, b) => a.order - b.order).map(r => {
-      const relevant = labels.filter(label => label.regionId === r.id || label.regionId === null && ['experience','page_purpose','industry','audience'].includes(label.axis));
+      const sectionLabels=labelsFor(c.id,v.profile.id,r.id,labels),context=labelsFor(c.id,v.profile.id,undefined,labels);
+      const relevant = [...sectionLabels,...context.filter(label=>['experience','page_purpose','industry','audience'].includes(label.axis))];
       const facets: Record<string, string[]> = {};
       for (const label of relevant.filter(knownLabel)) { facets[label.axis] ??= []; if (!facets[label.axis].includes(label.label)) facets[label.axis].push(label.label); }
       const search = [m.title, m.requestedUrl, v.profile.id, r.title, ...relevant.filter(knownLabel).flatMap(label => [label.axis, label.label])].join(' ').toLowerCase();
-      const tags = labelTags(relevant.filter(label => label.regionId === r.id)) + labelTags(pageLabels.filter(label=>['experience','page_purpose','industry','audience'].includes(label.axis)), true);
-      return `<section data-region-ref="${escapeHtml(`${c.id}:${v.profile.id}:${r.id}`)}" data-profile="${escapeHtml(v.profile.id)}" data-search="${escapeHtml(search)}" data-labels="${escapeHtml(JSON.stringify(facets))}"><header><strong>${r.order+1}. ${escapeHtml(r.title)}</strong><small>${escapeHtml(r.method)} · boundary ${escapeHtml(r.boundaryConfidence)}</small><div class="tags region-tags">${tags || '<span>Classification pending / uncertain</span>'}</div></header><div class="frames">${r.frames.map((f, frameIndex) => {
+      const tags = labelTags(sectionLabels) + labelTags(context.filter(label=>['experience','page_purpose','industry','audience'].includes(label.axis)), true);
+      const verdict=recordFor(c.id,v.profile.id,r.id)?.quality.verdict;
+      const status=verdict==='repair'?'Capture repair required':verdict==='rejected'?'Quality: rejected':verdict==='accepted'?'Accepted · classification pending':verdict==='uncertain'?'Quality: uncertain':verdict==='pending'?'Assessment pending':'Unassessed section';
+      return `<section data-region-ref="${escapeHtml(`${c.id}:${v.profile.id}:${r.id}`)}" data-profile="${escapeHtml(v.profile.id)}" data-search="${escapeHtml(search)}" data-labels="${escapeHtml(JSON.stringify(facets))}"><header><strong>${r.order+1}. ${escapeHtml(r.title)}</strong><small>${escapeHtml(r.method)} · boundary ${escapeHtml(r.boundaryConfidence)}</small><div class="tags region-tags">${tags || `<span>${escapeHtml(status)}</span>`}</div></header><div class="frames">${r.frames.map((f, frameIndex) => {
         const image = localHref(`${c.directory}/${f.path}`);
         const thumbnail = localHref(`${c.directory}/${f.thumbnail}`);
         if (image === undefined || thumbnail === undefined) return '<p class="warnings">Image unavailable: invalid artifact path.</p>';
@@ -106,8 +128,8 @@ export async function exportCatalog(store: Store, includeReport = true) {
     }).join('')}</div></details>`).join('');
     const source = sourceHref(m.requestedUrl);
     const manifest = localHref(`${c.directory}/manifest.json`);
-    const classification = localHref(`${c.directory}/classification.json`);
-    return `<article><header class="page-head"><div><h2>${escapeHtml(m.title || m.requestedUrl)}</h2>${source ? `<a href="${escapeHtml(source)}" target="_blank" rel="noopener">${escapeHtml(m.requestedUrl)}</a>` : `<span class="warnings">${escapeHtml(m.requestedUrl)} · invalid source URL</span>`}</div><span class="badge ${escapeHtml(m.status)}">${escapeHtml(m.status)}</span></header><p class="muted">${escapeHtml(m.capturedAt)} · ${escapeHtml(m.reviewStatus)} · classifier: ${escapeHtml(c.classification?.status ?? 'pending')}</p><div class="tags">${labelTags(pageLabels, true) || '<span>Page classification pending / uncertain</span>'}</div><p>${manifest ? `<a href="${escapeHtml(manifest)}">Manifest</a>` : 'Manifest unavailable'} · ${classification ? `<a href="${escapeHtml(classification)}">Classification</a>` : 'Classification unavailable'} · ${pages.find(p => p.id === c.pageId)?.provenance.length ?? m.provenance.length} discovery path(s)</p>${variants}</article>`;
+    const classification = localHref(`${c.directory}/${scopedCaptures.has(c.id)?'references.v2.json':'classification.json'}`);
+    return `<article><header class="page-head"><div><h2>${escapeHtml(m.title || m.requestedUrl)}</h2>${source ? `<a href="${escapeHtml(source)}" target="_blank" rel="noopener">${escapeHtml(m.requestedUrl)}</a>` : `<span class="warnings">${escapeHtml(m.requestedUrl)} · invalid source URL</span>`}</div><span class="badge ${escapeHtml(m.status)}">${escapeHtml(m.status)}</span></header><p class="muted">${escapeHtml(m.capturedAt)} · ${escapeHtml(m.reviewStatus)} · classifier: ${escapeHtml(classifierStatus)}</p><div class="tags">${labelTags(pageLabels, true) || '<span>Page classification pending / uncertain</span>'}</div><p>${manifest ? `<a href="${escapeHtml(manifest)}">Manifest</a>` : 'Manifest unavailable'} · ${classification ? `<a href="${escapeHtml(classification)}">Classification</a>` : 'Classification unavailable'} · ${pages.find(p => p.id === c.pageId)?.provenance.length ?? m.provenance.length} discovery path(s)</p>${variants}</article>`;
   }).join('');
   const html = `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Folio Capture — collection report</title><style>
   :root{font:15px/1.5 system-ui,sans-serif;color:#24252a;background:#f4f4f0;color-scheme:light}*{box-sizing:border-box}body{margin:0}main{max-width:1440px;margin:auto;padding:32px}h1{font-size:32px;margin:0}h2{font-size:22px;margin:0 0 6px}a{color:#25438d;overflow-wrap:anywhere}.muted,small{color:#65676d}small{display:block}.summary{display:flex;gap:20px;flex-wrap:wrap;margin:22px 0}.summary strong{font-size:24px;display:block}input{width:100%;padding:14px;border:1px solid #bbb;border-radius:8px;font:inherit;background:white;margin:8px 0 16px}.filter-panel{padding:18px;border:1px solid #d1d1ca;border-radius:10px;background:#fff;margin:16px 0 28px}.facets{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}.facet{display:block;font-size:12px;font-weight:600}.facet select{display:block;width:100%;min-height:38px;margin-top:5px;padding:6px;border:1px solid #bbb;border-radius:5px;background:white;color:inherit;font:14px system-ui}.advanced{margin-top:14px}.advanced .facets{margin-top:12px}.filter-meta{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-top:14px;font-size:13px}.filter-meta p{margin:0}button{font:inherit;cursor:pointer;padding:7px 12px;border:1px solid #aaa;border-radius:6px;background:#f7f7f4}article{background:white;border:1px solid #ddd;border-radius:12px;margin-bottom:28px;padding:24px}.page-head{display:flex;justify-content:space-between;gap:20px}.badge{border-radius:20px;background:#eee;padding:6px 12px;align-self:flex-start}.complete{background:#e5f3e8}.incomplete,.blocked,.failed{background:#ffeed8}.tags{display:flex;gap:6px;flex-wrap:wrap}.tags span{font-size:12px;padding:4px 8px;border:1px solid #ddd;border-radius:4px;overflow-wrap:anywhere}.tags .source-label{border-style:dashed;border-color:#b98937;background:#fff6e3}.source-label small{font-size:10px;color:#8a5a15}.region-tags{margin-top:8px}.variant{border-top:1px solid #ddd;padding-top:14px;margin-top:18px}summary{cursor:pointer;font-weight:600}.regions{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px;margin-top:18px}.regions section{min-width:0;border:1px solid #e3e3e3;border-radius:8px;overflow:hidden}.regions header{padding:12px;background:#fafafa}.frames{display:grid;gap:6px}.frames a{display:block;text-decoration:none;background:#f0f0f0}.frames img{display:block;width:100%;height:240px;object-fit:contain;object-position:top;background:#ededed}.frames span{font-size:12px;padding:6px 10px;display:block}.exceptions{background:#fff3e6;border:1px solid #ebd3b6;padding:16px;border-radius:8px}.exceptions li{margin-bottom:10px;overflow-wrap:anywhere}.warnings{font-size:13px;color:#865528}footer{color:#65676d;margin-top:20px}[hidden]{display:none!important}@media(max-width:640px){main{padding:18px}article{padding:16px}.page-head{display:block}.badge{display:inline-block;margin-top:10px}.filter-panel{padding:12px}.facets{grid-template-columns:repeat(2,minmax(0,1fr))}}

@@ -7,6 +7,9 @@ import { chromium } from 'playwright';
 import { exportCatalog } from '../src/report.ts';
 import type { Store, CaptureRecord } from '../src/store.ts';
 import type { CaptureProfile, Classification, Label, PageManifest, Region, TaxonomyAxis, ViewportCapture } from '../src/types.ts';
+import { referenceSubjects, subjectImageId, type ReferenceRecord } from '../src/references.ts';
+import { TAXONOMY_VERSION, TAXONOMY_FINGERPRINT } from '../src/taxonomy.ts';
+import { SCOPED_PROMPT_VERSION } from '../src/quality.ts';
 
 const desktop: CaptureProfile = { id: 'desktop', width: 1440, height: 1000, dpr: 2, isMobile: false, hasTouch: false };
 const mobile: CaptureProfile = { id: 'mobile', width: 390, height: 844, dpr: 2, isMobile: true, hasTouch: true };
@@ -34,8 +37,41 @@ function fixtures(): CaptureRecord[] {
   ];
 }
 function fixtureStore(output: string, records = fixtures()): Store {
-  return { output, latestCaptures: () => records, pages: () => records.map(record => ({ id: record.pageId, url: record.manifest!.requestedUrl, provenance: [], latestCaptureId: record.id })), jobs: () => [] } as unknown as Store;
+  return { output, exportReferences:()=>[],exportCaptures: () => records, pages: () => records.map(record => ({ id: record.pageId, url: record.manifest!.requestedUrl, provenance: [], latestCaptureId: record.id })), jobs: () => [] } as unknown as Store;
 }
+
+test('current decisions replace preliminary labels without leaking section aesthetics between viewports or from parents',async t=>{
+  const output=await mkdtemp(join(tmpdir(),'folio-scoped-report-'));
+  t.after(()=>rm(output,{recursive:true,force:true}));
+  const captured=capture('scoped','Scoped page',[variant(desktop,[region('hero',0,'Hero'),region('other',1,'Pending')]),variant(mobile,[region('hero',0,'Mobile hero')])],[label('visual_style','playful','hero'),label('visual_style','minimal','other')]);
+  const records:ReferenceRecord[]=referenceSubjects(captured.manifest!).map(subject=>{
+    const inspectedImages=subject.frames.map(f=>subjectImageId(subject,f));
+    const page=subject.scope==='page';
+    return {schemaVersion:2,subject,directory:captured.directory,sourceUrl:captured.manifest!.requestedUrl,
+      quality:{schemaVersion:2,subjectId:subject.id,cacheKey:'fixture',rubricVersion:'fixture',verdict:subject.regionId==='other'?'pending':'accepted',assessedAt:'fixture',experimental:true,reasons:[],model:'fixture',reasoning:'fixture',reportedModels:[],inspectedImages},
+      classification:subject.regionId==='other'?undefined:{taxonomyVersion:TAXONOMY_VERSION,taxonomyFingerprint:TAXONOMY_FINGERPRINT,promptVersion:SCOPED_PROMPT_VERSION,cacheKey:'fixture',model:'fixture',classifiedAt:'fixture',inspectedImages,
+        labels:[label(page?'appearance':'composition',page?'clean':subject.profileId==='desktop'?'grid':'centered',subject.regionId??null)]}};
+  });
+  const store=fixtureStore(output,[captured]);store.exportReferences=()=>records;
+  const index=await exportCatalog(store);
+  assert.equal(index.schemaVersion,2);
+  const desktopHero=index.sectionIndex.find(r=>r.regionId==='hero'&&r.profileId==='desktop')!;
+  const mobileHero=index.sectionIndex.find(r=>r.regionId==='hero'&&r.profileId==='mobile')!;
+  assert.deepEqual(desktopHero.labels.map(l=>l.label),['grid']);
+  assert.deepEqual(mobileHero.labels.map(l=>l.label),['centered']);
+  assert.deepEqual(index.sectionIndex.find(r=>r.regionId==='other')!.labels,[],'Pending subject never falls back to old enriched labels');
+  assert.deepEqual(index.referenceCategoryIndexes['composition:grid'],[records.find(r=>r.subject.regionId==='hero'&&r.subject.profileId==='desktop')!.subject.id]);
+  assert.equal(Object.keys(index.regionCategoryIndexes).some(k=>k==='appearance:clean'),false);
+  assert(index.referenceCategoryIndexes['appearance:clean'].every(id=>records.find(r=>r.subject.id===id)?.subject.scope==='page'));
+  assert(index.pages[0].classification.endsWith('references.v2.json'));
+  const html=await readFile(join(output,'report.html'),'utf8');
+  assert(html.includes('references.v2.json'));assert(!html.includes('playful'));assert(!html.includes('Appearance: clean'));
+  assert(html.includes('Assessment pending'));
+  records.find(r=>r.subject.regionId==='hero'&&r.subject.profileId==='mobile')!.quality.verdict='rejected';
+  records.find(r=>r.subject.regionId==='other')!.quality.verdict='repair';
+  await exportCatalog(store);
+  const updated=await readFile(join(output,'report.html'),'utf8');assert(updated.includes('Quality: rejected'));assert(updated.includes('Capture repair required'));
+});
 
 test('catalog indexes exact regions, separates page context, and excludes unknown categories', async () => {
   const output = await mkdtemp(join(tmpdir(), 'folio-report-'));

@@ -17,6 +17,40 @@ const settings: CaptureSettings = {
   contextPixels: 24, frameOverlap: .15, cleanupPasses: 3, cleanupTimeoutMs: 2000, preserveSelectors: [], dismissSelectors: [],
 };
 
+test('static page-bottom crops advance without repeating the prior viewport, and floating navigation is preserved outside section crops', {timeout:60000},async t=>{
+  const fixture=await captureFixture(),directory=await mkdtemp(path.join(os.tmpdir(),'folio-tail-'));
+  const browser=await chromium.launch({channel:'chromium',...(process.env.FOLIO_TEST_BROWSER?{executablePath:process.env.FOLIO_TEST_BROWSER}:{})});
+  try{
+    for(const route of ['static-tail','floating-navigation'])await t.test(route,async()=>{
+      const capture=await captureViewport({browser,url:`${fixture.url}/${route}`,settings:{...settings,contextPixels:0},profile:{id:'desktop',width:800,height:600,dpr:2,isMobile:false,hasTouch:false},outputDir:path.join(directory,route)});
+      assert.equal(capture.status,'complete',JSON.stringify(capture.warnings));
+      const tail=capture.regions.find(r=>r.selector==='#tail')!,frames=tail.frames;
+      assert.equal(frames.length,2);assert(frames[1].bounds.height<200,'Tail contains the configured overlap and remaining content only');
+      assert(frames[1].bounds.y>tail.bounds.y+400);assert.deepEqual(mergeCoverage(capture.coverage),[{start:0,end:route==='floating-navigation'?1205:605}]);
+      if(route==='floating-navigation'){
+        const navigation=capture.evidence.filter(e=>e.kind==='capture-state'&&e.regionId===tail.id).map(e=>(e.value as {navigationOcclusion:number}).navigationOcclusion);
+        assert(navigation.every(v=>v===70),'Fixed parent of semantic navigation with a top gap is detected');
+        for(const frame of frames){const {data,info}=await sharp(await readFile(path.join(directory,route,frame.path))).removeAlpha().raw().toBuffer({resolveWithObject:true});let magenta=0;for(let i=0;i<data.length;i+=info.channels)if(data[i]>245&&data[i+1]<10&&data[i+2]>245)magenta++;assert.equal(magenta,0,'Magenta navigation is outside section crops');}
+        assert(!capture.interventions.some(i=>i.target.toLowerCase().includes('navigation')),'Navigation is not hidden as a nuisance');
+      }
+    });
+  }finally{await browser.close();await fixture.close();const target=path.resolve(directory);assert(target.startsWith(path.resolve(os.tmpdir())+path.sep));await rm(target,{recursive:true,force:true});}
+});
+
+test('opaque pinned containers retain honest scroll states and collect DOM evidence at each captured position', {timeout:45000},async()=>{
+  const fixture=await captureFixture(),directory=await mkdtemp(path.join(os.tmpdir(),'folio-state-dom-'));
+  const browser=await chromium.launch({channel:'chromium',...(process.env.FOLIO_TEST_BROWSER?{executablePath:process.env.FOLIO_TEST_BROWSER}:{})});
+  try{
+    const capture=await captureViewport({browser,url:`${fixture.url}/scroll-evidence`,settings,profile:{id:'desktop',width:800,height:600,dpr:2,isMobile:false,hasTouch:false},outputDir:directory});
+    assert.equal(capture.status,'complete',JSON.stringify(capture.warnings));
+    const scene=capture.regions.find(r=>r.selector==='#scene')!;
+    assert.equal(scene.title,'Scroll sequence');assert.equal(scene.boundaryConfidence,'low');assert(scene.frames.length>=3);
+    assert(scene.frames.every(f=>f.kind==='scroll-state'));
+    const evidence=capture.evidence.filter(e=>e.kind==='capture-state'&&e.regionId===scene.id).map(e=>e.value as {dom:{scope:string;text:string}});
+    assert(evidence.every(e=>e.dom.scope==='visible-frame'));assert(evidence.some(e=>e.dom.text.includes('Later visible state')),'Top-of-page DOM does not discard late-revealed text');
+  }finally{await browser.close();await fixture.close();const target=path.resolve(directory);assert(target.startsWith(path.resolve(os.tmpdir())+path.sep));await rm(target,{recursive:true,force:true});}
+});
+
 test('viewport and device coordinates safely cover below-fold, fractional and invalid crops', () => {
   const document = { x: 0, y: 1800, width: 800, height: 400 };
   assert.equal(intersectRect(document, { x: 0, y: 0, width: 800, height: 600 }), null);

@@ -45,6 +45,11 @@ export async function captureFixture() {
     if (route === '/infinite') extra = `<script>addEventListener('scroll',()=>{if(scrollY+innerHeight>=document.documentElement.scrollHeight-50){const section=document.createElement('section');section.style.height='800px';section.innerHTML='<h2>More content</h2>';document.querySelector('main').append(section)}})</script>`;
     if (route === '/nested') extra = '<div style="height:400px;overflow:auto;width:100%;position:relative" id="internal"><div style="height:1800px">An internally scrolling application view</div></div>';
     let html = base.replace('IMAGE', route === '/broken' || route === '/swap' ? '/broken.svg' : '/image.svg').replace('EXTRA', extra);
+    if(route==='/static-tail'||route==='/floating-navigation'||route==='/scroll-evidence'){
+      const nav=route==='/floating-navigation'?'<div style="position:fixed;top:20px;left:0;width:100%;height:50px;z-index:10"><nav style="height:50px;background:#ff00ff">Floating site navigation</nav></div>':'';
+      const content=route==='/scroll-evidence'?'<div id="scene" style="height:1800px"><div style="position:sticky;top:0;height:600px"><h2 id="state-title"></h2></div></div><script>function state(){document.querySelector("#state-title").innerText=scrollY>600?"Later visible state":"";}addEventListener("scroll",state);state();</script>':'<section id="tail" style="height:605px;background:#cceeff"><h2>End section</h2><p>Complete static content</p></section>';
+      html=`<!doctype html><html><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font-family:Arial}*{box-sizing:border-box}h2{margin:0;padding-top:80px}</style><body>${nav}<main>${route==='/floating-navigation'?'<section style="height:600px"><h2>Hero with navigation</h2></section>':''}${content}</main></body></html>`;
+    }
     if (route === '/no-meta') html = html.replace('<meta name="viewport" content="width=device-width,initial-scale=1">', '');
     if (route === '/nested') html = html.replace('</main>', '<section id="nested-section" style="height:640px"><h2>Scrollable pane</h2><div style="height:400px;overflow:auto;width:100%" id="internal-pane"><div style="height:1800px">Internal content</div></div></section></main>');
     if (route === '/horizontal' || route === '/horizontal-budget') {
