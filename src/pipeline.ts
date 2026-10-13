@@ -115,8 +115,8 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
     }
     if(options.limit && summary.captured+summary.reused>=options.limit)return;
     visited.add(key);
-    const reusable=!options.refresh && store.latestUsable(page.id,signature,config.freshnessDays);
-    if(reusable && reusable.manifest && await validateStoredCapture(store,reusable)){
+    const reusable=options.refresh ? undefined : store.latestUsable(page.id,signature,config.freshnessDays);
+    if(reusable?.manifest && await validateStoredCapture(store,reusable)){
       reusable.manifest.provenance=page.provenance;
       await atomicJson(join(inside(config.output,reusable.directory),'manifest.json'),reusable.manifest);
       await atomicJson(join(inside(config.output,reusable.directory),'evidence.json'),{schemaVersion:1,captureId:reusable.id,items:evidenceFor(reusable.manifest)});

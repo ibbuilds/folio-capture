@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { visionJson } from './model.ts';
 import type { ClassifierProcessRunner } from './classification.ts';
 import type { Config, Label, TaxonomyAxis } from './types.ts';
-import { Store } from './store.ts';
+import type { Store } from './store.ts';
 import { referenceSubjects, subjectImageId, type QualityPass, type ReferenceRecord, type ReferenceSubject } from './references.ts';
 import { TAXONOMY, TAXONOMY_VERSION, TAXONOMY_FINGERPRINT, normalizeLabel, validateLabelRelations } from './taxonomy.ts';
 import { atomicJson, errorMessage, hash, inside, now } from './utils.ts';
@@ -81,7 +81,7 @@ export async function curateCapture(store:Store, captureId:string, config:Config
     const key=hash({subject,rubric:RUBRIC_VERSION,settings,maxImages:config.quality?.maxImages??24});
     const prior=saved.get(subject.id);
     if(prior?.pruned)continue;
-    let record:ReferenceRecord=prior?.quality.cacheKey===key && !options.reassess ? prior : {
+    const record:ReferenceRecord=prior?.quality.cacheKey===key && !options.reassess ? prior : {
       schemaVersion:2,subject,directory:capture.directory,sourceUrl:capture.manifest.requestedUrl,
       quality:{schemaVersion:2,subjectId:subject.id,cacheKey:key,rubricVersion:RUBRIC_VERSION,verdict:'pending',assessedAt:now(),experimental:true,
         reasons:[],model:settings.model??'gpt-6.1-sol',reasoning:settings.reasoning??'high',reportedModels:[],inspectedImages:[]},

@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import sharp from 'sharp';
 import { Store } from '../src/store.ts';

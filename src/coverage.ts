@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { Store, type CaptureRecord } from './store.ts';
+import type { Store, CaptureRecord } from './store.ts';
 import { referenceSubjects, subjectImageId, type ReferenceRecord } from './references.ts';
 import { TAXONOMY, TAXONOMY_VERSION, TAXONOMY_FINGERPRINT, normalizeLabel } from './taxonomy.ts';
 import { SCOPED_PROMPT_VERSION } from './quality.ts';

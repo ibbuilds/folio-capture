@@ -21,7 +21,7 @@ function routed(handler:(route:Route)=>Promise<void>,base=browser):Browser {
 const html=(body:string)=>`<!doctype html><html><body>${body}</body></html>`;
 async function recent(testBrowser:Browser,url='https://recent.design/websites') {
   const result:DiscoveryEvent[]=[];const persisted=new Set<string>();
-  for await(const event of discoverRecent({browser:testBrowser,seed:{url,kind:'auto'},settings,onDiscovered:entries=>entries.forEach(e=>persisted.add(e.id))})){
+  for await(const event of discoverRecent({browser:testBrowser,seed:{url,kind:'auto'},settings,onDiscovered:entries=>entries.forEach(e=>{persisted.add(e.id);})})){
     if(event.type==='entry')assert.ok(persisted.has(event.entry.id),'Persisted before yielding');result.push(event);
   }
   return result;

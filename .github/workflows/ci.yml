@@ -27,5 +27,5 @@ jobs:
           key: ${{ runner.os }}-pnpm-12-${{ hashFiles('pnpm-lock.yaml') }}
       - run: corepack pnpm install --frozen-lockfile --store-dir "${{ runner.temp }}/pnpm-store"
       - run: corepack pnpm exec playwright install --with-deps chromium --no-shell
-      - run: corepack pnpm run build
+      - run: corepack pnpm run check
       - run: corepack pnpm test
