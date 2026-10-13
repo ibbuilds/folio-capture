@@ -8,6 +8,8 @@ import { exportAccepted, pruneQuarantine } from './catalog.ts';
 import { exportCoverage } from './coverage.ts';
 import { Store } from './store.ts';
 import { runPipeline } from './pipeline.ts';
+import { serveBridgeHttp } from './mcp.ts';
+import { Workflow } from './workflow.ts';
 import { exportCatalog } from './report.ts';
 import { inside, errorMessage, atomicJson } from './utils.ts';
 
@@ -23,7 +25,7 @@ export async function main(args=process.argv.slice(2)) {
     else throw new Error(`Unknown option: ${arg}`);
   }
   if(flags.has('--help') || command==='help'){
-    console.log(`Folio Capture\n\n  npm run capture                       Discover, capture, assess, classify, export\n  npm run capture -- --classifier mcp    ChatGPT reviews through the MCP bridge\n  npm run capture -- --classifier codex  Codex CLI assesses and classifies\n  npm run capture -- --limit 3           Process at most 3 pages this run\n  npm run folio -- status                Inspect the job ledger\n  npm run folio -- coverage              Inspect aesthetic and viewport gaps; offline\n  npm run folio -- retry                 Retry recorded failures\n  npm run folio -- refresh               Force new captures\n  npm run folio -- classify              Classify accepted saved references only\n  npm run folio -- classify --refresh    Reclassify saved captures\n  npm run folio -- reassess              Reassess saved pixels; no browser\n  npm run folio -- export                Regenerate accepted catalog\n  npm run folio -- evaluate --benchmark reviewed.json  Evaluate saved decisions\n  npm run folio -- prune                 Prune rejected assets after retention\n  npm run folio -- report                Regenerate local indexes/report\n  npm run folio -- serve                 View report at http://127.0.0.1:4173\n\nOptions: --classifier mcp|codex, --config sources.yaml, --output folder, --source URL, --port 4173`);
+    console.log(`Folio Capture\n\n  npm run capture                       Discover, capture, assess, classify, export\n  npm run capture -- --classifier mcp    ChatGPT reviews through the MCP bridge\n  npm run capture -- --classifier codex  Codex CLI assesses and classifies\n  npm run capture -- --limit 3           Capture at most 3 new pages this run\n  npm run folio -- status                Inspect the job ledger\n  npm run folio -- coverage              Inspect aesthetic and viewport gaps; offline\n  npm run folio -- retry                 Retry recorded failures\n  npm run folio -- refresh               Force new captures\n  npm run folio -- classify              Classify accepted saved references only\n  npm run folio -- classify --refresh    Reclassify saved captures\n  npm run folio -- reassess              Reassess saved pixels; no browser\n  npm run folio -- export                Regenerate accepted catalog\n  npm run folio -- evaluate --benchmark reviewed.json  Evaluate saved decisions\n  npm run folio -- prune                 Prune rejected assets after retention\n  npm run folio -- report                Regenerate local indexes/report\n  npm run folio -- serve                 View report at http://127.0.0.1:4173\n\nOptions: --classifier mcp|codex, --config sources.yaml, --output folder, --source URL, --port 4173`);
     return;
   }
   if(!['run','status','coverage','retry','refresh','classify','reassess','export','evaluate','prune','report','serve'].includes(command))throw new Error(`Unknown command: ${command}. Use --help.`);
@@ -69,17 +71,24 @@ export async function main(args=process.argv.slice(2)) {
   }
   const limit=flags.has('--limit')?Number(flags.get('--limit')):undefined;
   if(limit!==undefined && (!Number.isInteger(limit)||limit<1))throw new Error('--limit must be a positive integer.');
+  if(config.classifier.runner==='mcp') {
+    const port=Number(flags.get('--port')??4317);
+    if(!Number.isInteger(port)||port<1024||port>65535)throw new Error('Port must be an integer from 1024 to 65535.');
+    const server=await serveBridgeHttp(config,port,{startOptions:{...(limit?{limit}:{}),...(flags.has('--source')?{source:String(flags.get('--source'))}:{})},
+      runOptions:{refresh:command==='refresh'||flags.has('--refresh'),classifyOnly:command==='classify'||command==='reassess',reassess:command==='reassess'}});
+    console.log(`Folio engine: http://127.0.0.1:${port}/mcp. Keep this terminal open.`);
+    console.log('In ordinary ChatGPT Desktop Chat, select @Folio Capture and say: Start Folio and continue its collection/review loop until done.');
+    console.log('Saved reviews are processed first; collection waits for validated judgments. This engine never starts Codex or calls a model API.');
+    const stop=()=>{void new Workflow(config).shutdown().finally(()=>server.close());};
+    process.once('SIGINT',stop);process.once('SIGTERM',stop);return;
+  }
   const controller=new AbortController();
   const interrupt=()=>controller.abort(new Error('Interrupted by user'));
   process.once('SIGINT',interrupt);process.once('SIGTERM',interrupt);
   try{
-    console.log(`Classifier: ${config.classifier.runner==='mcp'?'ChatGPT MCP (connected conversation required)':'Codex CLI'}`);
+    console.log('Classifier: Codex CLI');
     const summary=await runPipeline(config,{refresh:command==='refresh'||flags.has('--refresh'),retry:command==='retry',classifyOnly:command==='classify'||command==='reassess',reassess:command==='reassess',source:flags.has('--source')?String(flags.get('--source')):undefined,limit,signal:controller.signal});
     console.log(JSON.stringify(summary,null,2));console.log(`Catalog: ${join(config.output,'catalog.json')}`);
-    if(config.classifier.runner==='mcp' && summary.pendingClassification){
-      console.log('Workflow pending: connect ChatGPT to the Folio MCP bridge and finish the saved quality/classification queue. No Codex or model API was called.');
-      console.log(`npm run bridge -- --config ${String(flags.get('--config') ?? 'sources.yaml')}`);
-    }
     if(summary.interrupted)process.exitCode=130;
   }finally{process.removeListener('SIGINT',interrupt);process.removeListener('SIGTERM',interrupt);}
 }

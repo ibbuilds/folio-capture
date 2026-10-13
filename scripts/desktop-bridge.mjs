@@ -55,7 +55,7 @@ async function forward(line) {
     write(result);
   } catch (failure) {
     const message = failure instanceof Error ? failure.message : 'Connection failed';
-    const note = `${message} Start npm run bridge -- --http in your Folio Capture checkout and keep it running. No Codex or AI API was invoked.`;
+    const note = `${message} Start npm run capture -- --classifier mcp in your Folio Capture checkout and keep it running. No Codex or AI API was invoked.`;
     if (hasId) error(request.id, note);
     else process.stderr.write(`${note}\n`);
   }
