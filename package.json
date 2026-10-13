@@ -10,6 +10,7 @@
   },
   "scripts": {
     "capture": "node src/cli.ts run",
+    "clean": "node src/cli.ts reset",
     "folio": "node src/cli.ts",
     "setup": "playwright install chromium --no-shell",
     "lint": "biome lint . --error-on-warnings",

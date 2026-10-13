@@ -68,6 +68,7 @@ npm run bridge -- --http
 npm run folio -- status
 npm run folio -- doctor --classifier mcp
 npm run folio -- organize
+npm run clean
 npm run folio -- coverage
 npm run folio -- retry
 npm run folio -- refresh --source https://example.com/pricing
@@ -79,6 +80,8 @@ npm run folio -- evaluate --benchmark reviewed.json
 ```
 
 Every collection workflow requires MCP or Codex classification. In MCP mode the CLI starts the local engine and ChatGPT starts the coordinated loop. The bridge never starts Codex or calls a model API. `reassess` and `classify` start an engine restricted to saved images; the same ChatGPT loop supplies judgments without opening websites. Authentication errors, usage limits, timeouts and invalid model output leave jobs pending. Interrupted work resumes from SQLite, including a completed assessment whose critique failed. Model action tools are disabled in Codex; the MCP classifier is instructed to use only the Folio protocol.
+
+To discard every previous run, stop all Folio capture/bridge processes and run **`npm run clean`** (`npm run folio -- reset` also works). This permanently removes generated screenshots, staging, exports, category/review views and reports, and empties the SQLite registry including jobs, aliases, deduplication and classification history. Sources, settings and unrelated files are preserved. The next collection starts from scratch. Use `npm run clean -- --config sources.local.yaml` for another configuration. Active runs/bridges and unsafe output targets are refused. An interrupted reset blocks collection until the same cleanup command completes successfully.
 
 Each page variant and section variant is assessed independently against hierarchy, typography/readability, spacing/consistency, aesthetic coherence, imagery/content fit and execution at the captured viewport. Both assessment and critique must support 9–10 with no material weakness. Disagreement is uncertain; broken captures require repair. An excellent section can qualify inside a rejected page. Page acceptance requires complete recorded coverage and all its frames. Subjects above `quality.maxImages` stay uncertain instead of granting unsampled frames a judgment.
 

@@ -195,6 +195,9 @@ export async function serveBridgeHttp(
   port = 4317,
   dependencies: WorkflowDependencies = {},
 ): Promise<HttpServer> {
+  const owner=new Store(config.output);let engineKey:string;
+  try{engineKey=owner.registerEngine();}finally{owner.close();}
+  const release=()=>{const store=new Store(config.output,{resetting:true});try{store.unregisterEngine(engineKey);}finally{store.close();}};
   const http = createServer(async (req, res) => {
     const host = req.headers.host || '';
     if (!/^(?:localhost|127\.0\.0\.1)(?::\d+)?$/.test(host)) {
@@ -307,15 +310,16 @@ export async function serveBridgeHttp(
   http.requestTimeout = 30000;
   http.headersTimeout = 10000;
   http.once('close', () => {
+    release();
     void new Workflow(config, dependencies).shutdown();
   });
-  await new Promise<void>((accept, reject) => {
+  try{await new Promise<void>((accept, reject) => {
     http.once('error', reject);
     http.listen(port, '127.0.0.1', () => {
       http.off('error', reject);
       accept();
     });
-  });
+  });}catch(error){release();throw error;}
   return http;
 }
 export async function main(args = process.argv.slice(2)) {
@@ -344,7 +348,13 @@ export async function main(args = process.argv.slice(2)) {
     console.error(`Folio classifier MCP: http://127.0.0.1:${port}/mcp`);
     process.once('SIGINT', () => server.close());
     process.once('SIGTERM', () => server.close());
-  } else await createBridgeServer(config).connect(new StdioServerTransport());
+  } else {
+    const owner=new Store(config.output);let key:string;
+    try{key=owner.registerEngine();}finally{owner.close();}
+    const release=()=>{const store=new Store(config.output,{resetting:true});try{store.unregisterEngine(key);}finally{store.close();}};
+    process.once('exit',release);
+    try{await createBridgeServer(config).connect(new StdioServerTransport());}catch(error){process.off('exit',release);release();throw error;}
+  }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href)
   main().catch((error) => {
