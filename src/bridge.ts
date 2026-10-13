@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { Config } from './types.ts';
 import type { VisionRequest, VisionResponse } from './model.ts';
 import { Store } from './store.ts';
@@ -64,6 +64,7 @@ export class AnalysisBridge {
   context() {
     return {
       contextId: BRIDGE_CONTEXT_ID,
+      clientId: hash(randomUUID()),
       taxonomyVersion: TAXONOMY_VERSION,
       rubricVersion: RUBRIC_VERSION,
       instructions:
@@ -94,7 +95,6 @@ export class AnalysisBridge {
     try {
       store = new Store(this.config.output);
       store.acquireLock();
-      store.recoverRunning();
       return await action(store);
     } finally {
       store?.close();
@@ -103,7 +103,9 @@ export class AnalysisBridge {
     }
   }
   async status() {
-    return this.locked(async (store) => {
+    // WAL snapshot reads must remain available during collection; do not recover a live writer's jobs.
+    const store = new Store(this.config.output);
+    try {
       const records = store.exportReferences(),
         jobs = store
           .jobs()
@@ -124,6 +126,17 @@ export class AnalysisBridge {
             (s) => [s, jobs.filter((j) => j.status === s).length],
           ),
         ),
+        registry: {
+          pages: store.pages().length,
+          captureVersions: store.captures().length,
+          discoveredEntries: store.jobs('resolve').length,
+        },
+        workflow: (() => {
+          const state = store.getJob('workflow', 'active')?.payload;
+          if (!state) return null;
+          const { clientId: _clientId, ...visible } = state;
+          return visible;
+        })(),
         exceptions: jobs
           .filter((j) => ['failed', 'blocked', 'unsupported', 'incomplete'].includes(j.status))
           .slice(0, 10)
@@ -135,7 +148,9 @@ export class AnalysisBridge {
           })),
         note: 'This server performs no inference. The connected ChatGPT conversation supplies judgments under its own plan limits.',
       };
-    });
+    } finally {
+      store.close();
+    }
   }
   private runner(store: Store, subject: ReferenceSubject) {
     return async (request: VisionRequest): Promise<VisionResponse> => {

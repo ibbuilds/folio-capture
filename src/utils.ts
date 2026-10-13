@@ -6,6 +6,11 @@ export const now = () => new Date().toISOString();
 export const hash = (value: unknown) => createHash('sha256').update(typeof value === 'string' ? value : JSON.stringify(value)).digest('hex');
 export const idFor = (value: unknown) => hash(value).slice(0, 24);
 export const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
+export class ResolvedDuplicate extends Error {
+  readonly destination:string;
+  readonly captureId:string;
+  constructor(destination:string,captureId:string){super('Verified redirect resolves to an already captured page.');this.destination=destination;this.captureId=captureId;}
+}
 
 export function publicUrl(value: string): string {
   const url = new URL(value);
@@ -18,6 +23,9 @@ export function canonicalUrl(value: string): string {
   for (const key of [...url.searchParams.keys()]) {
     if (/^utm_/i.test(key) || ['gclid', 'fbclid', 'msclkid', 'mc_cid', 'mc_eid'].includes(key.toLowerCase())) url.searchParams.delete(key);
   }
+  // Key order is immaterial; stable sort preserves the order of repeated values.
+  // Fragments remain: hash routers and explicit states can change the design.
+  url.searchParams.sort();
   return url.href;
 }
 

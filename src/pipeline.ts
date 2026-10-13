@@ -1,5 +1,5 @@
 import { chromium, type Browser } from 'playwright';
-import { mkdir, rename, readFile, copyFile } from 'node:fs/promises';
+import { mkdir, rename, readFile, copyFile, rm } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import sharp from 'sharp';
@@ -8,14 +8,15 @@ import { heuristicClassification, classificationCacheKey } from './classificatio
 import { Store, type CaptureRecord } from './store.ts';
 import { curateCapture } from './quality.ts';
 import { exportAccepted } from './catalog.ts';
+import { shareCaptureAssets, registerCaptureAssets } from './assets.ts';
 import { TAXONOMY_VERSION } from './taxonomy.ts';
 import { libraryAdapter, isKnownLibrary } from './adapters.ts';
 import { discoverSite } from './site.ts';
 import { exportCatalog } from './report.ts';
-import { atomicJson, canonicalUrl, delay, errorMessage, hash, inside, isRelatedDestination, jsonFile, now } from './utils.ts';
+import { atomicJson, canonicalUrl, delay, errorMessage, hash, inside, isRelatedDestination, jsonFile, now, ResolvedDuplicate } from './utils.ts';
 import type { Config, EvidenceItem, PageManifest, Source, ViewportCapture, Provenance, Classification, DiscoveredEntry } from './types.ts';
 
-export type RunOptions = { launchBrowser?: () => Promise<Browser>; refresh?: boolean; retry?: boolean; classifyOnly?: boolean; reassess?: boolean; source?: string; limit?: number; signal?: AbortSignal; log?: (message:string)=>void };
+export type RunOptions = { launchBrowser?: () => Promise<Browser>; refresh?: boolean; retry?: boolean; classifyOnly?: boolean; reassess?: boolean; source?: string; limit?: number; signal?: AbortSignal; log?: (message:string)=>void; workflowId?:string; onCaptureReady?:(captureId:string)=>Promise<void> };
 export type RunSummary = { discovered:number; queued:number; captured:number; reused:number; unresolved:number; incomplete:number; unsupported:number; blocked:number; failed:number; classified:number; pendingClassification:number; interrupted:boolean };
 
 export async function validateCaptureFiles(root: string, manifest: PageManifest): Promise<boolean> {
@@ -64,6 +65,7 @@ async function recoverPublished(store: Store, log: (message:string)=>void) {
         if (manifest.captureId!==c.id || !(await validateCaptureFiles(root,manifest))) continue;
         if (directory!==c.directory) { await mkdir(dirname(inside(store.output,c.directory)),{recursive:true}); await rename(root,inside(store.output,c.directory)); }
         store.publishCapture(manifest,c.directory);
+        await registerCaptureAssets(store,c.directory);
         await atomicJson(join(inside(store.output,c.directory),'evidence.json'),{schemaVersion:1,captureId:c.id,items:evidenceFor(manifest)});
         let classification:Classification;
         try{classification=await jsonFile<Classification>(join(inside(store.output,c.directory),'classification.json'));if(classification.captureId!==c.id)throw new Error('Mismatched classification');}
@@ -102,6 +104,16 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
     const references=store.references(capture.id);
     summary.classified+=references.filter(r=>r.classification).length;
     summary.pendingClassification+=references.filter(r=>r.quality.verdict==='pending' || r.quality.verdict==='accepted'&&!r.classification).length;
+    if(options.onCaptureReady && references.some(r=>!r.pruned && (r.quality.verdict==='pending' || r.quality.verdict==='accepted'&&!r.classification))){
+      // Published pixels are immutable. Yield the writer lock while the chat reviews them.
+      store.releaseLock();locked=false;
+      let reviewError:unknown;
+      try { await options.onCaptureReady(capture.id); } catch(error){reviewError=error;}
+      const deadline=Date.now()+30000;
+      for(;;){try{store.acquireLock();locked=true;break;}catch(error){if(Date.now()>=deadline)throw error;await delay(50);}}
+      if(reviewError)throw reviewError;
+      checkInterrupted();
+    }
   }
 
   async function publishIndexes() { await exportCatalog(store,false); await exportAccepted(store,config.profiles); }
@@ -121,7 +133,7 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
       }
       return;
     }
-    if(options.limit && summary.captured+summary.reused>=options.limit)return;
+    if(options.limit && summary.captured>=options.limit)return;
     visited.add(key);
     const reusable=options.refresh ? undefined : store.latestUsable(page.id,signature,config.freshnessDays);
     if(reusable?.manifest && await validateStoredCapture(store,reusable)){
@@ -168,9 +180,20 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
         const timeout=AbortSignal.timeout(config.capture.attemptTimeoutMs);
         const signal=options.signal ? AbortSignal.any([timeout,options.signal]) : timeout;
         try {
-          result=await captureViewport({browser:await ensureBrowser(),url:page.url,profile,settings:{...config.capture,preserveSelectors:[...config.capture.preserveSelectors,...source.preserveSelectors??[]],dismissSelectors:[...config.capture.dismissSelectors,...source.dismissSelectors??[]]},outputDir:root,onProgress:message=>log(`  ${profile.id}: ${message}`),signal});
+          result=await captureViewport({browser:await ensureBrowser(),url:page.url,profile,settings:{...config.capture,preserveSelectors:[...config.capture.preserveSelectors,...source.preserveSelectors??[]],dismissSelectors:[...config.capture.dismissSelectors,...source.dismissSelectors??[]]},outputDir:root,onProgress:message=>log(`  ${profile.id}: ${message}`),signal,onNavigation:async finalUrl=>{
+            if(options.refresh || variants.length || !isRelatedDestination(page.url,finalUrl) || canonicalUrl(page.url)===canonicalUrl(finalUrl))return;
+            const known=store.pageForUrl(finalUrl);
+            const prior=known && known.id!==page.id?store.latestUsable(known.id,signature,config.freshnessDays):undefined;
+            if(prior && await validateStoredCapture(store,prior))throw new ResolvedDuplicate(finalUrl,prior.id);
+          }});
           if(!isRelatedDestination(page.url,result.finalUrl)){result.status='blocked';result.warnings.push(`Unrelated destination: ${result.finalUrl}`);result.stoppingReason='unrelated_redirect';}
         }catch(error){
+          if(error instanceof ResolvedDuplicate && store.aliasUncapturedPage(page.id,error.destination)){
+            store.abandonDuplicateCapture(captureId);store.finish(viewportJob,'complete',{duplicateCaptureId:error.captureId},undefined,'verified_redirect_reuse');
+            store.finish(job,'complete',{captureId:error.captureId},undefined,'verified_redirect_reuse');
+            await rm(inside(config.output,stagingDirectory),{recursive:true,force:true});
+            await processPage(error.destination,provenance,source);return;
+          }
           if(options.signal?.aborted)throw error;
           result={profile,status:'failed',requestedUrl:page.url,finalUrl:page.url,title:'',capturedAt:now(),pageHeight:0,regions:[],evidence:[],warnings:[errorMessage(error)],interventions:[],coverage:[],stoppingReason:'attempt_error',environment:{}};
         }
@@ -187,9 +210,14 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
     await atomicJson(join(root,'manifest.json'),manifest);
     const base=heuristicClassification(manifest,evidenceFor(manifest));
     await atomicJson(join(root,'classification.json'),base);
+    await shareCaptureAssets(store,root);
     await mkdir(dirname(inside(config.output,directory)),{recursive:true});
     await rename(root,inside(config.output,directory));
     store.publishCapture(manifest,directory);store.saveClassification(captureId,base);
+    await registerCaptureAssets(store,directory);
+    // Only a fully captured, consistent redirect establishes a destination alias.
+    const destinations=new Set(variants.map(v=>canonicalUrl(v.finalUrl)));
+    if(status==='complete' && destinations.size===1 && isRelatedDestination(page.url,variants[0].finalUrl))store.rememberRedirect(page.id,variants[0].finalUrl);
     store.finish(job,status,{captureId},status==='complete'?undefined:variants.flatMap(v=>v.warnings).join('; '));
     summary.captured++;if(status==='incomplete')summary.incomplete++;if(status==='blocked')summary.blocked++;if(status==='failed')summary.failed++;
     const saved=store.capture(captureId)!;
@@ -213,32 +241,32 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
     const provenance:Provenance={seedUrl:entry.seedUrl,listingUrl:entry.listingUrl,detailUrl:entry.detailUrl,discoveredAt:entry.discoveredAt,sourceLabels:resolved.sourceLabels ?? [],previewUrl:resolved.previewUrl,resolutionPath:resolved.metadata?.followed};
     if((config.collection?.originalMode??'site')==='site'){
       await discoverSite(store,ensureBrowser,{...source,url:resolved.originalUrl,kind:'site',maxPages:source.maxPages??config.collection?.maxPages,maxDepth:source.maxDepth??config.collection?.maxDepth},config.discovery,
-        async(url,path)=>processPage(url,{...provenance,navigationPath:path.navigationPath},source),options.signal,()=>!options.limit || summary.captured+summary.reused<options.limit,config.capture);
+        async(url,path)=>processPage(url,{...provenance,navigationPath:path.navigationPath},source),options.signal,()=>!options.limit || summary.captured<options.limit,config.capture);
     }else await processPage(resolved.originalUrl,provenance,source);
   }
 
   try {
-    store.acquireLock();locked=true;store.recoverRunning();await recoverPublished(store,log);
+    store.assertWorkflowAccess(options.workflowId);store.acquireLock();locked=true;store.recoverRunning();await recoverPublished(store,log);
     if(options.retry)store.retryFailures();
-    if(options.classifyOnly){for(const capture of store.latestCaptures().filter(c=>c.manifest && (!options.source || c.manifest.provenance.some(p=>canonicalUrl(p.seedUrl)===canonicalUrl(options.source!)) || canonicalUrl(c.manifest.requestedUrl)===canonicalUrl(options.source!)) && c.manifest.variants.some(v=>v.regions.some(r=>r.frames.length)))){checkInterrupted();await classify(capture,Boolean(options.refresh));if(options.limit && summary.classified>=options.limit)break;}return summary;}
+    if(options.classifyOnly){let analyzed=0;for(const capture of store.latestCaptures().filter(c=>c.manifest && (!options.source || c.manifest.provenance.some(p=>canonicalUrl(p.seedUrl)===canonicalUrl(options.source!)) || canonicalUrl(c.manifest.requestedUrl)===canonicalUrl(options.source!)) && c.manifest.variants.some(v=>v.regions.some(r=>r.frames.length)))){checkInterrupted();await classify(capture,Boolean(options.refresh));if(options.limit && ++analyzed>=options.limit)break;}return summary;}
     await ensureBrowser();
     const sources=options.source ? config.sources.filter(s=>canonicalUrl(s.url)===canonicalUrl(options.source!)) : config.sources;
     if(!sources.length)throw new Error('The selected source is not in sources.yaml.');
     for(const source of sources){
       checkInterrupted();
-      if(options.limit && summary.captured+summary.reused>=options.limit)break;
+      if(options.limit && summary.captured>=options.limit)break;
       for(const pendingCapture of store.jobs('capture',['pending']).filter(j=>j.payload.source?.url===source.url)){
         if(pendingCapture.payload.libraryPage || source.kind!=='page' && libraryAdapter(source.url) && canonicalUrl(pendingCapture.payload.url)===canonicalUrl(source.url))continue;
         const pendingPage=store.page(pendingCapture.payload.url);
         const origin=pendingPage.provenance.find(p=>p.seedUrl===source.url);
         if(origin)await processPage(pendingPage.url,origin,source);
-        if(options.limit && summary.captured+summary.reused>=options.limit)break;
+        if(options.limit && summary.captured>=options.limit)break;
       }
-      if(options.limit && summary.captured+summary.reused>=options.limit)break;
+      if(options.limit && summary.captured>=options.limit)break;
       const adapter=libraryAdapter(source.url);
       const library=source.kind==='library' || (source.kind==='auto' && (Boolean(adapter)||isKnownLibrary(source.url)));
       if(source.kind==='site'){
-        await discoverSite(store,ensureBrowser,source,config.discovery,async (url,provenance)=>{await processPage(url,provenance,source);},options.signal,()=>!options.limit || summary.captured+summary.reused<options.limit,config.capture);continue;
+        await discoverSite(store,ensureBrowser,source,config.discovery,async (url,provenance)=>{await processPage(url,provenance,source);},options.signal,()=>!options.limit || summary.captured<options.limit,config.capture);continue;
       }
       if(!library){
         await processPage(source.url,{seedUrl:source.url,discoveredAt:now(),sourceLabels:[]},source);continue;
@@ -247,8 +275,8 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
       if(!adapter){store.finish(discoveryJob,'unsupported',undefined,'This library needs a dedicated adapter. The selected URL does not match a supported collection adapter.');summary.unsupported++;continue;}
       const ownPage=store.page(source.url,{seedUrl:source.url,discoveredAt:now(),sourceLabels:[]});
       store.job('capture',`${ownPage.id}:${captureSignature(source)}`,{pageId:ownPage.id,url:ownPage.url,source,libraryPage:true});
-      for(const pending of store.jobs('resolve',['pending']).filter(j=>j.payload.entry?.seedUrl===source.url)){await resolveAndCapture(pending.payload.entry,source);if(options.limit && summary.captured+summary.reused>=options.limit)break;}
-      if(options.limit && summary.captured+summary.reused>=options.limit){store.finish(discoveryJob,'incomplete',undefined,'Capture limit reached','capture_limit');break;}
+      for(const pending of store.jobs('resolve',['pending']).filter(j=>j.payload.entry?.seedUrl===source.url)){await resolveAndCapture(pending.payload.entry,source);if(options.limit && summary.captured>=options.limit)break;}
+      if(options.limit && summary.captured>=options.limit){store.finish(discoveryJob,'incomplete',undefined,'Capture limit reached','capture_limit');break;}
       store.start(discoveryJob);log(`Discover ${source.url}`);
       for(let replay=0;replay<2;replay++){
       const listingBrowser=await ensureBrowser();let disconnected=false;
@@ -260,13 +288,13 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
         checkInterrupted();
         if(event.type==='entry'){
           await resolveAndCapture(event.entry,source);
-          if(options.limit && summary.captured+summary.reused>=options.limit){store.finish(discoveryJob,'incomplete',undefined,'Capture limit reached','capture_limit');break;}
+          if(options.limit && summary.captured>=options.limit){store.finish(discoveryJob,'incomplete',undefined,'Capture limit reached','capture_limit');break;}
         }else {disconnected=!listingBrowser.isConnected();const unsupported=/(?:^|: )Unsupported\b/.test(event.error??'');const blocked=event.reason==='incomplete'&&/access gate|HTTP (?:401|403|429)|captcha|paywall|forbidden/i.test(event.error??'');if(unsupported)summary.unsupported++;else if(blocked)summary.blocked++;else if(event.reason==='incomplete')summary.incomplete++;store.finish(discoveryJob,unsupported?'unsupported':blocked?'blocked':event.reason==='incomplete'?'incomplete':'complete',event,event.error,event.reason);}
       }
-      if(!disconnected || replay===1 || options.limit && summary.captured+summary.reused>=options.limit)break;
+      if(!disconnected || replay===1 || options.limit && summary.captured>=options.limit)break;
       store.start(discoveryJob);log('Replaying interrupted listing; saved entries are deduplicated.');
       }
-      if(!options.limit || summary.captured+summary.reused<options.limit)await processPage(source.url,ownPage.provenance[0],source);
+      if(!options.limit || summary.captured<options.limit)await processPage(source.url,ownPage.provenance[0],source);
     }
     return summary;
   }catch(error){

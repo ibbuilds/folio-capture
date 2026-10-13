@@ -17,6 +17,10 @@ import { Store } from '../src/store.ts';
 import { curateCapture, CRITERIA } from '../src/quality.ts';
 import { TAXONOMY } from '../src/taxonomy.ts';
 import type { PageManifest } from '../src/types.ts';
+import { Workflow } from '../src/workflow.ts';
+import { chromium } from 'playwright';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
 
 async function fixture(t: test.TestContext, parts = 1) {
   const root = await mkdtemp(join(tmpdir(), 'folio-mcp-'));
@@ -203,6 +207,287 @@ test('installed Desktop package runs from a bare cache and returns screenshots a
   }
 });
 
+test('one ChatGPT start drives backlog, capture, validated review and export; competing chats and collectors cannot duplicate it', async (t) => {
+  const { config, root } = await fixture(t, 5);
+  config.sources = [
+    { url: 'https://product.test/one', kind: 'page' },
+    { url: 'https://product.test/two', kind: 'page' },
+  ];
+  config.profiles = [config.profiles.find((p) => p.id === 'desktop')!];
+  Object.assign(config.capture, {
+    maxAttempts: 1,
+    mediaTimeoutMs: 400,
+    settleTimeoutMs: 600,
+    cleanupTimeoutMs: 400,
+    explorationTimeoutMs: 4000,
+    attemptTimeoutMs: 15000,
+  });
+  let launches = 0;
+  const server = await serveBridgeHttp(config, 0, {
+    waitMs: 50,
+    runOptions: {
+      log: () => {},
+      launchBrowser: async () => {
+        launches++;
+        const browser = await chromium.launch({
+          headless: true,
+          channel: 'chromium',
+          executablePath: process.env.FOLIO_TEST_BROWSER_PATH,
+        });
+        const context = browser.newContext.bind(browser);
+        browser.newContext = async (options) => {
+          const c = await context(options);
+          await c.route('**/*', (route) =>
+            route.fulfill({
+              contentType: 'text/html',
+              body: '<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}section{min-height:1000px;padding:40px;box-sizing:border-box}</style><main><section><h1>Build better products</h1><p>One deterministic reference.</p></section></main>',
+            }),
+          );
+          return c;
+        };
+        return browser;
+      },
+    },
+  });
+  t.after(() => new Promise<void>((accept) => server.close(() => accept())));
+  const client = new Client({ name: 'automatic-contract', version: '1' });
+  await client.connect(
+    new StreamableHTTPClientTransport(
+      new URL(`http://127.0.0.1:${(server.address() as { port: number }).port}/mcp`),
+    ),
+  );
+  const call = async (name: string, args: Record<string, unknown> = {}) => {
+    const result = await client.callTool({ name, arguments: args });
+    assert.ok(!result.isError, JSON.stringify(result));
+    return JSON.parse((result.content as any[])[0].text);
+  };
+  const context = await call('get_context');
+  const started = await call('start_run', {
+    contextId: context.contextId,
+    clientId: context.clientId,
+    limit: 2,
+  });
+  const session = { runId: started.runId, clientId: started.clientId };
+  try {
+    assert.equal(launches, 0, 'Saved review backlog is drained before Chromium starts');
+    assert.equal(
+      (
+        await call('start_run', {
+          ...session,
+          runId: undefined,
+          contextId: context.contextId,
+          limit: 2,
+        })
+      ).runId,
+      started.runId,
+    );
+    const other = await call('get_context');
+    assert.equal(
+      (
+        await client.callTool({
+          name: 'start_run',
+          arguments: { contextId: other.contextId, clientId: other.clientId, limit: 2 },
+        })
+      ).isError,
+      true,
+    );
+    const guard = new Store(root);
+    try {
+      assert.throws(() => guard.assertWorkflowAccess(), /owns collection/);
+    } finally {
+      guard.close();
+    }
+    let packets = 0,
+      done = false,
+      sawWaiting = false;
+    for (let i = 0; i < 500 && !done; i++) {
+      const result = await call('get_packet', { contextId: context.contextId, ...session });
+      if (result.done) {
+        assert.equal(result.phase, 'completed', JSON.stringify(result));
+        done = true;
+        break;
+      }
+      if (result.waiting) {
+        sawWaiting = true;
+        const status = await call('status');
+        assert.equal(status.workflow.phase, 'collecting');
+        continue;
+      }
+      const packet = result.packet;
+      packets++;
+      let offset = result.nextOffset,
+        remaining = result.remainingImages;
+      while (remaining) {
+        const more = await call('get_images', { packetId: packet.id, offset, ...session });
+        offset = more.nextOffset;
+        remaining = more.remainingImages;
+      }
+      if (packets === 1) {
+        const invalid = await client.callTool({
+          name: 'submit_result',
+          arguments: { packetId: packet.id, value: pass('invented'), ...session },
+        });
+        assert.equal(invalid.isError, true);
+        assert.equal(launches, 0);
+      }
+      const value =
+        packet.phase === 'classification'
+          ? labels(packet.scope, packet.images[0].id)
+          : pass(packet.images[0].id, packet.scope === 'section');
+      const first = await call('submit_result', { packetId: packet.id, value, ...session });
+      assert.equal(first.committed, true);
+      assert.equal(
+        (await call('submit_result', { packetId: packet.id, value, ...session })).idempotent,
+        true,
+      );
+    }
+    assert.ok(done);
+    assert.ok(sawWaiting);
+    assert.equal(launches, 1);
+    const status = await call('status');
+    assert.equal(status.counts.pending, 0);
+    assert.equal(status.modelCallsStartedByBridge, 0);
+    assert.ok(status.classified >= 3);
+    const store = new Store(root);
+    try {
+      assert.equal(store.latestCaptures().length, 3);
+      assert.equal(store.jobs('mcp-response').length, packets);
+      assert.ok(
+        store
+          .references()
+          .filter((r) => r.quality.verdict === 'accepted')
+          .every((r) => r.classification),
+      );
+    } finally {
+      store.close();
+    }
+    const catalog = JSON.parse(await readFile(join(root, 'catalog.json'), 'utf8'));
+    assert.ok(catalog.references.every((r: any) => r.scope === 'section'));
+    assert.ok(catalog.references.every((r: any) => r.images.every((im: any) => im.assetId)));
+  } finally {
+    await new Workflow(config).shutdown();
+    await client.close();
+  }
+});
+
+test('an idle chat pauses rather than claiming completion, and its committed assessment resumes without recapture', async (t) => {
+  const { config, bridge } = await fixture(t);
+  const workflow = new Workflow(config, { idleMs: 60, waitMs: 10 });
+  const context = bridge.context();
+  let run = await workflow.start(context.contextId, context.clientId);
+  let packet = await workflow.next(context.contextId, run.runId, run.clientId);
+  if ('done' in packet) assert.fail('assessment missing');
+  await bridge.submit(packet.packet.id, pass(packet.images[0].id));
+  await new Promise((accept) => setTimeout(accept, 120));
+  const paused = await workflow.next(context.contextId, run.runId, run.clientId);
+  assert.ok('done' in paused && paused.done);
+  assert.equal((paused as any).phase, 'paused');
+  assert.equal((paused as any).reason, 'chat_idle');
+  run = await workflow.start(context.contextId, context.clientId);
+  packet = await workflow.next(context.contextId, run.runId, run.clientId);
+  if ('done' in packet) assert.fail('critique missing');
+  assert.equal(packet.packet.phase, 'critique');
+  await workflow.stop(run.runId, run.clientId);
+  assert.equal((await bridge.status()).workflow?.phase, 'paused');
+});
+
+test('a restarted engine records an interrupted owner honestly and preserves the saved review stage', async (t) => {
+  const { config, bridge, root } = await fixture(t);
+  const workflow = new Workflow(config);
+  const context = bridge.context();
+  const run = await workflow.start(context.contextId, context.clientId);
+  const task = await workflow.next(context.contextId, run.runId, run.clientId);
+  if ('done' in task) assert.fail();
+  await bridge.submit(task.packet.id, pass(task.images[0].id));
+  await workflow.stop(run.runId, run.clientId);
+  const store = new Store(root);
+  try {
+    const stale = store.getJob('workflow', 'active')!;
+    const state = { ...stale.payload, phase: 'collecting', ownerPid: 2147483000 };
+    store.job('workflow', 'active', state);
+    store.finish(stale, 'running');
+  } finally {
+    store.close();
+  }
+  const restarted = new Workflow(config);
+  const stopped = await restarted.next(context.contextId, run.runId, run.clientId);
+  assert.ok('done' in stopped && stopped.done);
+  assert.equal((stopped as any).phase, 'paused');
+  assert.equal((stopped as any).reason, 'engine_interrupted');
+  const resumed = await restarted.start(context.contextId, context.clientId);
+  const next = await restarted.next(context.contextId, resumed.runId, resumed.clientId);
+  if ('done' in next) assert.fail();
+  assert.equal(next.packet.phase, 'critique');
+  await restarted.stop(resumed.runId, resumed.clientId);
+});
+
+test('the normal MCP capture command starts a waiting engine and carries its capture limit into the chat run', async (t) => {
+  const { root, config } = await fixture(t);
+  const reservation = await serveBridgeHttp(config, 0);
+  const port = (reservation.address() as { port: number }).port;
+  await new Promise<void>((accept) => reservation.close(() => accept()));
+  const file = join(root, 'cli-config.json');
+  await writeFile(file, JSON.stringify(config));
+  const processUnderTest = spawn(
+    process.execPath,
+    [resolve('src/cli.ts'), 'run', '--config', file, '--port', String(port), '--limit', '1'],
+    { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true },
+  );
+  t.after(() => {
+    if (processUnderTest.exitCode === null) processUnderTest.kill();
+  });
+  let output = '';
+  const ready = new Promise<void>((accept, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Engine did not start: ${output}`)), 10000);
+    processUnderTest.stdout.on('data', (chunk) => {
+      output += chunk.toString();
+      if (output.includes('Folio engine:') && output.includes('select @Folio Capture')) {
+        clearTimeout(timer);
+        accept();
+      }
+    });
+    processUnderTest.stderr.on('data', (chunk) => {
+      output += chunk.toString();
+    });
+    processUnderTest.once('exit', () => {
+      clearTimeout(timer);
+      reject(new Error(output));
+    });
+  });
+  await ready;
+  assert.match(output, /select @Folio Capture/);
+  const client = new Client({ name: 'normal-command', version: '1' });
+  await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`)));
+  const call = async (name: string, args: Record<string, unknown> = {}) => {
+    const result = await client.callTool({ name, arguments: args });
+    assert.ok(!result.isError, JSON.stringify(result));
+    return JSON.parse((result.content as any[])[0].text);
+  };
+  try {
+    assert.equal((await call('status')).workflow, null);
+    const context = await call('get_context');
+    const run = await call('start_run', {
+      contextId: context.contextId,
+      clientId: context.clientId,
+      limit: 20,
+    });
+    const status = await call('status');
+    assert.equal(
+      status.workflow.options.limit,
+      1,
+      'The model cannot exceed the startup capture budget',
+    );
+    assert.equal(status.registry.captureVersions, 1);
+    await call('stop_run', { runId: run.runId, clientId: run.clientId });
+    assert.equal((await call('status')).workflow.phase, 'paused');
+  } finally {
+    await client.close();
+    const closed = once(processUnderTest, 'exit');
+    processUnderTest.kill();
+    await closed;
+  }
+});
+
 test('Desktop launcher refuses external endpoints and gives an actionable offline error', async (t) => {
   const { root } = await fixture(t);
   const packaged = await packageDesktopPlugin(join(root, 'offline-package'));
@@ -217,7 +502,7 @@ test('Desktop launcher refuses external endpoints and gives an actionable offlin
     env: { ...(process.env as Record<string, string>), FOLIO_BRIDGE_URL: 'http://127.0.0.1:1/mcp' },
     stderr: 'pipe',
   });
-  await assert.rejects(offline.connect(transport), /Start npm run bridge/);
+  await assert.rejects(offline.connect(transport), /Start npm run capture/);
   await transport.close();
   const { spawnSync } = await import('node:child_process');
   const external = spawnSync(process.execPath, [script], {

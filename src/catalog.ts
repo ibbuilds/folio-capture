@@ -30,7 +30,7 @@ export async function exportAccepted(store:Store,profiles?:CaptureProfile[]) {
         viewport:record.subject.viewport,finalUrl:captureById.get(record.subject.captureId)?.manifest?.variants.find(v=>v.profile.id===record.subject.profileId)?.finalUrl,title:record.subject.title,order:record.subject.order,url:record.sourceUrl,
         labels:record.classification!.labels,quality:record.quality,taxonomyVersion:record.classification!.taxonomyVersion,
         provenance:captureById.get(record.subject.captureId)?.manifest?.provenance??[],
-        images:record.subject.frames.map((f,order)=>({id:idFor([record.subject.captureId,f.path]),order,path:`${record.directory}/${f.path}`,
+        images:record.subject.frames.map((f,order)=>({id:idFor([record.subject.captureId,f.path]),assetId:f.sha256,order,path:`${record.directory}/${f.path}`,
           thumbnail:`${record.directory}/${f.thumbnail}`,width:f.width,height:f.height,sha256:f.sha256,bounds:f.bounds,scrollY:f.scrollY,kind:f.kind})),
       });
     } catch(error) {

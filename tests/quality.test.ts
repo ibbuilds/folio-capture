@@ -99,8 +99,8 @@ test('readable category views use hard links and safely preserve user files duri
   const canonical=await stat(join(root,image.source)),linked=await stat(join(root,image.path));
   assert.equal(linked.ino,canonical.ino);assert.equal(linked.dev,canonical.dev);
   assert.equal((await stat(join(root,section.path))).ino,canonical.ino,'One image participates in multiple folders without copying bytes');
-  const notePath=image.path.replace(/part-\d+\.png$/,'my-notes.txt');await writeFile(join(root,notePath),'User notes');
-  const metadata=image.path.replace(/part-\d+\.png$/,'reference.json');await writeFile(join(root,metadata),'User replacement');
+  const notePath=image.path.replace(/[^/]+$/,'my-notes.txt');await writeFile(join(root,notePath),'User notes');
+  const metadata=image.path.replace(/[^/]+$/,'reference.json');await writeFile(join(root,metadata),'User replacement');
   assert.ok((await exportAccepted(store)).fileViews.exceptions.some(e=>e.path===metadata));
   const selected=store.references().find(r=>r.quality.verdict==='accepted')!;
   selected.quality.verdict='rejected';store.saveReference(selected);

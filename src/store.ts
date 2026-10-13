@@ -28,8 +28,19 @@ export class Store {
       CREATE TABLE IF NOT EXISTS reference_records (id TEXT PRIMARY KEY, capture_id TEXT NOT NULL REFERENCES captures(id), record TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS references_capture ON reference_records(capture_id);
       CREATE INDEX IF NOT EXISTS pages_latest_capture ON pages(latest_capture_id);
+      CREATE TABLE IF NOT EXISTS page_urls (url TEXT PRIMARY KEY, page_id TEXT NOT NULL REFERENCES pages(id), reason TEXT NOT NULL, observed_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS assets (sha256 TEXT PRIMARY KEY, path TEXT NOT NULL);
     `);
     this.db.prepare("INSERT OR IGNORE INTO meta VALUES ('schema_version','1')").run();
+    if(!this.db.prepare("SELECT value FROM meta WHERE key='page_urls_migrated'").get()) {
+      this.db.exec('BEGIN IMMEDIATE');
+      try {
+        for (const row of this.db.prepare('SELECT id,url FROM pages ORDER BY rowid').iterate()) {
+          this.db.prepare('INSERT OR IGNORE INTO page_urls VALUES (?,?,?,?)').run(canonicalUrl(String(row.url)),String(row.id),'supplied',now());
+        }
+        this.db.prepare("INSERT OR IGNORE INTO meta VALUES ('page_urls_migrated','1')").run();this.db.exec('COMMIT');
+      } catch(error) {this.db.exec('ROLLBACK');throw error;}
+    }
   }
   acquireLock() {
     this.db.exec('BEGIN IMMEDIATE');
@@ -53,8 +64,36 @@ export class Store {
   }
   close() { this.releaseLock(); this.db.close(); }
   recoverRunning() {
-    return this.db.prepare("UPDATE jobs SET status='pending', error='Recovered after interrupted run', updated_at=? WHERE status='running'").run(now()).changes;
+    return this.db.prepare("UPDATE jobs SET status='pending', error='Recovered after interrupted run', updated_at=? WHERE status='running' AND stage!='workflow'").run(now()).changes;
   }
+  assertWorkflowAccess(runId?: string) {
+    const active=this.getJob('workflow','active');
+    if(active?.status!=='running')return;
+    if(active.payload.runId===runId && active.payload.ownerPid===process.pid)return;
+    try { process.kill(active.payload.ownerPid,0); }
+    catch(error) { if((error as NodeJS.ErrnoException).code==='ESRCH')return; }
+    throw new Error('An automatic Folio workflow owns collection. Use its ChatGPT loop or stop_run before starting another collector.');
+  }
+  asset(sha256:string):string|undefined {return (this.db.prepare('SELECT path FROM assets WHERE sha256=?').get(sha256) as {path:string}|undefined)?.path;}
+  saveAsset(sha256:string,path:string) {this.db.prepare('INSERT OR REPLACE INTO assets VALUES (?,?)').run(sha256,path);}
+  pageForUrl(url:string):PageRecord|undefined {
+    const row=this.db.prepare('SELECT p.* FROM pages p JOIN page_urls u ON u.page_id=p.id WHERE u.url=?').get(canonicalUrl(url)) as any;
+    return row?{id:row.id,url:row.url,provenance:JSON.parse(row.provenance),latestCaptureId:row.latest_capture_id??null}:undefined;
+  }
+  rememberRedirect(pageId:string,finalUrl:string):boolean {
+    const existing=this.pageForUrl(finalUrl);
+    if(existing && existing.id!==pageId)return false; // Never overwrite another page's history.
+    this.db.prepare('INSERT OR IGNORE INTO page_urls VALUES (?,?,?,?)').run(canonicalUrl(finalUrl),pageId,'observed_redirect',now());
+    return true;
+  }
+  aliasUncapturedPage(pageId:string,destination:string):boolean {
+    const target=this.pageForUrl(destination);
+    const original=this.db.prepare('SELECT latest_capture_id FROM pages WHERE id=?').get(pageId);
+    if(!target || !original || original.latest_capture_id || target.id===pageId)return false;
+    this.db.prepare("UPDATE page_urls SET page_id=?,reason='observed_redirect',observed_at=? WHERE page_id=?").run(target.id,now(),pageId);
+    return true;
+  }
+  abandonDuplicateCapture(captureId:string) {this.db.prepare("UPDATE captures SET status='duplicate',staging_directory=NULL WHERE id=? AND status='running'").run(captureId);}
   job(stage: string, key: string, payload: unknown): Job {
     const timestamp = now();
     this.db.prepare('INSERT INTO jobs(id,stage,job_key,status,payload,created_at,updated_at) VALUES (?,?,?,\'pending\',?,?,?) ON CONFLICT(stage,job_key) DO UPDATE SET payload=excluded.payload').run(idFor([stage,key]),stage,key,JSON.stringify(payload),timestamp,timestamp);
@@ -85,12 +124,14 @@ export class Store {
   }
   page(url: string, provenance?: Provenance): PageRecord {
     const canonical = canonicalUrl(url);
-    const existing = this.db.prepare('SELECT * FROM pages WHERE url=?').get(canonical) as any;
+    const known=this.pageForUrl(canonical);
+    const existing = known ? this.db.prepare('SELECT * FROM pages WHERE id=?').get(known.id) as any : undefined;
     const origins: Provenance[] = existing ? JSON.parse(existing.provenance) : [];
     if (provenance && !origins.some(p => p.seedUrl === provenance.seedUrl && p.detailUrl === provenance.detailUrl && p.listingUrl === provenance.listingUrl)) origins.push(provenance);
     const id = existing?.id ?? idFor(canonical);
-    this.db.prepare('INSERT INTO pages(id,url,provenance) VALUES (?,?,?) ON CONFLICT(url) DO UPDATE SET provenance=excluded.provenance').run(id,canonical,JSON.stringify(origins));
-    return { id, url: canonical, provenance: origins, latestCaptureId: existing?.latest_capture_id ?? null };
+    this.db.prepare('INSERT INTO pages(id,url,provenance) VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET provenance=excluded.provenance').run(id,existing?.url??canonical,JSON.stringify(origins));
+    this.db.prepare('INSERT OR IGNORE INTO page_urls VALUES (?,?,?,?)').run(canonical,id,'supplied',now());
+    return { id, url: existing?.url??canonical, provenance: origins, latestCaptureId: existing?.latest_capture_id ?? null };
   }
   pages(): PageRecord[] { return this.db.prepare('SELECT * FROM pages ORDER BY id').all().map((r:any)=>({id:r.id,url:r.url,provenance:JSON.parse(r.provenance),latestCaptureId:r.latest_capture_id})); }
   createCapture(page: PageRecord, signature: string, directory: string, stagingDirectory: string, id: string) {

@@ -12,6 +12,24 @@ test('URLs strip tracking while preserving content state and reject credentials'
   assert.throws(()=>canonicalUrl('https://user:password@example.com/'));
   assert.throws(()=>canonicalUrl('file:///C:/secret'));
   assert.throws(()=>inside(process.cwd(),'../outside'));
+  assert.equal(canonicalUrl('https://example.com/?z=3&a=1&a=2&utm_medium=x'),'https://example.com/?a=1&a=2&z=3');
+  assert.notEqual(canonicalUrl('https://example.com/?plan=pro'),canonicalUrl('https://example.com/?plan=free'));
+  assert.notEqual(canonicalUrl('https://example.com/#/pricing'),canonicalUrl('https://example.com/#/home'));
+});
+
+test('verified destination aliases share page identity and keep all referring sources across restart',async()=>{
+  const root=await mkdtemp(join(tmpdir(),'folio-aliases-'));let store=new Store(root);
+  try {
+    const original=store.page('https://example.com/?b=2&a=1',{seedUrl:'https://gallery.test/one',discoveredAt:'2026-01-01',sourceLabels:[]});
+    assert.equal(store.page('https://example.com/?a=1&b=2&utm_source=gallery').id,original.id);
+    assert.ok(store.rememberRedirect(original.id,'https://www.example.com/product/'));
+    const alias=store.page('https://www.example.com/product/',{seedUrl:'https://gallery.test/two',discoveredAt:'2026-01-01',sourceLabels:[]});
+    assert.equal(alias.id,original.id);assert.equal(alias.provenance.length,2);
+    const third=store.page('https://example.com/old');assert.ok(store.aliasUncapturedPage(third.id,'https://www.example.com/product/'));
+    store.close();store=new Store(root);assert.equal(store.page(third.url).id,original.id);
+    const distinct=store.page('https://example.com/product/?plan=other');assert.notEqual(distinct.id,original.id);
+    assert.equal(store.rememberRedirect(distinct.id,'https://www.example.com/product/'),false);
+  } finally {store.close();await rm(root,{recursive:true,force:true});}
 });
 
 test('observed discovery batches are durably queued together and roll back partial writes',async()=>{
