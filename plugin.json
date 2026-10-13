@@ -1,18 +1,18 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "folio-capture",
-  "version": "0.3.0",
-  "description": "Read local Folio screenshots and submit scoped quality and taxonomy judgments through the connected chat model. No Codex or API inference calls.",
+  "version": "0.4.0",
+  "description": "Run local Folio collection and scoped screenshot review as one resumable ChatGPT loop. No Codex or API inference calls.",
   "author": {"name": "ibbuilds"},
   "extensions": {
     "com.openai": {
       "interface": {
         "displayName": "Folio Capture",
-        "shortDescription": "Classify local UI references",
-        "longDescription": "Review saved Folio screenshots in ChatGPT Desktop. Start Folio's local HTTP bridge, then request its status and process its review queue. The launcher uses no Codex or model API.",
+        "shortDescription": "Collect and classify UI references",
+        "longDescription": "Start Folio's local engine, then start one ordinary ChatGPT Desktop conversation. Folio collects configured sources, waits for validated screenshot reviews and exports organized local references. Progress resumes after interruption. The launcher uses no Codex or model API.",
         "developerName": "ibbuilds",
         "category": "Productivity",
-        "defaultPrompt": "Check Folio's status, then process its saved review queue. Inspect all supplied images and submit valid judgments. Keep replies brief."
+        "defaultPrompt": "Start Folio's automatic collection and review loop. Call get_context once, then start_run with contextId and clientId. Continue get_packet with runId and clientId, including waiting responses, inspect every image with get_images when necessary, and submit_result for assessment, critique and accepted classification. Continue until done without per-design prompts. Report the final status briefly."
       }
     }
   }
