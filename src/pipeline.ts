@@ -15,8 +15,8 @@ import { exportCatalog } from './report.ts';
 import { atomicJson, canonicalUrl, delay, errorMessage, hash, inside, isRelatedDestination, jsonFile, now } from './utils.ts';
 import type { Config, EvidenceItem, PageManifest, Source, ViewportCapture, Provenance, Classification, DiscoveredEntry } from './types.ts';
 
-export type RunOptions = { launchBrowser?: () => Promise<Browser>; captureOnly?: boolean; refresh?: boolean; retry?: boolean; classifyOnly?: boolean; reassess?: boolean; source?: string; limit?: number; signal?: AbortSignal; log?: (message:string)=>void };
-export type RunSummary = { discovered:number; captured:number; reused:number; unresolved:number; incomplete:number; unsupported:number; blocked:number; failed:number; classified:number; pendingClassification:number; interrupted:boolean };
+export type RunOptions = { launchBrowser?: () => Promise<Browser>; captureOnly?: boolean; discoverOnly?: boolean; refresh?: boolean; retry?: boolean; classifyOnly?: boolean; reassess?: boolean; source?: string; limit?: number; signal?: AbortSignal; log?: (message:string)=>void };
+export type RunSummary = { discovered:number; queued:number; captured:number; reused:number; unresolved:number; incomplete:number; unsupported:number; blocked:number; failed:number; classified:number; pendingClassification:number; interrupted:boolean };
 
 export async function validateCaptureFiles(root: string, manifest: PageManifest): Promise<boolean> {
   try {
@@ -80,13 +80,13 @@ async function recoverPublished(store: Store, log: (message:string)=>void) {
 
 export async function runPipeline(config: Config, options: RunOptions = {}): Promise<RunSummary> {
   const log = options.log ?? console.log;
-  const summary:RunSummary={discovered:0,captured:0,reused:0,unresolved:0,incomplete:0,unsupported:0,blocked:0,failed:0,classified:0,pendingClassification:0,interrupted:false};
+  const summary:RunSummary={discovered:0,queued:0,captured:0,reused:0,unresolved:0,incomplete:0,unsupported:0,blocked:0,failed:0,classified:0,pendingClassification:0,interrupted:false};
   const store=new Store(config.output);
   let browser:Browser|undefined;
   let locked=false;
   const visited=new Set<string>();
   const analysisState={unavailable:false};
-  const captureSignature = (source:Source) => hash({ version:1,playwright:'1.62.1',profiles:config.profiles,capture:{...config.capture,preserveSelectors:[...config.capture.preserveSelectors,...source.preserveSelectors??[]],dismissSelectors:[...config.capture.dismissSelectors,...source.dismissSelectors??[]]} });
+  const captureSignature = (source:Source) => hash({ version:2,playwright:'1.62.1',profiles:config.profiles,capture:{...config.capture,preserveSelectors:[...config.capture.preserveSelectors,...source.preserveSelectors??[]],dismissSelectors:[...config.capture.dismissSelectors,...source.dismissSelectors??[]]} });
   const checkInterrupted=()=>options.signal?.throwIfAborted();
 
   async function classify(capture:CaptureRecord, force=false) {
@@ -100,6 +100,7 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
 
   async function processPage(url:string,provenance:Provenance,source:Source){
     checkInterrupted();const page=store.page(url,provenance);const signature=captureSignature(source);const key=`${page.id}:${signature}`;
+    if(options.discoverOnly){if(!visited.has(key)){const job=store.job('capture',key,{pageId:page.id,url:page.url,source});if(job.status==='pending')summary.queued++;visited.add(key);}return;}
     if(visited.has(key)){
       const prior=page.latestCaptureId?store.capture(page.latestCaptureId):undefined;
       if(prior?.manifest){
@@ -197,12 +198,12 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
       const previousResolution=resolved;
       for(let attempt=0;attempt<2;attempt++){
         checkInterrupted();store.start(job);
-        try{resolved=await libraryAdapter(source.url)!.resolve({browser:browser!,entryUrl:entry.detailUrl,settings:config.discovery,signal:options.signal});store.finish(job,'complete',resolved);break;}
+        try{resolved=await libraryAdapter(source.url)!.resolve({browser:browser!,entryUrl:entry.detailUrl,entry,settings:config.discovery,cleanupSettings:{...config.capture,preserveSelectors:[...config.capture.preserveSelectors,...source.preserveSelectors??[]],dismissSelectors:[...config.capture.dismissSelectors,...source.dismissSelectors??[]]},signal:options.signal});store.finish(job,'complete',resolved);break;}
         catch(error){const message=errorMessage(error);const blocked=/login|paywall|captcha|access|forbidden|403|401|missing original|no original/i.test(message);store.finish(job,blocked?'blocked':'failed',previousResolution ?? undefined,message);if(blocked || attempt===1){summary.unresolved++;log(`Unresolved reference: ${entry.detailUrl} — ${message}`);return;}await delay(1000,options.signal);}
       }
     }
     if(!resolved?.originalUrl){summary.unresolved++;return;}
-    await processPage(resolved.originalUrl,{seedUrl:entry.seedUrl,listingUrl:entry.listingUrl,detailUrl:entry.detailUrl,discoveredAt:entry.discoveredAt,sourceLabels:resolved.sourceLabels ?? [],previewUrl:resolved.previewUrl},source);
+    await processPage(resolved.originalUrl,{seedUrl:entry.seedUrl,listingUrl:entry.listingUrl,detailUrl:entry.detailUrl,discoveredAt:entry.discoveredAt,sourceLabels:resolved.sourceLabels ?? [],previewUrl:resolved.previewUrl,resolutionPath:resolved.metadata?.followed},source);
   }
 
   try {
@@ -236,7 +237,7 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
       for(const pending of store.jobs('resolve',['pending']).filter(j=>j.payload.entry?.seedUrl===source.url)){await resolveAndCapture(pending.payload.entry,source);if(options.limit && summary.captured+summary.reused>=options.limit)break;}
       if(options.limit && summary.captured+summary.reused>=options.limit){store.finish(discoveryJob,'incomplete',undefined,'Capture limit reached','capture_limit');break;}
       store.start(discoveryJob);log(`Discover ${source.url}`);
-      for await(const event of adapter.discover({browser,seed:source,settings:config.discovery,onProgress:log,signal:options.signal,onDiscovered:entries=>{
+      for await(const event of adapter.discover({browser,seed:source,settings:config.discovery,cleanupSettings:{...config.capture,preserveSelectors:[...config.capture.preserveSelectors,...source.preserveSelectors??[]],dismissSelectors:[...config.capture.dismissSelectors,...source.dismissSelectors??[]]},onProgress:log,signal:options.signal,onDiscovered:entries=>{
         checkInterrupted();
         store.queueJobs('resolve',entries.map(entry=>({key:`${entry.seedUrl}:${entry.id}`,payload:{entry,source}})));
         summary.discovered+=entries.length;
@@ -245,7 +246,7 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
         if(event.type==='entry'){
           await resolveAndCapture(event.entry,source);
           if(options.limit && summary.captured+summary.reused>=options.limit){store.finish(discoveryJob,'incomplete',undefined,'Capture limit reached','capture_limit');break;}
-        }else {const unsupported=/^Unsupported/.test(event.error??'');if(unsupported)summary.unsupported++;store.finish(discoveryJob,unsupported?'unsupported':event.reason==='incomplete'?'incomplete':'complete',event,event.error,event.reason);}
+        }else {const unsupported=/(?:^|: )Unsupported\b/.test(event.error??'');const blocked=event.reason==='incomplete'&&/access gate|HTTP (?:401|403|429)|captcha|paywall|forbidden/i.test(event.error??'');if(unsupported)summary.unsupported++;else if(blocked)summary.blocked++;else if(event.reason==='incomplete')summary.incomplete++;store.finish(discoveryJob,unsupported?'unsupported':blocked?'blocked':event.reason==='incomplete'?'incomplete':'complete',event,event.error,event.reason);}
       }
     }
     return summary;

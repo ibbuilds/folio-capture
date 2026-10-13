@@ -1,6 +1,6 @@
 # Selected UI reference libraries from the supplied list.
-# Only Recent websites and Refero Styles currently have traversal adapters.
-# Other library entries are recorded as unsupported, never treated as original sites.
+# The adapter registry covers these selected website, section and app-reference collections.
+# Access gates, changed structures and missing original links remain recorded exceptions.
 # Direct original webpage URLs can also be added to sources.
 # The output folder is resolved relative to this file; an absolute path also works.
 output: ./output
@@ -13,7 +13,7 @@ quality:
   maxImages: 24 # Larger subjects remain uncertain rather than sampling unseen frames.
   quarantineDays: 30 # Applied only by the explicit prune command.
 sources:
-  # Supported collection adapters:
+  # Product styles and current websites:
   - url: https://recent.design/websites
     kind: library
     name: Recent websites
@@ -21,7 +21,7 @@ sources:
     kind: library
     name: Refero Styles
 
-  # Website and landing-page libraries; dedicated adapters still required:
+  # Website and landing-page libraries:
   - {url: https://refs.gallery/, kind: library, name: Refs.Gallery}
   - {url: https://www.siteofsites.co/, kind: library, name: Site of Sites}
   - {url: https://www.awwwards.com/websites/sites_of_the_day/, kind: library, name: Awwwards Sites of the Day}
@@ -32,14 +32,14 @@ sources:
   - {url: https://minimal.gallery/, kind: library, name: Minimal Gallery}
   - {url: https://curated.design/, kind: library, name: Curated websites}
   - {url: https://www.hoverstat.es/, kind: library, name: HOVERSTAT.ES}
-  - {url: https://inspomcp.dev/, kind: library, name: Inspo}
+  - {url: https://inspomcp.dev/screens, kind: library, name: Inspo archive}
   - {url: https://www.lapa.ninja/, kind: library, name: Lapa Ninja landing pages}
   - {url: https://saaspo.com/, kind: library, name: Saaspo pages}
   - {url: https://www.landingfolio.com/, kind: library, name: Landingfolio}
   - {url: https://onepagelove.com/inspiration, kind: library, name: One Page Love websites}
   - {url: https://www.landing.love/, kind: library, name: Landing.Love}
 
-  # Section and page-detail libraries; dedicated adapters still required:
+  # Section and page-detail libraries:
   - {url: https://www.awwwards.com/elements/, kind: library, name: Awwwards Elements}
   - {url: https://www.a1.gallery/sections, kind: library, name: A1 Gallery sections}
   - {url: https://curated.design/sections/, kind: library, name: Curated sections}
@@ -55,7 +55,8 @@ sources:
   - {url: https://www.404s.design/, kind: library, name: 404s}
   - {url: https://bentogrids.com/, kind: library, name: Bento Grids}
 
-  # Product-screen and interaction references; adapters and media support still required:
+  # Product-screen and interaction reference libraries:
+  # Resolve their public original URLs; native app and recorded-video capture is separate.
   - {url: https://recent.design/app-store-screenshots, kind: library, name: Recent app screenshots}
   - {url: https://60fps.design/, kind: library, name: 60fps}
   - {url: https://designspells.com/, kind: library, name: Design Spells}

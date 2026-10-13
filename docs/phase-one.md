@@ -1,6 +1,6 @@
 # Phase 1: source-guided collection
 
-The engine collects the supplied sources and exports local candidates. It supports direct public pages, bounded same-origin site collection, Refero Styles, and Recent website collections (including Godly's successor mapping). Other libraries need a tested adapter or an explicit unsupported exception; this release does not claim universal gallery traversal.
+The engine collects the supplied sources and exports local candidates. It supports direct public pages, bounded same-origin site collection, and provider profiles for all 35 reference collections in `sources.yaml`, including Refero Styles and Recent (Godly's successor). Gallery discovery handles pagination, load-more controls, replaced cards and scoped collections. Explicit original links can lead through section/app parents or public template previews. Access restrictions, changed structures and missing original links remain recorded exceptions. Native app capture and recorded-interaction replay are separate capabilities.
 
 ## Run locally
 

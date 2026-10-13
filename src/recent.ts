@@ -1,9 +1,15 @@
-import type { DiscoveryEvent, DiscoveredEntry } from './types.ts';
+import { resolveGallery, isGalleryLoadingRequest } from './gallery.ts';
+import { guardNuisances } from './nuisance.ts';
+import type { GallerySpec } from './library-specs.ts';
+import { sweepCleanup } from './cleanup.ts';
+import { parseConfig } from './config.ts';
+import type { DiscoveryEvent, DiscoveredEntry, Intervention } from './types.ts';
 import type { ReferoDiscoveryOptions } from './discovery.ts';
 import type { resolveReferoEntry } from './discovery.ts';
 import { canonicalUrl, delay, errorMessage, idFor, now } from './utils.ts';
-import type { Page } from 'playwright';
+import type { Page, Request } from 'playwright';
 class RecentPersistenceError extends Error {}
+const RECENT_SPEC:GallerySpec={id:'recent',hosts:['recent.design'],listings:'^/websites(?:/[^/]+)?/?$',details:'^/i/[^/]+/?$',allowDisplayedUrl:true,prefetchDetails:true,ignoredRequests:[{host:'api.recent.design',paths:'^/admin/presence/?$'}]};
 
 async function recentSnapshot(page:Page) {
   return page.evaluate(()=>{
@@ -22,7 +28,7 @@ async function recentSnapshot(page:Page) {
   });
 }
 
-async function settleRecent(page:Page,options:ReferoDiscoveryOptions,pending:Set<unknown>,failed:()=>boolean,remaining:()=>number) {
+async function settleRecent(page:Page,options:ReferoDiscoveryOptions,pending:Set<Request>,failed:()=>boolean,remaining:()=>number) {
   const budget=Math.min(options.settings.settleTimeoutMs,remaining());
   if(budget<=0)throw new Error('Recent discovery duration limit');
   const started=Date.now(),quietMs=Math.min(500,options.settings.settleTimeoutMs/2);
@@ -36,7 +42,7 @@ async function settleRecent(page:Page,options:ReferoDiscoveryOptions,pending:Set
     if(!snapshot.loading && !pending.size && Date.now()-quietStarted>=quietMs)return snapshot;
     await delay(Math.min(50,Math.max(1,budget-(Date.now()-started))),options.signal);
   }
-  throw new Error('Recent listing did not settle before its timeout');
+  throw new Error(`Recent listing did not settle before its timeout${pending.size ? `; pending content: ${[...pending].map(request=>request.url()).slice(0,5).join(', ')}` : ''}`);
 }
 
 export function isRecentLibrary(value:string):boolean {
@@ -58,7 +64,8 @@ export async function* discoverRecent(options:ReferoDiscoveryOptions):AsyncGener
   const context=await browser.newContext();const abort=()=>{void context.close().catch(()=>{});};signal?.addEventListener('abort',abort,{once:true});
   const seen=new Set<string>();const visited=new Set<string>();const collections=[recentListing(seed.url)];
   const started=Date.now();let failedRequest=false;let observedPlateau=false;let consumerMs=0;
-  const pending=new Set<unknown>();
+  const pending=new Set<Request>();
+  const interventions:Intervention[]=[];
   let page:Page|undefined,lastListing=collections[0]!;
   const persist=(items:Array<{url:string;title:string}>,listing:string)=>{
     const batch:DiscoveredEntry[]=[];
@@ -71,7 +78,8 @@ export async function* discoverRecent(options:ReferoDiscoveryOptions):AsyncGener
     return batch;
   };
   try {
-    page=await context.newPage();page.on('dialog',dialog=>{void dialog.dismiss();});
+    await guardNuisances(context,interventions);
+    page=await context.newPage();
     // Observe identities from document creation, including cards removed before a settled
     // snapshot. Every accumulated batch is persisted before its first entry is yielded.
     await page.addInitScript(()=>{
@@ -91,10 +99,11 @@ export async function* discoverRecent(options:ReferoDiscoveryOptions):AsyncGener
         .observe(document,{subtree:true,childList:true,attributes:true,attributeFilter:['href','data-sponsored'],characterData:true});
       document.addEventListener('DOMContentLoaded',()=>dom.collect(document.documentElement));
     });
-    page.on('request',r=>{if(['document','fetch','xhr'].includes(r.resourceType()))pending.add(r);});
+    const relevant=(r:import('playwright').Request)=>isGalleryLoadingRequest(r,page!,RECENT_SPEC);
+    page.on('request',r=>{if(relevant(r))pending.add(r);});
     page.on('requestfinished',r=>pending.delete(r));
-    page.on('requestfailed',r=>{pending.delete(r);if(['document','fetch','xhr'].includes(r.resourceType()))failedRequest=true;});
-    page.on('response',r=>{if(['document','fetch','xhr'].includes(r.request().resourceType()) && r.status()>=400)failedRequest=true;});
+    page.on('requestfailed',r=>{pending.delete(r);if(relevant(r))failedRequest=true;});
+    page.on('response',r=>{if(relevant(r.request()) && r.status()>=400)failedRequest=true;});
     for(let c=0;c<collections.length;c++) {
       const listing=collections[c]!;if(visited.has(listing))continue;visited.add(listing);lastListing=listing;
       const response=await page.goto(listing,{waitUntil:'domcontentloaded',timeout:settings.navigationTimeoutMs});
@@ -104,13 +113,15 @@ export async function* discoverRecent(options:ReferoDiscoveryOptions):AsyncGener
       let plateau=0,previousHeight=0,reason:'explicit_end'|'observed_plateau'|undefined;
       for(let step=0;step<settings.maxScrollSteps;step++) {
         signal?.throwIfAborted();
+        const cleaned=await sweepCleanup(page,{...(options.cleanupSettings??parseConfig({sources:[seed.url]}).capture),cleanupTimeoutMs:settings.settleTimeoutMs},interventions);
+        if(cleaned.unresolved.length)throw new Error(`Unresolved discovery obstruction: ${cleaned.unresolved.join('; ')}`);
         if(Date.now()-started-consumerMs>settings.maxDurationMs)throw new Error('Recent discovery duration limit');
         const snapshot=await settleRecent(page,options,pending,()=>failedRequest,()=>settings.maxDurationMs-(Date.now()-started-consumerMs));
         if(snapshot.entries.length)observedEntries=true;
         if(failedRequest)throw new Error('Recent loading request failed; cannot establish exhaustion');
         const batch=persist(snapshot.entries,listing);
         for(const entry of batch){const beforeYield=Date.now();yield {type:'entry',entry};consumerMs+=Date.now()-beforeYield;}
-        if(settings.maxEntries && seen.size>=settings.maxEntries){yield {type:'end',reason:'incomplete',error:'Entry limit reached',collections,discovered:seen.size};return;}
+        if(settings.maxEntries && seen.size>=settings.maxEntries){yield {type:'end',reason:'incomplete',error:'Entry limit reached',collections,discovered:seen.size,interventions};return;}
         if(new URL(seed.url).pathname==='/' || new URL(seed.url).pathname==='/websites')for(const collection of snapshot.collections)if(!collections.includes(collection))collections.push(collection);
         if(snapshot.next) {
           const next=new URL(snapshot.next);
@@ -134,7 +145,7 @@ export async function* discoverRecent(options:ReferoDiscoveryOptions):AsyncGener
       // A plateau is never upgraded to an explicit end, even if other pages have end markers.
       if(reason==='observed_plateau')observedPlateau=true;
     }
-    yield {type:'end',reason:observedPlateau?'observed_plateau':'explicit_end',collections,discovered:seen.size};
+    yield {type:'end',reason:observedPlateau?'observed_plateau':'explicit_end',collections,discovered:seen.size,interventions};
   } catch(error) {
     if(signal?.aborted || error instanceof RecentPersistenceError)throw error;
     // Loading failure prevents exhaustion, but must not erase already observed identities.
@@ -142,28 +153,7 @@ export async function* discoverRecent(options:ReferoDiscoveryOptions):AsyncGener
       const snapshot=await recentSnapshot(page).catch(()=>undefined);
       if(snapshot)for(const entry of persist(snapshot.entries,lastListing))yield {type:'entry',entry};
     }
-    yield {type:'end',reason:'incomplete',error:errorMessage(error),collections,discovered:seen.size};
+    yield {type:'end',reason:'incomplete',error:errorMessage(error),collections,discovered:seen.size,interventions};
   } finally {signal?.removeEventListener('abort',abort);await context.close();}
 }
-export const resolveRecentEntry:typeof resolveReferoEntry=async ({browser,entryUrl,settings,signal})=>{
-  const context=await browser.newContext();const abort=()=>{void context.close().catch(()=>{});};signal?.addEventListener('abort',abort,{once:true});
-  try {
-    const page=await context.newPage();page.on('dialog',d=>{void d.dismiss();});
-    const response=await page.goto(entryUrl,{waitUntil:'domcontentloaded',timeout:settings.navigationTimeoutMs});
-    if(response && response.status()>=400)throw new Error(`Recent HTTP ${response.status()}`);
-    if(!recentHost(page.url()) || !/^\/i\/[^/]+\/?$/.test(new URL(page.url()).pathname))throw new Error('Unsupported Recent detail redirect');
-    await page.locator('body').waitFor({timeout:settings.settleTimeoutMs});
-    // A hydrated detail can render its original link after DOMContentLoaded.
-    try {
-      await page.getByRole('link',{name:/^(visit|view|open)( (the|original|live))? (website|site)(\s*[\u2197\u2192])?$/i}).first()
-        .waitFor({state:'visible',timeout:settings.settleTimeoutMs});
-    } catch(error) {if(signal?.aborted)throw error;throw new Error('Missing original website link after detail hydration wait');}
-    const candidates=await page.locator('a[href]').evaluateAll(nodes=>nodes.map(node=>({url:(node as HTMLAnchorElement).href,text:(node.getAttribute('aria-label')||node.textContent||'').trim()})));
-    const links=candidates.filter(a=>/^(visit|view|open)( (the|original|live))? (website|site)(\s*[\u2197\u2192])?$/i.test(a.text)).map(a=>a.url).filter(value=>{
-      const url=new URL(value);return ['http:','https:'].includes(url.protocol)&&!url.username&&!url.password&&!/(^|\.)(recent.design|godly.website|dribbble.com|behance.net|figma.com|x.com|twitter.com|instagram.com)$/.test(url.hostname);
-    });
-    const unique=[...new Set(links.map(canonicalUrl))];
-    if(unique.length!==1)throw new Error(unique.length?'Ambiguous original website links':'Missing original website link');
-    return {originalUrl:unique[0]!,title:await page.title(),sourceLabels:[],metadata:{adapter:'recent',detailUrl:page.url()}};
-  } finally {signal?.removeEventListener('abort',abort);await context.close();}
-};
+export const resolveRecentEntry:typeof resolveReferoEntry=options=>resolveGallery(RECENT_SPEC,options);
