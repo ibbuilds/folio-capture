@@ -37,7 +37,7 @@ export async function discoverSite(store:Store,browser:Browser|(()=>Promise<Brow
         await guardNuisances(context,interventions);
         const page=await context.newPage();
         const response=await page.goto(next.payload.url,{waitUntil:'domcontentloaded',timeout:settings.navigationTimeoutMs});
-        if(response && response.status()>=400)throw new Error(`HTTP ${response.status()}`);
+        if(response && response.status()>=400 && !(next.payload.depth===0 && response.status()===source.expectedHttpStatus))throw new Error(`HTTP ${response.status()}`);
         if(next.payload.depth===0 && isRelatedDestination(seed,page.url()))effectiveSeed=siteLink(page.url(),page.url())!;
         if(new URL(page.url()).origin!==new URL(effectiveSeed).origin)throw new Error('Site navigation redirected outside selected origin.');
         await page.locator('body').waitFor({timeout:settings.settleTimeoutMs});

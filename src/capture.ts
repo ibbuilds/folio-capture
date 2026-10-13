@@ -288,7 +288,8 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
     const response = await page.goto(options.url, { waitUntil: 'domcontentloaded', timeout: settings.navigationTimeoutMs });
     result.finalUrl = page.url(); result.title = await page.title();
     result.evidence.push({ id: `${profile.id}-http`, kind: 'navigation', value: { status: response?.status() ?? null, finalUrl: result.finalUrl } });
-    if (response && response.status() >= 400) {
+    if(options.expectedHttpStatus)result.environment.expectedHttpStatus=options.expectedHttpStatus;
+    if (response && response.status() >= 400 && response.status()!==options.expectedHttpStatus) {
       result.status = response.status() === 401 || response.status() === 403 || response.status() === 429 ? 'blocked' : 'failed';
       result.stoppingReason = `http_${response.status()}`;
       const diagnostic = `diagnostics/${profile.id}/${imageName(options.url,profile.id,{diagnostic:'blocked'})}.png`;
