@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { Store } from './store.ts';
+import { Store, type CaptureRecord } from './store.ts';
 import { referenceSubjects, subjectImageId, type ReferenceRecord } from './references.ts';
 import { TAXONOMY, TAXONOMY_VERSION, TAXONOMY_FINGERPRINT, normalizeLabel } from './taxonomy.ts';
 import { SCOPED_PROMPT_VERSION } from './quality.ts';
@@ -16,14 +16,21 @@ export function hasCurrentClassification(record:ReferenceRecord):boolean {
 }
 
 /** Decision coverage is not an aesthetic accuracy or editorial approval measurement. */
-export function buildCoverage(store:Store, profiles:CaptureProfile[]=DEFAULT_PROFILES, usableIds?:Set<string>) {
-  const captures=store.latestCaptures().filter(c=>c.manifest);
-  const latest=new Set(captures.map(c=>c.id));
-  const records=store.references().filter(r=>latest.has(r.subject.captureId));
+export function buildCoverage(store:Store, profiles:CaptureProfile[]=DEFAULT_PROFILES, usableIds?:Set<string>,snapshot?:{captures:CaptureRecord[];records:ReferenceRecord[]}) {
+  const captures=snapshot?.captures??store.exportCaptures();
+  const records=snapshot?.records??store.exportReferences();
   const byId=new Map(records.map(r=>[r.subject.id,r]));
   const subjects=captures.flatMap(c=>referenceSubjects(c.manifest!));
   const qualified=records.filter(r=>r.quality.verdict==='accepted' && !r.pruned && hasCurrentClassification(r) && (!usableIds || usableIds.has(r.subject.id)));
   const qualifiedIds=new Set(qualified.map(r=>r.subject.id));
+  const buckets=new Map<string,ReferenceRecord[]>();
+  for(const record of qualified) {
+    const seen=new Set<string>();
+    for(const label of record.classification!.labels)if(['model','human'].includes(label.provenance)) {
+      const key=`${label.axis}/${label.label}`;if(seen.has(key))continue;seen.add(key);
+      if(!buckets.has(key))buckets.set(key,[]);buckets.get(key)!.push(record);
+    }
+  }
   const tagged=new Map<string,Set<string>>();
   for(const capture of captures)for(const p of capture.manifest!.provenance)for(const raw of p.sourceLabels) {
     for(const axis of ['visual_style','aesthetic_substyle','cross_collection'] as const) {
@@ -32,7 +39,7 @@ export function buildCoverage(store:Store, profiles:CaptureProfile[]=DEFAULT_PRO
     }
   }
   const rows=(axis:TaxonomyAxis,concepts:SelectedConcept[])=>concepts.map(c=>{
-    const matches=qualified.filter(r=>r.classification!.labels.some(l=>l.axis===axis && l.label===c.label && ['model','human'].includes(l.provenance)));
+    const matches=buckets.get(`${axis}/${c.label}`)??[];
     const primary=matches.filter(r=>r.classification!.labels.some(l=>l.axis===axis && l.label===c.label && l.role==='primary'));
     const secondary=matches.filter(r=>r.classification!.labels.some(l=>l.axis===axis && l.label===c.label && l.role==='secondary'));
     const perViewport=Object.fromEntries(['desktop','tablet','mobile'].map(v=>[v,matches.filter(r=>r.subject.viewport===v).length]));

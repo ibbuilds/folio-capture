@@ -4,19 +4,20 @@
   "private": true,
   "description": "Our local, resumable design-reference collection pipeline",
   "type": "module",
+  "packageManager": "pnpm@12.11.2",
   "engines": { "node": ">=24.15.0 <25" },
   "scripts": {
-    "capture": "tsx src/cli.ts run",
-    "folio": "tsx src/cli.ts",
+    "capture": "node src/cli.ts run",
+    "folio": "node src/cli.ts",
     "setup": "playwright install chromium --no-shell",
     "build": "tsc --noEmit",
-    "test": "tsx --test --test-concurrency=1 tests/*.test.ts",
-    "test:live": "tsx scripts/live-smoke.ts"
+    "test": "node --test --test-concurrency=1 tests/*.test.ts",
+    "test:live": "node scripts/live-smoke.ts",
+    "benchmark": "node --expose-gc scripts/benchmark-performance.ts"
   },
   "dependencies": {
     "playwright": "1.62.1",
     "sharp": "0.34.5",
-    "tsx": "4.21.0",
     "yaml": "2.8.2",
     "zod": "4.3.6"
   },

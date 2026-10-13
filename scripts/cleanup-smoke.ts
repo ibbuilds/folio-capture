@@ -20,7 +20,6 @@ try{
   ]){
     const context=await browser.newContext({viewport:{width:sample.profile.width,height:sample.profile.height},deviceScaleFactor:2,isMobile:sample.profile.isMobile,hasTouch:sample.profile.hasTouch,locale:'en-US',timezoneId:'UTC',colorScheme:'light',reducedMotion:'no-preference'});
     try{
-      await context.addInitScript({content:'globalThis.__name ??= function(value){return value;};'});
       const page=await context.newPage();page.on('dialog',dialog=>void dialog.dismiss());
       await page.goto(sample.url,{waitUntil:'domcontentloaded',timeout:45000});
       const observed=await page.locator(sample.selector).first().waitFor({state:'visible',timeout:10000}).then(()=>true,()=>false);

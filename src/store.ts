@@ -12,8 +12,10 @@ export type CaptureRecord = { id: string; pageId: string; signature: string; dir
 
 export class Store {
   readonly db: DatabaseSync;
+  readonly output: string;
   private lockToken: string | undefined;
-  constructor(readonly output: string) {
+  constructor(output: string) {
+    this.output = output;
     mkdirSync(output, { recursive: true });
     this.db = new DatabaseSync(join(output, 'state.sqlite'), { timeout: 5000 });
     this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
@@ -24,6 +26,8 @@ export class Store {
       CREATE INDEX IF NOT EXISTS jobs_stage_status ON jobs(stage,status);
       CREATE INDEX IF NOT EXISTS captures_page_signature ON captures(page_id,signature,created_at);
       CREATE TABLE IF NOT EXISTS reference_records (id TEXT PRIMARY KEY, capture_id TEXT NOT NULL REFERENCES captures(id), record TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS references_capture ON reference_records(capture_id);
+      CREATE INDEX IF NOT EXISTS pages_latest_capture ON pages(latest_capture_id);
     `);
     this.db.prepare("INSERT OR IGNORE INTO meta VALUES ('schema_version','1')").run();
   }
@@ -65,8 +69,12 @@ export class Store {
   }
   getJob(stage: string, key: string): Job | undefined { return this.decodeJob(this.db.prepare('SELECT * FROM jobs WHERE stage=? AND job_key=?').get(stage,key)); }
   jobs(stage?: string, statuses?: JobStatus[]): Job[] {
-    const rows = this.db.prepare('SELECT * FROM jobs ORDER BY created_at,id').all();
-    return rows.map(row => this.decodeJob(row)!).filter(j => (!stage || j.stage === stage) && (!statuses || statuses.includes(j.status)));
+    if(statuses && !statuses.length)return [];
+    const where:string[]=[],parameters:string[]=[];
+    if(stage){where.push('stage=?');parameters.push(stage);}
+    if(statuses){where.push(`status IN (${statuses.map(()=>'?').join(',')})`);parameters.push(...statuses);}
+    const rows=this.db.prepare(`SELECT * FROM jobs ${where.length?`WHERE ${where.join(' AND ')}`:''} ORDER BY created_at,id`).iterate(...parameters);
+    return Array.from(rows,row=>this.decodeJob(row)!);
   }
   start(job: Job) { this.db.prepare("UPDATE jobs SET status='running', attempts=attempts+1, error=NULL, updated_at=? WHERE id=?").run(now(),job.id); }
   finish(job: Job, status: JobStatus, result?: unknown, error?: string, stoppingReason?: string) {
@@ -102,9 +110,35 @@ export class Store {
       .run(record.subject.id, record.subject.captureId, JSON.stringify(record));
   }
   references(captureId?: string): ReferenceRecord[] {
-    const rows = captureId ? this.db.prepare('SELECT record FROM reference_records WHERE capture_id=? ORDER BY id').all(captureId)
-      : this.db.prepare('SELECT record FROM reference_records ORDER BY id').all();
-    return rows.map(row => JSON.parse(String(row.record)) as ReferenceRecord);
+    const rows = captureId ? this.db.prepare('SELECT record FROM reference_records WHERE capture_id=? ORDER BY id').iterate(captureId)
+      : this.db.prepare('SELECT record FROM reference_records ORDER BY id').iterate();
+    return Array.from(rows,row => JSON.parse(String(row.record)) as ReferenceRecord);
+  }
+  reference(id:string):ReferenceRecord|undefined {
+    const row=this.db.prepare('SELECT record FROM reference_records WHERE id=?').get(id);
+    return row?JSON.parse(String(row.record)) as ReferenceRecord:undefined;
+  }
+  /** Read-only export projection. Never save it over the full evidence/history record. */
+  exportReferences():ReferenceRecord[] {
+    const rows=this.db.prepare(`SELECT json_set(json_remove(record,'$.classificationHistory','$.qualityHistory'),
+      '$.subject.evidence',json('[]')) AS record FROM reference_records
+      WHERE capture_id IN (SELECT latest_capture_id FROM pages) ORDER BY id`).iterate();
+    return Array.from(rows,row=>JSON.parse(String(row.record)) as ReferenceRecord);
+  }
+  /** Export/counting needs geometry and provenance, not DOM text duplicated in each viewport. */
+  exportCaptures():CaptureRecord[] {
+    const rows=this.db.prepare(`SELECT c.id,c.page_id,c.signature,c.directory,c.staging_directory,c.status,c.created_at,c.classification,
+      json_set(c.manifest,'$.variants',json((SELECT json_group_array(json_set(value,'$.evidence',json('[]')))
+        FROM json_each(c.manifest,'$.variants')))) AS manifest
+      FROM captures c JOIN pages p ON p.latest_capture_id=c.id WHERE c.manifest IS NOT NULL ORDER BY c.created_at,c.id`).iterate();
+    return Array.from(rows,row=>this.decodeCapture(row));
+  }
+  quarantineInventory():Array<{id:string;verdict:string;reasons:string[];pruned:ReferenceRecord['pruned']|null}> {
+    const rows=this.db.prepare(`SELECT json_object('id',json_extract(record,'$.subject.id'),
+      'verdict',json_extract(record,'$.quality.verdict'),'reasons',json(json_extract(record,'$.quality.reasons')),
+      'pruned',json(json_extract(record,'$.pruned'))) AS record FROM reference_records
+      WHERE json_extract(record,'$.quality.verdict')!='accepted' ORDER BY id`).iterate();
+    return Array.from(rows,row=>JSON.parse(String(row.record)));
   }
   captures(): CaptureRecord[] { return this.db.prepare('SELECT * FROM captures ORDER BY created_at,id').all().map(r=>this.decodeCapture(r)); }
   latestCaptures(): CaptureRecord[] { return this.db.prepare('SELECT c.* FROM captures c JOIN pages p ON p.latest_capture_id=c.id ORDER BY c.created_at,c.id').all().map(r=>this.decodeCapture(r)); }

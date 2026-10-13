@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, rm, access } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile, rm, access } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -259,4 +259,24 @@ test('reassessment and forced refresh retain prior scoped decisions and classifi
   assert.equal(reassessed.classificationHistory!.length,1);
   await curateCapture(store,'fixture',config,{classifyOnly:true,reclassify:true,runProcess:mockRunner()});
   assert.equal(store.references().find(r=>r.subject.id===accepted.subject.id)!.classificationHistory!.length,2);
+});
+
+test('export projections preserve authoritative evidence/history when a shared asset needs repair',async t=>{
+  const {store,config,root,directory}=await setup(t);await curateCapture(store,'fixture',config,{runProcess:mockRunner({allAccept:true})});
+  const record=store.references().find(r=>r.subject.scope==='section' && r.subject.profileId==='desktop' && r.subject.order===0)!;
+  record.classificationHistory=[{...record.classification!,taxonomyVersion:'2.0.0'}];record.qualityHistory=[{...record.quality,verdict:'rejected'}];store.saveReference(record);
+  const original=JSON.stringify(store.reference(record.subject.id));
+  assert.ok(store.exportReferences().every(r=>r.subject.evidence.length===0 && !r.classificationHistory && !r.qualityHistory));
+  assert.ok(store.exportCaptures().every(c=>c.manifest!.variants.every(v=>v.evidence.length===0)));
+  assert.equal(JSON.stringify(store.reference(record.subject.id)),original,'Projections never modify stored evidence');
+  store.capture=()=>{throw new Error('Export must not reload manifests per reference');};
+  store.references=()=>{throw new Error('Export must not decode every historical reference');};
+  assert.equal((await exportAccepted(store)).references.length,6);
+  await writeFile(join(root,directory,record.subject.frames[0].path),'Changed asset');
+  const catalog=await exportAccepted(store);assert.equal(catalog.exceptions.length,2,'Page and section share the invalid asset');
+  const repaired=store.reference(record.subject.id)!;
+  assert.equal(repaired.quality.verdict,'repair');assert.ok(repaired.subject.evidence.length);
+  assert.equal(repaired.qualityHistory!.length,1);assert.equal(repaired.classificationHistory!.length,2);
+  const quarantine=JSON.parse(await readFile(join(root,'quarantine.json'),'utf8'));
+  assert.ok(quarantine.references.some((r:any)=>r.id===record.subject.id && r.verdict==='repair'));
 });

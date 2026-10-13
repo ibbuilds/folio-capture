@@ -5,8 +5,9 @@ import os from 'node:os';
 import { devices, type BrowserContext, type Page } from 'playwright';
 import sharp from 'sharp';
 import type { CaptureOptions, EvidenceItem, Rect, Region, ViewportCapture } from './types.ts';
-import { documentToViewport, intersectRect, mergeCoverage, pixelCrop, uncoveredRanges } from './geometry.ts';
+import { documentToViewport, intersectRect, mergeCoverage, uncoveredRanges } from './geometry.ts';
 import { sweepCleanup } from './cleanup.ts';
+import { captureRegionImage } from './image-capture.ts';
 
 type DomRegion = { title: string; selector: string; y: number; end: number; semantic: boolean; sticky: boolean; value: Record<string, unknown> };
 class UnsupportedViewportError extends Error {}
@@ -267,9 +268,6 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
         ? `Mozilla/5.0 (Linux; Android 13; Pixel Tablet) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${browser.version()} Safari/537.36`
         : devices['Pixel 7'].userAgent } : {}),
       locale: 'en-US', timezoneId: 'UTC', colorScheme: 'light', reducedMotion: 'no-preference', permissions: [] });
-    // tsx preserves local function names with this helper when serializing evaluate callbacks.
-    // Only install it in our isolated capture context, without overriding a site's own definition.
-    await context.addInitScript({ content: 'globalThis.__name ??= function (value) { return value; };' });
     check();
     page = await context.newPage();
     result.environment.userAgent = await page.evaluate(() => navigator.userAgent);
@@ -362,13 +360,10 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
         const viewport = { x: scroll.x, y: scroll.y + nav, width: profile.width, height: profile.height - nav };
         const visible = intersectRect(region.captureBounds, viewport);
         if (!visible || visible.y + visible.height <= previousEnd + 1) { warn(`Section ${region.id} could not advance within its rendered viewport.`); break; }
-        // Capture the actual viewport, then crop in image pixels. No document/viewport clip ambiguity.
-        const buffer = await page.screenshot({ type: 'png', scale: 'device', caret: 'hide', timeout: settings.screenshotTimeoutMs });
-        const metadata = await sharp(buffer).metadata();
-        verifyEncodedViewport(metadata.width, metadata.height);
-        const crop = pixelCrop(documentToViewport(visible, scroll.x, scroll.y), { width: metadata.width!, height: metadata.height! }, profile.dpr);
-        if (!crop) { warn(`Invalid screenshot bounds for ${region.id}.`); break; }
-        const encoded = await sharp(buffer).extract({ left: crop.x, top: crop.y, width: crop.width, height: crop.height }).png().toBuffer();
+        const image=await captureRegionImage(page,documentToViewport(visible,scroll.x,scroll.y),profile,settings.screenshotTimeoutMs,verifyEncodedViewport);
+        if (!image) { warn(`Invalid screenshot bounds for ${region.id}.`); break; }
+        const {buffer:encoded,crop}=image;
+        const methods=(result.environment.referenceImageMethods??={}) as Record<string,number>;methods[image.method]=(methods[image.method]??0)+1;
         const suffix = `${region.id}-${String(++part).padStart(3, '0')}`;
         const imagePath = `${profile.id}/sections/${suffix}.png`, thumbnail = `thumbnails/${profile.id}/${suffix}.webp`;
         await relativeWrite(imagePath, encoded);
@@ -469,12 +464,10 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
           if (content.height < metrics.bounds.height - 2 || content.width < metrics.client - 2) {
             unhandled.push({ ...scroller, reason: 'container-clipped-in-viewport' });
           }
-          const buffer = await page.screenshot({ type: 'png', scale: 'device', caret: 'hide', timeout: settings.screenshotTimeoutMs });
-          const metadata = await sharp(buffer).metadata();
-          verifyEncodedViewport(metadata.width, metadata.height);
-          const crop = pixelCrop(documentToViewport(visible, metrics.scroll.x, metrics.scroll.y), { width: metadata.width!, height: metadata.height! }, profile.dpr);
-          if (!crop) { unhandled.push({ ...scroller, reason: 'invalid-frame-bounds' }); break; }
-          const encoded = await sharp(buffer).extract({ left: crop.x, top: crop.y, width: crop.width, height: crop.height }).png().toBuffer();
+          const image=await captureRegionImage(page,documentToViewport(visible,metrics.scroll.x,metrics.scroll.y),profile,settings.screenshotTimeoutMs,verifyEncodedViewport);
+          if (!image) { unhandled.push({ ...scroller, reason: 'invalid-frame-bounds' }); break; }
+          const {buffer:encoded,crop}=image;
+          const methods=(result.environment.referenceImageMethods??={}) as Record<string,number>;methods[image.method]=(methods[image.method]??0)+1;
           const suffix = `${parent.id}-${scroller.key}-state-${String(sequence).padStart(3, '0')}`;
           const imagePath = `${profile.id}/sections/${suffix}.png`, thumbnail = `thumbnails/${profile.id}/${suffix}.webp`;
           await relativeWrite(imagePath, encoded);

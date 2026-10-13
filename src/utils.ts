@@ -28,10 +28,10 @@ export function inside(root: string, path: string): string {
   return target;
 }
 
-export async function atomicJson(path: string, value: unknown) {
+export async function atomicJson(path: string, value: unknown, pretty = true) {
   await mkdir(dirname(path), { recursive: true });
   const temp = `${path}.${randomUUID()}.tmp`;
-  await writeFile(temp, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+  await writeFile(temp, `${JSON.stringify(value, null, pretty ? 2 : undefined)}\n`, 'utf8');
   await rename(temp, path);
 }
 

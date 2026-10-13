@@ -7,7 +7,7 @@ The engine collects the supplied sources and exports local candidates. It suppor
 Use Node 24.15–24.x. Install dependencies and the pinned Chromium build, edit `sources.yaml`, then run:
 
 ```sh
-npm ci
+corepack pnpm install --frozen-lockfile
 npm run setup
 npm run capture
 ```

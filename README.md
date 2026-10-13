@@ -11,10 +11,12 @@ Requires Node **24.15–24.x**, the pinned Playwright Chromium build, and an aut
 See the [Phase 1 runbook](docs/phase-one.md) for model-free collection, saved-image analysis, upgrades and the current supported scope.
 
 ```sh
-npm ci
+corepack pnpm install --frozen-lockfile
 npm run setup
 npm run capture
 ```
+
+Dependencies use pinned pnpm with one lockfile. Node 24's Corepack runs the configured version; `npm run` remains the normal command interface. Node runs TypeScript directly. Existing checkouts should reinstall dependencies with the command above.
 
 Edit `sources.yaml`:
 
