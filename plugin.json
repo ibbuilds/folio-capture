@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "folio-capture",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Run local Folio collection and scoped screenshot review as one resumable ChatGPT loop. No Codex or API inference calls.",
   "author": {"name": "ibbuilds"},
   "extensions": {

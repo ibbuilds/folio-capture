@@ -14,7 +14,7 @@ export async function packageDesktopPlugin(
     );
   await mkdir(join(destination, 'scripts'), { recursive: true });
   await mkdir(join(destination,'skills','folio-capture'),{recursive:true});
-  const files=['plugin.json','mcp.json','scripts/desktop-bridge.mjs','skills/folio-capture/SKILL.md'];
+  const files=['plugin.json','mcp.json','mcp-tools.json','scripts/desktop-bridge.mjs','skills/folio-capture/SKILL.md'];
   for (const file of files) {
     const output = join(destination, file);
     await copyFile(resolve(file), output);
