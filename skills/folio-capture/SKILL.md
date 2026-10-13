@@ -6,6 +6,11 @@ description: Use when the user asks to start Folio Capture, collect UI reference
 Use only the connected Folio tools. The local engine supplies configured sources,
 saved images, evidence, the fixed taxonomy and schemas. It never starts inference.
 
+The launcher advertises Folio tools even while the local engine is offline.
+Use `status` to diagnose connectivity. A disconnected result means start the
+engine; retry its tools after it starts. Do not treat unavailable collection
+as a missing plugin, and never substitute plugin searches for Folio tool calls.
+
 If `get_context`, `start_run`, `get_packet` and `submit_result` are unavailable,
 stop and say the local Folio connection is unavailable. A plugin search or an
 editable package does not establish a connection. Do not substitute plugin

@@ -265,7 +265,7 @@ test('installed Desktop package runs from a bare cache and returns screenshots a
   const packaged = await packageDesktopPlugin(join(root, 'installed-cache', 'folio-capture'));
   assert.deepEqual(
     packaged.files.map((f) => f.file),
-    ['plugin.json', 'mcp.json', 'scripts/desktop-bridge.mjs', 'skills/folio-capture/SKILL.md'],
+    ['plugin.json', 'mcp.json', 'mcp-tools.json', 'scripts/desktop-bridge.mjs', 'skills/folio-capture/SKILL.md'],
   );
   const client = new Client({ name: 'desktop-plugin-contract', version: '1.0.0' });
   await client.connect(
@@ -604,8 +604,10 @@ test('the normal MCP capture command starts a waiting engine and carries its cap
   }
 });
 
-test('Desktop launcher refuses external endpoints and gives an actionable offline error', async (t) => {
-  const { root } = await fixture(t);
+test('Desktop tools remain discoverable offline and reconnect without restarting the chat', async (t) => {
+  const { root,config } = await fixture(t);
+  const reservation=await serveBridgeHttp(config,0);const port=(reservation.address() as {port:number}).port;
+  await new Promise<void>(accept=>reservation.close(()=>accept()));
   const packaged = await packageDesktopPlugin(join(root, 'offline-package'));
   await writeFile(join(packaged.directory, 'private-config.json'), 'Private test fixture');
   await assert.rejects(packageDesktopPlugin(packaged.directory), /must be empty/);
@@ -615,11 +617,21 @@ test('Desktop launcher refuses external endpoints and gives an actionable offlin
     command: process.execPath,
     args: [script],
     cwd: root,
-    env: { ...(process.env as Record<string, string>), FOLIO_BRIDGE_URL: 'http://127.0.0.1:1/mcp' },
+    env: { ...(process.env as Record<string, string>), FOLIO_BRIDGE_URL: `http://127.0.0.1:${port}/mcp` },
     stderr: 'pipe',
   });
-  await assert.rejects(offline.connect(transport), /Start npm run capture/);
-  await transport.close();
+  await offline.connect(transport);
+  const advertised=(await offline.listTools()).tools;
+  assert.ok(advertised.some(tool=>tool.name==='start_run'));assert.ok(advertised.some(tool=>tool.name==='status'));
+  const unavailable=await offline.callTool({name:'status',arguments:{}});assert.equal(unavailable.isError,true);
+  assert.match(JSON.stringify(unavailable.content),/Start npm run capture/);
+  const server=await serveBridgeHttp(config,port);
+  try{
+    const direct=new Client({name:'metadata-check',version:'1'});await direct.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`)));
+    try{assert.deepEqual(advertised,(await direct.listTools()).tools);}finally{await direct.close();}
+    const context=await offline.callTool({name:'get_context',arguments:{}});assert.ok(!context.isError);
+    const status=await offline.callTool({name:'status',arguments:{}});assert.equal(JSON.parse((status.content as any[])[0].text).connection.paired,false);
+  }finally{await offline.close();await new Promise<void>(accept=>server.close(()=>accept()));}
   const { spawnSync } = await import('node:child_process');
   const external = spawnSync(process.execPath, [script], {
     env: { ...process.env, FOLIO_BRIDGE_URL: 'https://outside.test/mcp' },

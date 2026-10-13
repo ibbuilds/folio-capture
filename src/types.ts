@@ -4,7 +4,7 @@ export type CaptureStatus = 'complete' | 'incomplete' | 'blocked' | 'failed';
 export type JobStatus = 'pending' | 'running' | 'complete' | 'incomplete' | 'blocked' | 'failed' | 'unsupported';
 export type Rect = { x: number; y: number; width: number; height: number };
 export type CaptureProfile = { id: string; width: number; height: number; dpr: number; isMobile: boolean; hasTouch: boolean };
-export type Source = { url: string; kind: 'auto' | 'page' | 'library' | 'site'; name?: string; maxPages?: number; maxDepth?: number; preserveSelectors?: string[]; dismissSelectors?: string[] };
+export type Source = { url: string; kind: 'auto' | 'page' | 'library' | 'site'; name?: string; maxPages?: number; maxDepth?: number; expectedHttpStatus?:404; preserveSelectors?: string[]; dismissSelectors?: string[] };
 export type CaptureSettings = {
   navigationTimeoutMs: number; mediaTimeoutMs: number; settleTimeoutMs: number;
   screenshotTimeoutMs: number; attemptTimeoutMs: number; maxAttempts: number;
@@ -45,8 +45,9 @@ export type CaptureOptions = {
   browser: Browser; url: string; profile: CaptureProfile; settings: CaptureSettings;
   outputDir: string; onProgress?: (message: string) => void; signal?: AbortSignal;
   onNavigation?:(finalUrl:string)=>Promise<void>;
+  expectedHttpStatus?:404;
 };
-export type Provenance = { seedUrl: string; listingUrl?: string; detailUrl?: string; discoveredAt: string; sourceLabels: string[]; previewUrl?: string; resolutionPath?: string[]; navigationPath?: string[] };
+export type Provenance = { seedUrl: string; listingUrl?: string; detailUrl?: string; discoveredAt: string; sourceLabels: string[]; previewUrl?: string; resolutionPath?: string[]; navigationPath?: string[]; expectedHttpStatus?:404 };
 export type PageManifest = {
   schemaVersion: 1; pageId: string; captureId: string; captureSignature: string;
   requestedUrl: string; title: string; capturedAt: string; status: CaptureStatus;

@@ -1,4 +1,7 @@
 import { createInterface } from 'node:readline';
+import {readFile} from 'node:fs/promises';
+
+const metadata=JSON.parse(await readFile(new URL('../mcp-tools.json',import.meta.url),'utf8'));
 
 // This portable launcher uses only Node built-ins. It still works in the installed plugin cache.
 const endpoint = new URL(process.env.FOLIO_BRIDGE_URL || 'http://127.0.0.1:4317/mcp');
@@ -31,6 +34,14 @@ async function forward(line) {
     return;
   }
   const hasId = Object.hasOwn(request, 'id');
+  if(request.method==='initialize'){
+    protocolVersion=metadata.supportedProtocols.includes(request.params?.protocolVersion)?request.params.protocolVersion:metadata.protocolVersion;
+    if(hasId)write({jsonrpc:'2.0',id:request.id,result:{protocolVersion,capabilities:{tools:{listChanged:false}},serverInfo:metadata.serverInfo,instructions:metadata.instructions}});
+    return;
+  }
+  if(request.method==='tools/list'){if(hasId)write({jsonrpc:'2.0',id:request.id,result:{tools:metadata.tools}});return;}
+  if(request.method==='ping'){if(hasId)write({jsonrpc:'2.0',id:request.id,result:{}});return;}
+  if(request.method==='notifications/initialized')return;
   try {
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -47,7 +58,7 @@ async function forward(line) {
       },
       body: line,
     });
-    if (!response.ok) throw new Error(`Folio local bridge returned HTTP ${response.status()}.`);
+    if (!response.ok) throw new Error(`Folio local bridge returned HTTP ${response.status}.`);
     if (response.status === 202 || !hasId) return;
     const result = await response.json();
     if (result.jsonrpc !== '2.0' || result.id !== request.id)
@@ -57,7 +68,8 @@ async function forward(line) {
   } catch (failure) {
     const message = failure instanceof Error ? failure.message : 'Connection failed';
     const note = `${message} Start npm run capture -- --classifier mcp in your Folio Capture checkout and keep it running. No Codex or AI API was invoked.`;
-    if (hasId) error(request.id, note);
+    if(hasId&&request.method==='tools/call')write({jsonrpc:'2.0',id:request.id,result:{isError:true,content:[{type:'text',text:JSON.stringify({provider:'chatgpt-mcp',engineReachable:false,paired:false,collectionStarted:false,error:note})}]}});
+    else if (hasId) error(request.id, note);
     else process.stderr.write(`${note}\n`);
   }
 }

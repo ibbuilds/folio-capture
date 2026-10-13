@@ -92,7 +92,7 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
   let locked=false;
   const visited=new Set<string>();
   const analysisState={unavailable:false};
-  const captureSignature = (source:Source) => hash({ version:2,playwright:'1.62.1',profiles:config.profiles,capture:{...config.capture,preserveSelectors:[...config.capture.preserveSelectors,...source.preserveSelectors??[]],dismissSelectors:[...config.capture.dismissSelectors,...source.dismissSelectors??[]]} });
+  const captureSignature = (source:Source,expectedHttpStatus?:404) => hash({ version:2,playwright:'1.62.1',profiles:config.profiles,...(expectedHttpStatus?{expectedHttpStatus}:{}),capture:{...config.capture,preserveSelectors:[...config.capture.preserveSelectors,...source.preserveSelectors??[]],dismissSelectors:[...config.capture.dismissSelectors,...source.dismissSelectors??[]]} });
   const checkInterrupted=()=>{options.signal?.throwIfAborted();options.assertClassifierActive?.();};
   async function ensureBrowser(){
     checkInterrupted();
@@ -124,7 +124,7 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
   async function publishIndexes() { await exportCatalog(store,false); await exportAccepted(store,config.profiles); }
 
   async function processPage(url:string,provenance:Provenance,source:Source){
-    checkInterrupted();const page=store.page(url,provenance);const signature=captureSignature(source);const key=`${page.id}:${signature}`;
+    checkInterrupted();const page=store.page(url,provenance);const expectedHttpStatus=provenance.expectedHttpStatus??(canonicalUrl(url)===canonicalUrl(source.url)?source.expectedHttpStatus:undefined);const signature=captureSignature(source,expectedHttpStatus);const key=`${page.id}:${signature}`;
     if(visited.has(key)){
       const prior=page.latestCaptureId?store.capture(page.latestCaptureId):undefined;
       if(prior?.manifest){
@@ -187,7 +187,7 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
         const timeout=AbortSignal.timeout(config.capture.attemptTimeoutMs);
         const signal=options.signal ? AbortSignal.any([timeout,options.signal]) : timeout;
         try {
-          result=await captureViewport({browser:await ensureBrowser(),url:page.url,profile,settings:{...config.capture,preserveSelectors:[...config.capture.preserveSelectors,...source.preserveSelectors??[]],dismissSelectors:[...config.capture.dismissSelectors,...source.dismissSelectors??[]]},outputDir:root,onProgress:message=>{checkInterrupted();log(`  ${profile.id}: ${message}`);},signal,onNavigation:async finalUrl=>{
+          result=await captureViewport({browser:await ensureBrowser(),url:page.url,profile,expectedHttpStatus,settings:{...config.capture,preserveSelectors:[...config.capture.preserveSelectors,...source.preserveSelectors??[]],dismissSelectors:[...config.capture.dismissSelectors,...source.dismissSelectors??[]]},outputDir:root,onProgress:message=>{checkInterrupted();log(`  ${profile.id}: ${message}`);},signal,onNavigation:async finalUrl=>{
             if(options.refresh || variants.length || !isRelatedDestination(page.url,finalUrl) || canonicalUrl(page.url)===canonicalUrl(finalUrl))return;
             const known=store.pageForUrl(finalUrl);
             const prior=known && known.id!==page.id?store.latestUsable(known.id,signature,config.freshnessDays):undefined;
@@ -245,10 +245,11 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
       }
     }
     if(!resolved?.originalUrl){summary.unresolved++;return;}
-    const provenance:Provenance={seedUrl:entry.seedUrl,listingUrl:entry.listingUrl,detailUrl:entry.detailUrl,discoveredAt:entry.discoveredAt,sourceLabels:resolved.sourceLabels ?? [],previewUrl:resolved.previewUrl,resolutionPath:resolved.metadata?.followed};
+    const expectedHttpStatus=libraryAdapter(source.url)?.id==='404s'?404:undefined;
+    const provenance:Provenance={seedUrl:entry.seedUrl,listingUrl:entry.listingUrl,detailUrl:entry.detailUrl,discoveredAt:entry.discoveredAt,sourceLabels:resolved.sourceLabels ?? [],previewUrl:resolved.previewUrl,resolutionPath:resolved.metadata?.followed, ...(expectedHttpStatus?{expectedHttpStatus}: {})};
     if((config.collection?.originalMode??'site')==='site'){
-      await discoverSite(store,ensureBrowser,{...source,url:resolved.originalUrl,kind:'site',maxPages:source.maxPages??config.collection?.maxPages,maxDepth:source.maxDepth??config.collection?.maxDepth},config.discovery,
-        async(url,path)=>processPage(url,{...provenance,navigationPath:path.navigationPath},source),options.signal,()=>!options.limit || summary.captured<options.limit,config.capture);
+      await discoverSite(store,ensureBrowser,{...source,url:resolved.originalUrl,kind:'site',expectedHttpStatus,maxPages:source.maxPages??config.collection?.maxPages,maxDepth:source.maxDepth??config.collection?.maxDepth},config.discovery,
+        async(url,path)=>processPage(url,{...provenance,expectedHttpStatus:canonicalUrl(url)===canonicalUrl(resolved.originalUrl)?expectedHttpStatus:undefined,navigationPath:path.navigationPath},source),options.signal,()=>!options.limit || summary.captured<options.limit,config.capture);
     }else await processPage(resolved.originalUrl,provenance,source);
   }
 
