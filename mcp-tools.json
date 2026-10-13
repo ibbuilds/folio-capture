@@ -31,7 +31,7 @@
     },
     {
       "name": "get_concepts",
-      "description": "Read full definitions, aliases, evidence requirements, counterexamples and confusing neighbors for candidate taxonomy labels. Read selected supported labels before submitting classification; unknown needs no lookup.",
+      "description": "Batch up to 32 candidate axis/label pairs to read full definitions and evidence rules. Reuse definitions already read in this conversation; unknown needs no lookup.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -179,7 +179,7 @@
     },
     {
       "name": "get_packet",
-      "description": "Get the next page/section review with PNG images and exact evidence IDs. For automatic collection return runId/clientId from start_run. Waiting means call again; done ends this run. Work only on this subject/viewport. No model is invoked by this tool.",
+      "description": "Get the next review with full metadata, a classification resultTemplate and up to four original PNGs. Use short packet-local evidence IDs. Keep this metadata for get_images. Waiting means call again; done ends this run. Work only on this subject/viewport.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -213,7 +213,7 @@
     },
     {
       "name": "get_images",
-      "description": "Read remaining full-resolution PNG parts of the current packet. Retrieve every part before submitting. Image IDs identify the exact supplied frames.",
+      "description": "Read remaining original PNGs, up to four per call within the byte budget. Default count 4. Returns compact packet identity and progress; use metadata from get_packet. Retrieve every part before submitting.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -227,7 +227,7 @@
             "maximum": 9007199254740991
           },
           "count": {
-            "default": 1,
+            "default": 4,
             "type": "integer",
             "minimum": 1,
             "maximum": 4
@@ -259,7 +259,7 @@
     },
     {
       "name": "submit_result",
-      "description": "Commit only schema-valid judgments for the current packet. Use its image/evidence IDs; no invented labels or other subjects. Assessment and critique are independent passes. Classification enriches only qualified subjects. Safe to retry the same result.",
+      "description": "Submit concise JSON using the current packet short evidence IDs and resultTemplate/schema. Unknown: note empty, confidence low, evidenceIds empty. Fix all returned validation issues together. Assessment and critique remain separate. Safe to retry the same result.",
       "inputSchema": {
         "type": "object",
         "properties": {

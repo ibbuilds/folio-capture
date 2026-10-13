@@ -8,7 +8,8 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import type { Config } from './types.ts';
 import { loadConfig } from './config.ts';
-import { AnalysisBridge } from './bridge.ts';
+import { AnalysisBridge, type ImageDelivery } from './bridge.ts';
+import { ReviewValidationError } from './review-validation.ts';
 import { Workflow, type WorkflowDependencies } from './workflow.ts';
 import { errorMessage } from './utils.ts';
 import { TAXONOMY } from './taxonomy.ts';
@@ -45,7 +46,7 @@ export function createBridgeServer(config: Config, dependencies: WorkflowDepende
     'get_concepts',
     {
       description:
-        'Read full definitions, aliases, evidence requirements, counterexamples and confusing neighbors for candidate taxonomy labels. Read selected supported labels before submitting classification; unknown needs no lookup.',
+        'Batch up to 32 candidate axis/label pairs to read full definitions and evidence rules. Reuse definitions already read in this conversation; unknown needs no lookup.',
       inputSchema: {
         clientId: identifier,
         concepts: z
@@ -101,7 +102,9 @@ export function createBridgeServer(config: Config, dependencies: WorkflowDepende
     },
     async ({ runId, clientId }) => textResult(await workflow.stop(runId, clientId)),
   );
-  const packetResult = (result: Awaited<ReturnType<Workflow['next']>>): CallToolResult => {
+  const packetResult = (
+    result: Awaited<ReturnType<Workflow['next']>> | ImageDelivery,
+  ): CallToolResult => {
     if ('done' in result) return textResult(result);
     return {
       content: [
@@ -109,6 +112,7 @@ export function createBridgeServer(config: Config, dependencies: WorkflowDepende
           type: 'text',
           text: JSON.stringify({
             packet: result.packet,
+            metadataIncluded: result.metadataIncluded,
             nextOffset: result.nextOffset,
             remainingImages: result.remaining,
             ...('workflow' in result ? { workflow: result.workflow } : {}),
@@ -125,7 +129,7 @@ export function createBridgeServer(config: Config, dependencies: WorkflowDepende
     'get_packet',
     {
       description:
-        'Get the next page/section review with PNG images and exact evidence IDs. For automatic collection return runId/clientId from start_run. Waiting means call again; done ends this run. Work only on this subject/viewport. No model is invoked by this tool.',
+        'Get the next review with full metadata, a classification resultTemplate and up to four original PNGs. Use short packet-local evidence IDs. Keep this metadata for get_images. Waiting means call again; done ends this run. Work only on this subject/viewport.',
       inputSchema: { contextId: identifier, ...session },
       annotations: write,
     },
@@ -136,11 +140,11 @@ export function createBridgeServer(config: Config, dependencies: WorkflowDepende
     'get_images',
     {
       description:
-        'Read remaining full-resolution PNG parts of the current packet. Retrieve every part before submitting. Image IDs identify the exact supplied frames.',
+        'Read remaining original PNGs, up to four per call within the byte budget. Default count 4. Returns compact packet identity and progress; use metadata from get_packet. Retrieve every part before submitting.',
       inputSchema: {
         packetId: identifier,
         offset: z.number().int().min(0),
-        count: z.number().int().min(1).max(4).default(1),
+        count: z.number().int().min(1).max(4).default(4),
         ...session,
       },
       annotations: write,
@@ -154,7 +158,7 @@ export function createBridgeServer(config: Config, dependencies: WorkflowDepende
     'submit_result',
     {
       description:
-        'Commit only schema-valid judgments for the current packet. Use its image/evidence IDs; no invented labels or other subjects. Assessment and critique are independent passes. Classification enriches only qualified subjects. Safe to retry the same result.',
+        'Submit concise JSON using the current packet short evidence IDs and resultTemplate/schema. Unknown: note empty, confidence low, evidenceIds empty. Fix all returned validation issues together. Assessment and critique remain separate. Safe to retry the same result.',
       inputSchema: {
         packetId: identifier,
         value: z.unknown(),
@@ -165,7 +169,25 @@ export function createBridgeServer(config: Config, dependencies: WorkflowDepende
     },
     async ({ packetId, value, reportedModel, runId, clientId }) => {
       workflow.touch(runId, clientId);
-      return textResult(await bridge.submit(packetId, value, reportedModel, clientId));
+      try {
+        return textResult(await bridge.submit(packetId, value, reportedModel, clientId));
+      } catch (error) {
+        if (!(error instanceof ReviewValidationError)) throw error;
+        return {
+          isError: true,
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                committed: false,
+                packetId,
+                issues: error.issues,
+                next: 'Fix all listed issues together. Batch any required get_concepts definitions, then resubmit. Do not restart this packet or repeat delivered images.',
+              }),
+            },
+          ],
+        };
+      }
     },
   );
   server.registerTool(

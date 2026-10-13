@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { createHash } from 'node:crypto';
+import { createHash, randomFillSync } from 'node:crypto';
 import sharp from 'sharp';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -25,6 +25,7 @@ import { organizeOutput } from '../src/organize.ts';
 import { registerCaptureAssets } from '../src/assets.ts';
 import { captureVersion } from '../src/naming.ts';
 import { doctor } from '../src/doctor.ts';
+import { ReviewValidationError } from '../src/review-validation.ts';
 
 async function fixture(t: test.TestContext, parts = 1) {
   const root = await mkdtemp(join(tmpdir(), 'folio-mcp-'));
@@ -713,8 +714,8 @@ test('all original images must be delivered; changed DOM or pixels and stale rev
   const { bridge, root, directory, manifest, config } = await fixture(t, 5);
   const task = await bridge.next(BRIDGE_CONTEXT_ID);
   if ('done' in task) assert.fail('task missing');
-  assert.equal(task.images.length, 1);
-  assert.equal(task.remaining, 4);
+  assert.equal(task.images.length, 4);
+  assert.equal(task.remaining, 1);
   await assert.rejects(bridge.submit(task.packet.id, pass(task.images[0].id)), /Retrieve all/);
   await bridge.images(task.packet.id, task.nextOffset, 4);
   const store = new Store(root);
@@ -744,6 +745,203 @@ test('all original images must be delivered; changed DOM or pixels and stale rev
   assert.equal(forced.packet.phase, 'assessment');
   assert.notEqual(forced.packet.id, first.packet.id);
   assert.equal(config.classifier.runner, 'mcp');
+});
+
+test('ten original frames use three bounded deliveries, compact follow-ups and canonical stored citations', async (t) => {
+  const { bridge, root, directory } = await fixture(t, 10);
+  const first = await bridge.next(BRIDGE_CONTEXT_ID);
+  if ('done' in first) assert.fail();
+  assert.equal(first.images.length, 4);
+  assert.equal(first.nextOffset, 4);
+  assert.equal(first.images[0].id, 'i1');
+  assert.equal(first.packet.evidence[0].id, 'e1');
+  assert.deepEqual(
+    Buffer.from(first.images[0].data, 'base64'),
+    await readFile(join(root, directory, '0.png')),
+  );
+  const second = await bridge.images(first.packet.id, first.nextOffset);
+  const third = await bridge.images(first.packet.id, second.nextOffset);
+  assert.equal(second.images.length, 4);
+  assert.equal(third.images.length, 2);
+  assert.equal(third.remaining, 0);
+  assert.equal(second.metadataIncluded, false);
+  assert.deepEqual(Object.keys(second.packet).sort(), ['id', 'phase', 'subjectId']);
+  const fullBytes = Buffer.byteLength(JSON.stringify(first.packet));
+  assert.ok(Buffer.byteLength(JSON.stringify(second.packet)) < fullBytes / 4);
+  await bridge.submit(first.packet.id, pass('i1'));
+  const ledger = new Store(root);
+  try {
+    const result = ledger.getJob('mcp-response', first.packet.id)!.result;
+    assert.match(result.value.evidenceIds[0], /^image:/, 'Aliases expand before persistence');
+    const metrics = ledger.getJob('mcp-metrics', first.packet.id)!;
+    assert.equal(metrics.status, 'complete');
+    assert.equal(metrics.payload.deliveryCalls, 3);
+    assert.equal(metrics.payload.validationFailures, 0);
+    assert.ok(metrics.result.afterImagesMs >= 0);
+  } finally {
+    ledger.close();
+  }
+  const critique = await bridge.next(BRIDGE_CONTEXT_ID);
+  if ('done' in critique) assert.fail();
+  assert.deepEqual((critique.packet.priorAssessment as any).evidenceIds, ['i1']);
+});
+
+test('tampering with an already delivered frame still prevents commitment after later batches', async (t) => {
+  const { bridge, root, directory } = await fixture(t, 5);
+  const first = await bridge.next(BRIDGE_CONTEXT_ID);
+  if ('done' in first) assert.fail();
+  await writeFile(join(root, directory, '0.png'), 'Changed after delivery');
+  await bridge.images(first.packet.id, first.nextOffset);
+  await assert.rejects(bridge.submit(first.packet.id, pass('i1')), /hash mismatch/);
+  const ledger = new Store(root);
+  try {
+    assert.equal(ledger.jobs('mcp-response').length, 0);
+  } finally {
+    ledger.close();
+  }
+});
+
+test('image batches shrink at the transport byte budget without marking omitted frames delivered', async (t) => {
+  const { bridge, root, directory, manifest } = await fixture(t, 2);
+  for (const [index, frame] of manifest.variants[0].regions[0].frames.entries()) {
+    const png = await sharp(randomFillSync(Buffer.alloc(1800 * 1400 * 3)), {
+      raw: { width: 1800, height: 1400, channels: 3 },
+    })
+      .png({ compressionLevel: 0 })
+      .toBuffer();
+    assert.ok(png.length > 6 * 1024 * 1024 && png.length < 12 * 1024 * 1024);
+    await writeFile(join(root, directory, `${index}.png`), png);
+    frame.width = 1800;
+    frame.height = 1400;
+    frame.sha256 = createHash('sha256').update(png).digest('hex');
+  }
+  const ledger = new Store(root);
+  ledger.publishCapture(manifest, directory);
+  ledger.close();
+  const first = await bridge.next(BRIDGE_CONTEXT_ID);
+  if ('done' in first) assert.fail();
+  assert.equal(first.images.length, 1);
+  assert.equal(first.remaining, 1);
+  assert.equal(first.nextOffset, 1);
+  await assert.rejects(bridge.submit(first.packet.id, pass('i1')), /Retrieve all/);
+  const rest = await bridge.images(first.packet.id, first.nextOffset);
+  assert.equal(rest.images.length, 1);
+  assert.equal(rest.remaining, 0);
+  await bridge.submit(first.packet.id, pass('i1'));
+});
+
+test('all review problems are returned together, counted and repaired without losing a completed pass', async (t) => {
+  const { bridge, root } = await fixture(t);
+  const context = bridge.context();
+  let task = await bridge.next(BRIDGE_CONTEXT_ID);
+  if ('done' in task) assert.fail();
+  const invalid = pass('foreign');
+  invalid.score = 8;
+  invalid.criteria.hierarchy.score = 7;
+  await assert.rejects(
+    bridge.submit(task.packet.id, invalid),
+    (error) =>
+      error instanceof ReviewValidationError &&
+      error.issues.some((i) => i.path === 'score') &&
+      error.issues.some((i) => i.path === 'criteria.hierarchy.score') &&
+      error.issues.some((i) => i.path === 'evidenceIds'),
+  );
+  await bridge.submit(task.packet.id, pass('i1'));
+  const ledger = new Store(root);
+  try {
+    assert.equal(ledger.getJob('mcp-validation', task.packet.id)!.attempts, 1);
+    assert.equal(ledger.getJob('mcp-metrics', task.packet.id)!.payload.validationFailures, 1);
+    assert.equal(ledger.getJob('mcp-validation', task.packet.id)!.status, 'complete');
+  } finally {
+    ledger.close();
+  }
+  task = await bridge.next(BRIDGE_CONTEXT_ID);
+  if ('done' in task) assert.fail();
+  assert.equal(task.packet.phase, 'critique');
+  await bridge.submit(task.packet.id, pass('i1'));
+  task = await bridge.next(BRIDGE_CONTEXT_ID);
+  if ('done' in task) assert.fail();
+  assert.equal(task.packet.phase, 'classification');
+  assert.deepEqual(
+    task.packet.resultTemplate!.labels.map((l) => l.axis),
+    task.packet.axes,
+  );
+  assert.ok(
+    task.packet.resultTemplate!.labels.every(
+      (l) => l.label === 'unknown' && l.note === '' && l.evidenceIds.length === 0,
+    ),
+  );
+  await assert.rejects(
+    bridge.submit(task.packet.id, labels('page', 'i1'), undefined, context.clientId),
+    (error) =>
+      error instanceof ReviewValidationError &&
+      error.issues.some((i) => i.path === 'appearance:clean') &&
+      error.issues.some((i) => i.path === 'visual_style:minimalism'),
+  );
+  const unsupported = labels('page', 'i1');
+  unsupported.labels[0].axis = '__proto__';
+  unsupported.labels[1].label = 'invented';
+  unsupported.labels[2].evidenceIds = ['foreign'];
+  await assert.rejects(
+    bridge.submit(task.packet.id, unsupported, undefined, context.clientId),
+    (error) =>
+      error instanceof ReviewValidationError &&
+      /another subject scope/.test(error.message) &&
+      /Unsupported taxonomy/.test(error.message) &&
+      /Evidence outside/.test(error.message),
+  );
+  await bridge.concepts(context.clientId, [
+    { axis: 'appearance', label: 'clean' },
+    { axis: 'visual_style', label: 'minimalism' },
+  ]);
+  await bridge.submit(task.packet.id, labels('page', 'i1'), undefined, context.clientId);
+  const catalog=await readFile(join(root,'catalog.json'),'utf8');
+  const replay=await bridge.submit(task.packet.id,labels('page','i1'),undefined,context.clientId);
+  assert.equal(replay.idempotent,true);
+  assert.equal(await readFile(join(root,'catalog.json'),'utf8'),catalog,'Committed retry does not regenerate category exports');
+  assert.equal((await bridge.status()).classified, 1);
+});
+
+test('MCP returns actionable validation JSON rather than one opaque error', async (t) => {
+  const { config } = await fixture(t);
+  const http = await serveBridgeHttp(config, 0);
+  t.after(() => new Promise<void>((resolve) => http.close(() => resolve())));
+  const client = new Client({ name: 'validation-fixture', version: '1' });
+  await client.connect(
+    new StreamableHTTPClientTransport(
+      new URL(`http://127.0.0.1:${(http.address() as { port: number }).port}/mcp`),
+    ),
+  );
+  try {
+    const read = await client.callTool({
+      name: 'get_packet',
+      arguments: { contextId: BRIDGE_CONTEXT_ID },
+    });
+    const packet = JSON.parse((read.content as any[])[0].text).packet;
+    const invalid = pass('i1');
+    invalid.score = 7;
+    invalid.criteria.hierarchy.score = 6;
+    const failed = await client.callTool({
+      name: 'submit_result',
+      arguments: { packetId: packet.id, value: invalid },
+    });
+    assert.equal(failed.isError, true);
+    const feedback = JSON.parse((failed.content as any[])[0].text);
+    assert.equal(feedback.committed, false);
+    assert.equal(feedback.issues.length, 2);
+    assert.ok(feedback.next.includes('together'));
+    assert.equal(
+      (
+        await client.callTool({
+          name: 'submit_result',
+          arguments: { packetId: packet.id, value: pass('i1') },
+        })
+      ).isError,
+      undefined,
+    );
+  } finally {
+    await client.close();
+  }
 });
 
 test('HTTP and STDIO expose genuine MCP tools with clean protocol and no model invocation', async (t) => {
