@@ -2,6 +2,8 @@
 
 A local reference-collection engine: **sources → discovery → clean capture → quality assessment → classification → export**. The future library frontend and MCP live in another repository.
 
+The [creator philosophy and crawler scope](docs/engine-principles.md) prioritize minimal operation, exceptional references within each aesthetic, and evidence useful to future human and MCP retrieval. The [creator-selected I.1 vocabulary](docs/aesthetics/selection-i1/README.md) is saved as the target for runtime integration.
+
 ## Setup and use
 
 Requires Node **24.15–24.x**, the pinned Playwright Chromium build, and an authenticated Codex CLI for visual judgments.
@@ -57,6 +59,8 @@ npm run folio -- evaluate --benchmark reviewed.json
 Each page variant and section variant is assessed independently against hierarchy, typography/readability, spacing/consistency, aesthetic coherence, imagery/content fit and execution at the captured viewport. Both assessment and critique must support 9–10 with no material weakness. Disagreement is uncertain; broken captures require repair. An excellent section can qualify inside a rejected page. Page acceptance requires complete recorded coverage and all its frames. Subjects above `quality.maxImages` stay uncertain instead of granting unsampled frames a judgment.
 
 **Quality results are experimental.** Passing contract tests or two agreeing judgments does not establish aesthetic accuracy. No independent benchmark result or 98% precision is claimed. Publication date, awards and minimalism are not quality shortcuts; basic readability matters without requiring an exhaustive accessibility audit.
+
+An engine `accepted` verdict qualifies a local candidate. Admission to the future published library is reviewed by the creator. Its review system and any later automatic admission workflow are separate work.
 
 ## Local output
 

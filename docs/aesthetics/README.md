@@ -1,5 +1,7 @@
 # UI and internet aesthetics: 1980s–2026
 
+The creator's [I.1 selection](selection-i1/README.md) is the intended product vocabulary. The study below remains broader research context; its terminology does not override that selection. Runtime integration is still pending.
+
 Checked through **12 October 2026**. This investigation explains how to recognize and distinguish UI aesthetics when looking for specific inspiration. It covers historical interfaces, internet aesthetics, contemporary professional directions and surface treatments, including flat design. Historical styles can support excellent modern work; publication age is not a quality score.
 
 Start with the [history and visual distinctions](ui-history.md), then use the [chronological reference](timeline.md) to follow the evolution from the 1980s to today. The [recognition guide](ui-evidence-review.md) gives visual traits, counterexamples, confusing neighbors, UI evidence and dating limits for every earlier concept, with additional historical profiles.
