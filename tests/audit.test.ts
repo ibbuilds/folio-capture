@@ -9,6 +9,9 @@ import { Store } from '../src/store.ts';
 import { auditOutput } from '../src/audit.ts';
 import { atomicJson } from '../src/utils.ts';
 import type { PageManifest } from '../src/types.ts';
+import { referenceSubjects, subjectImageId } from '../src/references.ts';
+import { TAXONOMY_VERSION, TAXONOMY_FINGERPRINT } from '../src/taxonomy.ts';
+import { SCOPED_PROMPT_VERSION } from '../src/quality.ts';
 
 async function fixture(t: test.TestContext) {
   const output = await mkdtemp(join(tmpdir(), 'folio-audit-'));
@@ -82,7 +85,7 @@ async function fixture(t: test.TestContext) {
   store.publishCapture(manifest, directory);
   store.close();
   await atomicJson(join(output, directory, 'manifest.json'), manifest);
-  return { output, directory };
+  return { output, directory, manifest };
 }
 
 test('audit is read-only, checks encoded pixels and accounts hard-linked category images once', async (t) => {
@@ -137,4 +140,56 @@ test('malformed export metadata is reported as an integrity error instead of cra
   const result = await auditOutput(output);
   assert(!result.healthy);
   assert(result.issues.some((i) => i.code === 'invalid-metadata' && i.path === 'catalog.json'));
+});
+
+test('obsolete packet history does not report a completed reference as still pending or requiring a protocol restart', async (t) => {
+  const { output, directory, manifest } = await fixture(t),
+    subject = referenceSubjects(manifest)[0],
+    store = new Store(output);
+  const inspectedImages = subject.frames.map((f) => subjectImageId(subject, f));
+  try {
+    store.saveReference({
+      schemaVersion: 2,
+      subject,
+      directory,
+      sourceUrl: manifest.requestedUrl,
+      quality: {
+        schemaVersion: 2,
+        subjectId: subject.id,
+        cacheKey: 'fixture',
+        rubricVersion: 'fixture',
+        verdict: 'accepted',
+        assessedAt: 'fixture',
+        experimental: true,
+        reasons: [],
+        model: 'fixture',
+        reasoning: 'fixture',
+        reportedModels: [],
+        inspectedImages,
+      },
+      classification: {
+        taxonomyVersion: TAXONOMY_VERSION,
+        taxonomyFingerprint: TAXONOMY_FINGERPRINT,
+        promptVersion: SCOPED_PROMPT_VERSION,
+        cacheKey: 'fixture',
+        model: 'fixture',
+        classifiedAt: 'fixture',
+        inspectedImages,
+        labels: [],
+      },
+    });
+    store.job('mcp-packet', 'old', {
+      subjectId: subject.id,
+      contextId: 'obsolete',
+      phase: 'classification',
+      qualityKey: 'fixture',
+      classificationRevision: 0,
+    });
+  } finally {
+    store.close();
+  }
+  const result = await auditOutput(output);
+  assert.equal(result.progress.pendingReviews, 0);
+  assert.equal(result.progress.obsoleteSavedPackets, 1);
+  assert(!result.issues.some((i) => i.code === 'older-review-protocol'));
 });

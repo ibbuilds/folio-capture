@@ -428,7 +428,25 @@ export async function auditOutput(output: string) {
       'stale-index',
       'Collection index does not match current decisions; exports may be in progress.',
     );
-  const pendingPackets = jobs.filter((j) => j.stage === 'mcp-packet' && j.status === 'pending');
+  const savedPendingPackets = jobs.filter(
+    (j) => j.stage === 'mcp-packet' && j.status === 'pending',
+  );
+  const pendingPackets = savedPendingPackets.filter((j) => {
+    const record = byId.get(String(j.payload.subjectId));
+    if (
+      !record ||
+      record.pruned ||
+      j.payload.qualityKey !== record.quality.cacheKey ||
+      j.payload.classificationRevision !== (record.classificationRevision ?? 0)
+    )
+      return false;
+    if (j.payload.phase === 'classification')
+      return record.quality.verdict === 'accepted' && !hasCurrentClassification(record);
+    if (record.quality.verdict !== 'pending') return false;
+    return j.payload.phase === 'assessment'
+      ? !record.quality.assessment
+      : j.payload.phase === 'critique' && !record.quality.critique;
+  });
   const workflow = jobs.find((j) => j.stage === 'workflow' && j.key === 'active');
   if (workflow?.status === 'incomplete' && pendingPackets.length)
     issue(
@@ -481,6 +499,7 @@ export async function auditOutput(output: string) {
       phase: workflow?.payload.phase ?? null,
       reason: workflow?.payload.reason ?? null,
       pendingReviews: pendingPackets.length,
+      obsoleteSavedPackets: savedPendingPackets.length - pendingPackets.length,
       discovery: jobs
         .filter((j) => j.stage === 'discovery')
         .map((j) => ({ source: j.key, status: j.status, updatedAt: j.updatedAt })),
