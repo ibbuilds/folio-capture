@@ -1,0 +1,571 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "0c77d9af7d94fb0ac33098c5341f44f8ba4c59ef",
+  "environment": {
+    "platform": "Windows x64",
+    "cpu": "AMD Ryzen 7 3700X",
+    "logicalCpus": 16,
+    "totalMemoryGiB": 31.92,
+    "node": "24.15.0",
+    "playwright": "1.62.1",
+    "sharp": "0.34.5",
+    "vips": "8.17.3"
+  },
+  "limits": "Deterministic fixtures only; no public collection or model calls. CPU/RSS describe Node, excluding Chromium children; process peak includes setup. Mock acceptance measures contracts, not aesthetic accuracy.",
+  "catalogTrials": [
+    {
+      "tag": "repeat-baseline-1",
+      "node": "v24.15.0",
+      "observations": [
+        {
+          "name": "coverage",
+          "wallMs": 184,
+          "cpuMs": 234,
+          "heapDeltaMB": 45.9,
+          "rssMB": 263.34,
+          "nodePeakRssMB": 263.34
+        },
+        {
+          "name": "accepted-export",
+          "wallMs": 2971,
+          "cpuMs": 2672,
+          "heapDeltaMB": 61.04,
+          "rssMB": 342.96,
+          "nodePeakRssMB": 381.03
+        },
+        {
+          "pages": 20,
+          "references": 840,
+          "captureReads": 1680,
+          "referenceReads": 4,
+          "manifestReads": 3,
+          "catalogBytes": 6508639
+        }
+      ]
+    },
+    {
+      "tag": "repeat-optimized-1",
+      "node": "v24.15.0",
+      "observations": [
+        {
+          "name": "coverage",
+          "wallMs": 156,
+          "cpuMs": 172,
+          "heapDeltaMB": 24.7,
+          "rssMB": 206.5,
+          "nodePeakRssMB": 224.54
+        },
+        {
+          "name": "accepted-export",
+          "wallMs": 1255,
+          "cpuMs": 906,
+          "heapDeltaMB": 41.22,
+          "rssMB": 237.59,
+          "nodePeakRssMB": 237.59
+        },
+        {
+          "pages": 20,
+          "references": 840,
+          "captureReads": 0,
+          "referenceReads": 0,
+          "manifestReads": 0,
+          "catalogBytes": 4275843
+        }
+      ]
+    },
+    {
+      "tag": "repeat-optimized-2",
+      "node": "v24.15.0",
+      "observations": [
+        {
+          "name": "coverage",
+          "wallMs": 147,
+          "cpuMs": 141,
+          "heapDeltaMB": 24.66,
+          "rssMB": 206.72,
+          "nodePeakRssMB": 224.59
+        },
+        {
+          "name": "accepted-export",
+          "wallMs": 1256,
+          "cpuMs": 938,
+          "heapDeltaMB": 41.21,
+          "rssMB": 237.32,
+          "nodePeakRssMB": 237.32
+        },
+        {
+          "pages": 20,
+          "references": 840,
+          "captureReads": 0,
+          "referenceReads": 0,
+          "manifestReads": 0,
+          "catalogBytes": 4275843
+        }
+      ]
+    },
+    {
+      "tag": "repeat-baseline-2",
+      "node": "v24.15.0",
+      "observations": [
+        {
+          "name": "coverage",
+          "wallMs": 162,
+          "cpuMs": 187,
+          "heapDeltaMB": 45.92,
+          "rssMB": 261.15,
+          "nodePeakRssMB": 261.15
+        },
+        {
+          "name": "accepted-export",
+          "wallMs": 3016,
+          "cpuMs": 2641,
+          "heapDeltaMB": 61.07,
+          "rssMB": 340.36,
+          "nodePeakRssMB": 378.5
+        },
+        {
+          "pages": 20,
+          "references": 840,
+          "captureReads": 1680,
+          "referenceReads": 4,
+          "manifestReads": 3,
+          "catalogBytes": 6508639
+        }
+      ]
+    },
+    {
+      "tag": "repeat-baseline-3",
+      "node": "v24.15.0",
+      "observations": [
+        {
+          "name": "coverage",
+          "wallMs": 162,
+          "cpuMs": 202,
+          "heapDeltaMB": 46.53,
+          "rssMB": 261.39,
+          "nodePeakRssMB": 261.39
+        },
+        {
+          "name": "accepted-export",
+          "wallMs": 3015,
+          "cpuMs": 2782,
+          "heapDeltaMB": 61.07,
+          "rssMB": 340.83,
+          "nodePeakRssMB": 378.84
+        },
+        {
+          "pages": 20,
+          "references": 840,
+          "captureReads": 1680,
+          "referenceReads": 4,
+          "manifestReads": 3,
+          "catalogBytes": 6508639
+        }
+      ]
+    },
+    {
+      "tag": "repeat-optimized-3",
+      "node": "v24.15.0",
+      "observations": [
+        {
+          "name": "coverage",
+          "wallMs": 147,
+          "cpuMs": 141,
+          "heapDeltaMB": 24.7,
+          "rssMB": 207.4,
+          "nodePeakRssMB": 224.07
+        },
+        {
+          "name": "accepted-export",
+          "wallMs": 1267,
+          "cpuMs": 1062,
+          "heapDeltaMB": 41.22,
+          "rssMB": 237.15,
+          "nodePeakRssMB": 237.15
+        },
+        {
+          "pages": 20,
+          "references": 840,
+          "captureReads": 0,
+          "referenceReads": 0,
+          "manifestReads": 0,
+          "catalogBytes": 4275843
+        }
+      ]
+    }
+  ],
+  "captureSamples": [
+    {
+      "tag": "baseline",
+      "node": "v24.15.0",
+      "observations": [
+        {
+          "name": "six-profile-capture",
+          "wallMs": 31096,
+          "cpuMs": 2813,
+          "heapDeltaMB": 9.18,
+          "rssMB": 168.52,
+          "nodePeakRssMB": 240.06
+        },
+        {
+          "discovered": 0,
+          "captured": 1,
+          "reused": 0,
+          "unresolved": 0,
+          "incomplete": 0,
+          "unsupported": 0,
+          "blocked": 0,
+          "failed": 0,
+          "classified": 0,
+          "pendingClassification": 24,
+          "interrupted": false
+        },
+        {
+          "contexts": 6,
+          "screenshots": 24
+        }
+      ]
+    },
+    {
+      "tag": "optimized",
+      "node": "v24.15.0",
+      "observations": [
+        {
+          "name": "six-profile-capture",
+          "wallMs": 29481,
+          "cpuMs": 2109,
+          "heapDeltaMB": 8.85,
+          "rssMB": 163.36,
+          "nodePeakRssMB": 226.29
+        },
+        {
+          "discovered": 0,
+          "captured": 1,
+          "reused": 0,
+          "unresolved": 0,
+          "incomplete": 0,
+          "unsupported": 0,
+          "blocked": 0,
+          "failed": 0,
+          "classified": 0,
+          "pendingClassification": 24,
+          "interrupted": false
+        },
+        {
+          "contexts": 6,
+          "screenshots": 24
+        }
+      ]
+    },
+    {
+      "tag": "native-final",
+      "node": "v24.15.0",
+      "observations": [
+        {
+          "name": "six-profile-capture",
+          "wallMs": 29397,
+          "cpuMs": 1750,
+          "heapDeltaMB": 4.6,
+          "rssMB": 135.39,
+          "nodePeakRssMB": 195.55
+        },
+        {
+          "discovered": 0,
+          "captured": 1,
+          "reused": 0,
+          "unresolved": 0,
+          "incomplete": 0,
+          "unsupported": 0,
+          "blocked": 0,
+          "failed": 0,
+          "classified": 0,
+          "pendingClassification": 24,
+          "interrupted": false
+        },
+        {
+          "contexts": 6,
+          "screenshots": 24
+        }
+      ]
+    }
+  ],
+  "installTrials": {
+    "npm": "12.0.2",
+    "pnpm": "12.11.2",
+    "conditions": "Original matching lock graph; fresh node_modules; warmed separate stores; offline; Sharp and esbuild scripts enabled; alternating order; excludes manager and Chromium downloads",
+    "samples": [
+      {
+        "manager": "npm",
+        "trial": 0,
+        "wallMs": 3553,
+        "exitCode": 0
+      },
+      {
+        "manager": "pnpm",
+        "trial": 0,
+        "wallMs": 926,
+        "exitCode": 0
+      },
+      {
+        "manager": "pnpm",
+        "trial": 1,
+        "wallMs": 1099,
+        "exitCode": 0
+      },
+      {
+        "manager": "npm",
+        "trial": 1,
+        "wallMs": 3659,
+        "exitCode": 0
+      },
+      {
+        "manager": "npm",
+        "trial": 2,
+        "wallMs": 3676,
+        "exitCode": 0
+      },
+      {
+        "manager": "pnpm",
+        "trial": 2,
+        "wallMs": 1126,
+        "exitCode": 0
+      }
+    ]
+  },
+  "cliStartup": {
+    "conditions": "Same native-compatible source; five pairs, tsx first in each pair; Node process exit included; no browser/model",
+    "samples": [
+      {
+        "mode": "tsx",
+        "trial": 0,
+        "wallMs": 1141
+      },
+      {
+        "mode": "native",
+        "trial": 0,
+        "wallMs": 611
+      },
+      {
+        "mode": "tsx",
+        "trial": 1,
+        "wallMs": 873
+      },
+      {
+        "mode": "native",
+        "trial": 1,
+        "wallMs": 615
+      },
+      {
+        "mode": "tsx",
+        "trial": 2,
+        "wallMs": 887
+      },
+      {
+        "mode": "native",
+        "trial": 2,
+        "wallMs": 592
+      },
+      {
+        "mode": "tsx",
+        "trial": 3,
+        "wallMs": 877
+      },
+      {
+        "mode": "native",
+        "trial": 3,
+        "wallMs": 582
+      },
+      {
+        "mode": "tsx",
+        "trial": 4,
+        "wallMs": 911
+      },
+      {
+        "mode": "native",
+        "trial": 4,
+        "wallMs": 592
+      }
+    ]
+  },
+  "imageEncoding": [
+    {
+      "input": "gradient-ui",
+      "candidates": {
+        "png-3-webp-3": {
+          "medianWallMs": 72,
+          "medianCpuMs": 109,
+          "pngBytes": 566990,
+          "webpBytes": 13232,
+          "samples": [
+            {
+              "wallMs": 72,
+              "cpuMs": 109,
+              "pngBytes": 566990,
+              "webpBytes": 13232
+            },
+            {
+              "wallMs": 71,
+              "cpuMs": 171,
+              "pngBytes": 566990,
+              "webpBytes": 13232
+            },
+            {
+              "wallMs": 72,
+              "cpuMs": 78,
+              "pngBytes": 566990,
+              "webpBytes": 13232
+            }
+          ]
+        },
+        "png-1-webp-2": {
+          "medianWallMs": 58,
+          "medianCpuMs": 140,
+          "pngBytes": 805670,
+          "webpBytes": 13782,
+          "samples": [
+            {
+              "wallMs": 62,
+              "cpuMs": 63,
+              "pngBytes": 805670,
+              "webpBytes": 13782
+            },
+            {
+              "wallMs": 58,
+              "cpuMs": 140,
+              "pngBytes": 805670,
+              "webpBytes": 13782
+            },
+            {
+              "wallMs": 57,
+              "cpuMs": 141,
+              "pngBytes": 805670,
+              "webpBytes": 13782
+            }
+          ]
+        },
+        "png-6-webp-4": {
+          "medianWallMs": 84,
+          "medianCpuMs": 125,
+          "pngBytes": 485934,
+          "webpBytes": 13218,
+          "samples": [
+            {
+              "wallMs": 84,
+              "cpuMs": 125,
+              "pngBytes": 485934,
+              "webpBytes": 13218
+            },
+            {
+              "wallMs": 83,
+              "cpuMs": 220,
+              "pngBytes": 485934,
+              "webpBytes": 13218
+            },
+            {
+              "wallMs": 84,
+              "cpuMs": 94,
+              "pngBytes": 485934,
+              "webpBytes": 13218
+            }
+          ]
+        }
+      }
+    },
+    {
+      "input": "textured-media",
+      "candidates": {
+        "png-3-webp-3": {
+          "medianWallMs": 282,
+          "medianCpuMs": 312,
+          "pngBytes": 8843840,
+          "webpBytes": 26300,
+          "samples": [
+            {
+              "wallMs": 283,
+              "cpuMs": 297,
+              "pngBytes": 8843840,
+              "webpBytes": 26300
+            },
+            {
+              "wallMs": 282,
+              "cpuMs": 312,
+              "pngBytes": 8843840,
+              "webpBytes": 26300
+            },
+            {
+              "wallMs": 281,
+              "cpuMs": 313,
+              "pngBytes": 8843840,
+              "webpBytes": 26300
+            }
+          ]
+        },
+        "png-1-webp-2": {
+          "medianWallMs": 172,
+          "medianCpuMs": 234,
+          "pngBytes": 10738009,
+          "webpBytes": 25472,
+          "samples": [
+            {
+              "wallMs": 173,
+              "cpuMs": 234,
+              "pngBytes": 10738009,
+              "webpBytes": 25472
+            },
+            {
+              "wallMs": 170,
+              "cpuMs": 235,
+              "pngBytes": 10738009,
+              "webpBytes": 25472
+            },
+            {
+              "wallMs": 172,
+              "cpuMs": 219,
+              "pngBytes": 10738009,
+              "webpBytes": 25472
+            }
+          ]
+        },
+        "png-6-webp-4": {
+          "medianWallMs": 277,
+          "medianCpuMs": 344,
+          "pngBytes": 8843840,
+          "webpBytes": 26412,
+          "samples": [
+            {
+              "wallMs": 277,
+              "cpuMs": 484,
+              "pngBytes": 8843840,
+              "webpBytes": 26412
+            },
+            {
+              "wallMs": 281,
+              "cpuMs": 281,
+              "pngBytes": 8843840,
+              "webpBytes": 26412
+            },
+            {
+              "wallMs": 276,
+              "cpuMs": 344,
+              "pngBytes": 8843840,
+              "webpBytes": 26412
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "bunPilot": {
+    "version": "1.4.3",
+    "release": {
+      "version": "1.4.3",
+      "url": "https://github.com/oven-sh/bun/releases/download/bun-v1.4.3/bun-windows-x64.zip",
+      "sha256": "0bf84e808552beea67bf1202a287a35c6c825d837b287b3f8e9dd513dba35d3d"
+    },
+    "command": "bun test tests/store.test.ts tests/quality.test.ts tests/image-capture.test.ts",
+    "testedBefore": "Additional layered clipping fixture and native-Node migration",
+    "passed": 10,
+    "failed": 16,
+    "notes": "Seven screenshot tests passed. Failures were EBUSY cleanup after SQLite use. No Bun throughput conclusion."
+  }
+}

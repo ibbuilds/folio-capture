@@ -1,5 +1,7 @@
 # First release validation
 
+Commands in this document record the original validation runs. Current helper scripts run with `node scripts/<name>.ts`; the runtime no longer requires tsx. No new live validation is claimed by the [performance study](performance.md).
+
 The implementation and acceptance evidence are separate. A captured page is not automatically approved for the future Folio catalog.
 
 ## Automated verification
