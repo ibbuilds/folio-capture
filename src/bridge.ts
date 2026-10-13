@@ -600,7 +600,7 @@ export class AnalysisBridge {
             )
               continue;
             const concept = TAXONOMY[l.axis as TaxonomyAxis]?.find(
-              (c) => c.label === l.label || c.aliases.includes(l.label.trim().toLowerCase()),
+              (c) => c.label === l.label.trim().toLowerCase() || c.aliases.includes(l.label.trim().toLowerCase()),
             );
             if (
               concept &&

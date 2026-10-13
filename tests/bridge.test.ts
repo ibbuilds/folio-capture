@@ -878,6 +878,8 @@ test('all review problems are returned together, counted and repaired without lo
       error.issues.some((i) => i.path === 'appearance:clean') &&
       error.issues.some((i) => i.path === 'visual_style:minimalism'),
   );
+  const uppercase=labels('page','i1');uppercase.labels.find(l=>l.axis==='visual_style')!.label=' MINIMALISM ';
+  await assert.rejects(bridge.submit(task.packet.id,uppercase,undefined,context.clientId),error=>error instanceof ReviewValidationError && error.issues.some(i=>i.path==='visual_style:minimalism'));
   const unsupported = labels('page', 'i1');
   unsupported.labels[0].axis = '__proto__';
   unsupported.labels[1].label = 'invented';
