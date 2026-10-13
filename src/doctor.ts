@@ -73,7 +73,7 @@ export async function doctor(config: Config, port = 4317) {
       inferenceStarted: false,
       next: status.connection.paired
         ? 'The paired chat drives the loop.'
-        : 'In a new ordinary ChatGPT Desktop chat, select Folio Capture and ask it to call get_context and start_run. A plugin search is not a connection.',
+        : 'Ordinary ChatGPT requires a registered Secure MCP Tunnel connection to this engine. Keep tunnel-client running, select the connected plugin and call get_context and start_run. The packaged STDIO launcher requires a local-executor thread.',
     };
   } catch (error) {
     return {
@@ -82,7 +82,7 @@ export async function doctor(config: Config, port = 4317) {
       paired: false,
       ready: false,
       error: errorMessage(error),
-      next: 'Start npm run capture -- --classifier mcp and keep that terminal open. Then connect the Folio plugin in ChatGPT Desktop.',
+      next: 'Start npm run capture -- --classifier mcp and keep that terminal open. For ordinary ChatGPT, keep its registered Secure MCP Tunnel running too.',
       inferenceStarted: false,
     };
   } finally {

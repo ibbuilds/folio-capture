@@ -87,7 +87,7 @@ export async function main(args=process.argv.slice(2)) {
       runOptions:{refresh:command==='refresh'||flags.has('--refresh'),classifyOnly:command==='classify'||command==='reassess',reassess:command==='reassess'}});
     console.log(`Folio engine: http://127.0.0.1:${port}/mcp. Keep this terminal open.`);
     console.log('Classifier: NOT PAIRED. Collection is blocked until the ChatGPT plugin completes get_context and start_run.');
-    console.log('In ordinary ChatGPT Desktop Chat, select @Folio Capture and say: Start Folio and continue its collection/review loop until done.');
+    console.log('Ordinary ChatGPT: connect Secure MCP Tunnel in Plugins, then select @Folio Capture Tunnel and start the loop. Local-executor threads can use the packaged Desktop launcher.');
     console.log('Saved reviews are processed first; collection waits for validated judgments. This engine never starts Codex or calls a model API.');
     const stop=()=>{void new Workflow(config).shutdown().finally(()=>server.close());};
     process.once('SIGINT',stop);process.once('SIGTERM',stop);return;
