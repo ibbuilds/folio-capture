@@ -12,6 +12,7 @@ import { exportFileViews } from './views.ts';
 
 /** Immutable export generations: catalog.json is the single atomic publication point. */
 export async function exportAccepted(store:Store,profiles?:CaptureProfile[]) {
+  const taxonomy=taxonomyDocument(),verifiedAssets=new Set<string>();
   const captures=store.exportCaptures(),captureById=new Map(captures.map(c=>[c.id,c]));
   const records=store.exportReferences();
   const eligible=records.filter(r=>r.quality.verdict==='accepted' && hasCurrentClassification(r) && !r.pruned);
@@ -22,7 +23,11 @@ export async function exportAccepted(store:Store,profiles?:CaptureProfile[]) {
     try {
       for(const frame of record.subject.frames) {
         const asset=await trustedAsset(root,frame.path);
-        if(createHash('sha256').update(await readFile(asset)).digest('hex')!==frame.sha256)throw new Error('Image hash mismatch');
+        const assetKey=`${asset}:${frame.sha256}`;
+        if(!verifiedAssets.has(assetKey)) {
+          if(createHash('sha256').update(await readFile(asset)).digest('hex')!==frame.sha256)throw new Error('Image hash mismatch');
+          verifiedAssets.add(assetKey);
+        }
         await trustedAsset(root,frame.thumbnail);
       }
       references.push({id:record.subject.id,parentId:record.subject.parentId,siteId:record.subject.siteId,pageId:record.subject.pageId,
@@ -60,7 +65,7 @@ export async function exportAccepted(store:Store,profiles?:CaptureProfile[]) {
       if(!/^[a-z0-9][a-z0-9_-]*$/.test(label.label))continue;
       add(`${axis}/${label.label}`,reference.id);
       if(label.axis==='visual_style' && label.role)add(`aesthetic-${label.role}/${label.label}`,reference.id);
-      const concept=taxonomyDocument().axes[label.axis].find(c=>c.label===label.label);
+      const concept=taxonomy.axes[label.axis].find(c=>c.label===label.label);
       if(label.axis==='visual_style' && concept?.familyId)add(`family/${concept.familyId.toLowerCase()}`,reference.id);
       // Clean is a discovery synonym across aesthetics; it remains an appearance label in metadata.
       if(label.axis==='appearance' && label.label==='clean')add('aesthetic/clean',reference.id);
@@ -72,7 +77,7 @@ export async function exportAccepted(store:Store,profiles?:CaptureProfile[]) {
   await mkdir(staging,{recursive:true});
   const coverage=buildCoverage(store,profiles,acceptedIds,{captures,records});
   await atomicJson(join(staging,'coverage.json'),coverage);
-  await atomicJson(join(staging,'taxonomy.json'),taxonomyDocument());
+  await atomicJson(join(staging,'taxonomy.json'),taxonomy);
   for(const [key,ids] of Object.entries(indexes))await atomicJson(join(staging,'indexes',`${key}.json`),{schemaVersion:2,category:key,referenceIds:[...ids]},false);
   const catalog={schemaVersion:2,generatedAt:now(),experimental:true,qualityValidation:'unvalidated',editorialApproval:'unreviewed-candidates',taxonomyVersion:TAXONOMY_VERSION,
     taxonomy:`${generation}/taxonomy.json`,coverage:`${generation}/coverage.json`,assetBase:'.',generation,
