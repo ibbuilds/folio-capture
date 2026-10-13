@@ -1,9 +1,10 @@
-import type { TaxonomyAxis } from './types.ts';
+import type { TaxonomyAxis, Label, EvidenceItem } from './types.ts';
+import { SELECTED_AESTHETICS, SELECTED_SUBSTYLES, SELECTED_COLLECTIONS, SELECTED_SOURCE, SELECTED_SOURCE_HASH, SELECTED_FAMILIES } from './selected-taxonomy.ts';
 
-export const TAXONOMY_VERSION = '2.0.0';
-export const CLASSIFIER_PROMPT_VERSION = '2.0.0';
+export const TAXONOMY_VERSION = '3.0.0-I.1';
+export const CLASSIFIER_PROMPT_VERSION = '3.0.0';
 
-export type TaxonomyDefinition = { label: string; definition: string; aliases: string[]; supportingTraits: string[]; counterexamples: string[]; confusingNeighbors: string[] };
+export type TaxonomyDefinition = { label: string; definition: string; aliases: string[]; supportingTraits: string[]; counterexamples: string[]; confusingNeighbors: string[]; id?:string; displayName?:string; familyId?:string; parentLabel?:string; relatedSearchTerms?:string[]; status?:string; evidenceRequirement?:string };
 const entries = (values: Record<string, string>): TaxonomyDefinition[] =>
   Object.entries(values).map(([label, definition]) => ({ label, definition, aliases: [], supportingTraits: [definition], counterexamples: ['A source tag alone does not establish this concept.'], confusingNeighbors: [] }));
 
@@ -71,26 +72,7 @@ export const TAXONOMY: Record<TaxonomyAxis, TaxonomyDefinition[]> = {
     'layered-media': 'Visuals intentionally overlap one another or text.',
     unknown: 'The supplied evidence does not establish a composition.',
   }),
-  visual_style: entries({
-    minimal: 'Restrained ornament and graphic language with deliberate hierarchy and a clean visual framework. Complex UI imagery or dense content can coexist with this aesthetic; whitespace alone is insufficient.',
-    editorial: 'A publication-like typographic and compositional treatment.',
-    geometric: 'Geometric shapes materially organize the visual treatment.',
-    playful: 'Expressive, informal visual choices materially shape the design.',
-    maximalist: 'Deliberately rich layering, density, or visual variety.',
-    brutalist: 'Several raw or confrontational visual traits; bold typography alone is insufficient.',
-    'neo-brutalist': 'Bold flat color, pronounced outlines, and hard offset shadows materially shape the design.',
-    glassmorphism: 'Translucent, blurred surfaces visibly layer over a background.',
-    neumorphism: 'Soft extruded or inset surfaces supported by paired shading.',
-    skeuomorphic: 'Interface visuals deliberately imitate identifiable real-world materials or objects.',
-    industrial: 'Technical labeling, exposed structural motifs, or utilitarian visual choices materially shape the aesthetic.',
-    futuristic: 'Several visible technological or speculative visual motifs materially shape the design.',
-    cinematic: 'Immersive imagery and dramatic visual hierarchy create a film-like presentation.',
-    vaporwave: 'A coherent retro-futurist treatment using nostalgic digital motifs with surreal pastel or neon color, simulated early computer graphics, or classical imagery. A gradient alone is insufficient.',
-    retro: 'Several identifiable historical visual conventions materially shape the aesthetic.',
-    organic: 'Natural forms, irregular curves, or tactile natural motifs materially shape the aesthetic.',
-    luxurious: 'Several visible restrained, refined, or material-rich traits form a luxury aesthetic; brand or price alone is insufficient.',
-    unknown: 'The supplied evidence does not establish a visual style.',
-  }),
+  visual_style: [],
   appearance: entries({
     clean: 'Clear hierarchy, controlled alignment, readable typography, and low visual interference; may coexist with dense content or expressive aesthetics.',
     glassmorphism: 'Visibly translucent layered surfaces with background-dependent blur and legible foreground content.',
@@ -203,6 +185,8 @@ export const TAXONOMY: Record<TaxonomyAxis, TaxonomyDefinition[]> = {
     'command-menu': 'An actually visible command-palette/menu state.',
     unknown: 'The supplied evidence does not establish an observed interaction pattern; do not invent flows.',
   }),
+  aesthetic_substyle: [], cross_collection: [], visual_anchor: [], experience_mode: [],
+  platform_provenance: [], contextual_influence: [], behavior: [],
 };
 
 export const TAXONOMY_AXES = Object.keys(TAXONOMY) as TaxonomyAxis[];
@@ -222,24 +206,7 @@ export const SOURCE_LABEL_ALIASES: Record<string, { axis: TaxonomyAxis; label: s
   ecommerce: { axis: 'experience', label: 'commerce' },
   'e-commerce': { axis: 'experience', label: 'commerce' },
   dashboard: { axis: 'page_purpose', label: 'dashboard' },
-  minimal: { axis: 'visual_style', label: 'minimal' },
-  minimalistic: { axis: 'visual_style', label: 'minimal' },
   clean: { axis: 'appearance', label: 'clean' },
-  vaporwave: { axis: 'visual_style', label: 'vaporwave' },
-  retro: { axis: 'visual_style', label: 'retro' },
-  neobrutalism: { axis: 'visual_style', label: 'neo-brutalist' },
-  minimalist: { axis: 'visual_style', label: 'minimal' },
-  minimalism: { axis: 'visual_style', label: 'minimal' },
-  brutalism: { axis: 'visual_style', label: 'brutalist' },
-  brutalist: { axis: 'visual_style', label: 'brutalist' },
-  'neo-brutalism': { axis: 'visual_style', label: 'neo-brutalist' },
-  'neo-brutalist': { axis: 'visual_style', label: 'neo-brutalist' },
-  glassmorphism: { axis: 'visual_style', label: 'glassmorphism' },
-  neumorphism: { axis: 'visual_style', label: 'neumorphism' },
-  skeuomorphic: { axis: 'visual_style', label: 'skeuomorphic' },
-  futuristic: { axis: 'visual_style', label: 'futuristic' },
-  cinematic: { axis: 'visual_style', label: 'cinematic' },
-  industrial: { axis: 'visual_style', label: 'industrial' },
   saas: { axis: 'industry', label: 'software-saas' },
   finance: { axis: 'industry', label: 'finance' },
   education: { axis: 'industry', label: 'education' },
@@ -264,18 +231,7 @@ const distinctions: Record<string, { aliases: string[]; traits: string[]; counte
   vaporwave: { aliases: ['vapor-wave'], traits: ['Retro-futurist nostalgia','Surreal digital motifs','Pastel/neon with historical computing or classical references'], counter: ['Pink gradient alone','Any futuristic dark interface'], neighbors: ['retro','futuristic','maximalist'] },
   futuristic: { aliases: ['sci-fi'], traits: ['Speculative technological motifs','Coherent advanced-interface visual language'], counter: ['An AI product name','Dark palette alone'], neighbors: ['industrial','vaporwave'] },
 };
-const styleDistinctions: Record<string, [string[], string[], string[]]> = {
-  editorial: [['Publication-like type hierarchy','Deliberate reading rhythm'],['A serif headline on an otherwise conventional application'],['minimal','luxurious']],
-  geometric: [['Repeated geometric forms organize hierarchy'],['One decorative circle or an ordinary rectangular card'],['minimal','playful']],
-  playful: [['Informal expressive forms','A coherent lighthearted tone'],['A single bright accent on a formal interface'],['geometric','maximalist']],
-  maximalist: [['Intentional layered variety','Rich information or ornament arranged coherently'],['Accidental clutter or an unstyled crowded page'],['playful','vaporwave']],
-  skeuomorphic: [['Identifiable physical object or material analogy','Affordances follow the analogy'],['An ordinary soft shadow without a physical metaphor'],['neumorphism','retro']],
-  industrial: [['Exposed structural motifs','Technical labeling','Utilitarian detailing'],['An industrial company logo with generic cards'],['futuristic','brutalist']],
-  cinematic: [['Immersive imagery','Dramatic staged composition','Film-like pacing visible in captured states'],['Any full-width photograph'],['luxurious','editorial']],
-  organic: [['Natural irregular forms','Coherent tactile or living motifs'],['Green branding or a single leaf icon'],['playful','skeuomorphic']],
-  luxurious: [['Refined hierarchy','Controlled material-rich details','Consistent crafted presentation'],['A high price or gold accent alone'],['minimal','editorial']],
-};
-const axisCounterexamples: Record<TaxonomyAxis, string> = {
+const axisCounterexamples: Partial<Record<TaxonomyAxis, string>> = {
   experience:'A marketing screenshot depicting an application does not establish that the page itself is an application.',
   page_purpose:'A pricing or about link in navigation does not make the current page a pricing or about page.',
   section_purpose:'Neighboring section headings and navigation destinations do not establish this section function.',
@@ -307,11 +263,8 @@ for (const [axisName, concepts] of Object.entries(TAXONOMY)) for (const concept 
   const axis=axisName as TaxonomyAxis;
   const distinction = distinctions[concept.label];
   if (distinction && (axis==='visual_style'||axis==='appearance')) Object.assign(concept, { aliases: distinction.aliases, supportingTraits: distinction.traits, counterexamples: distinction.counter, confusingNeighbors: distinction.neighbors });
-  else if(axis==='visual_style' && styleDistinctions[concept.label]) {
-    const [traits,counter,neighbors]=styleDistinctions[concept.label];
-    Object.assign(concept,{supportingTraits:traits,counterexamples:counter,confusingNeighbors:neighbors});
-  } else {
-    concept.counterexamples=[axisCounterexamples[axis]];
+  else {
+    concept.counterexamples=[axisCounterexamples[axis]??'A source tag or isolated motif is insufficient.'];
     concept.confusingNeighbors=[...new Set((related[axis]??[]).filter(pair=>pair.includes(concept.label)).flat().filter(label=>label!==concept.label&&concepts.some(c=>c.label===label)))];
     if(!concept.confusingNeighbors.length)concept.confusingNeighbors=['unknown'];
     if(concept.label==='unknown') {
@@ -321,7 +274,104 @@ for (const [axisName, concepts] of Object.entries(TAXONOMY)) for (const concept 
     }
   }
 }
+// Replace the historical broad style vocabulary. Old saved classifications remain versioned
+// and are never silently relabeled as one of these more specific concepts.
+const unknown = (axis:string):TaxonomyDefinition => ({label:'unknown',definition:`Insufficient direct evidence for ${axis}.`,aliases:[],
+  supportingTraits:['Insufficient inspected evidence'],counterexamples:['Direct support for a specific concept'],confusingNeighbors:[]});
+TAXONOMY.visual_style=[...SELECTED_AESTHETICS,unknown('aesthetic')];
+TAXONOMY.aesthetic_substyle=[...SELECTED_SUBSTYLES,unknown('substyle')];
+TAXONOMY.cross_collection=[...SELECTED_COLLECTIONS,unknown('collection membership')];
+const facetAxes:Record<string,TaxonomyAxis>={color:'color_palette',composition:'composition',material:'surface_treatment',
+  behavior:'behavior',visual_anchor:'visual_anchor',experience_mode:'experience_mode',provenance:'platform_provenance',contextual_influences:'contextual_influence'};
+const facetDefinitions:Record<string,string>={
+  neon:'Luminous highly saturated color materially shapes the inspected palette.',
+  'earth-tones':'Brown, ochre, olive and other natural earth hues materially organize the palette.',
+  'high-saturation':'Strongly saturated colors dominate the inspected palette.',
+  'fluid-chromatic':'Flowing multicolor gradients or liquid color fields materially shape the inspected composition.',
+  'semi-flat':'Flat surfaces retain restrained depth cues and clear control boundaries.',
+  chrome:'Reflective metallic highlights materially shape visible surfaces.',glass:'Translucent glass-like panels materially shape visible depth.',
+  'soft-relief':'Continuous surfaces use paired light and dark relief shading.',clay:'Rounded inflated clay-like volumes materially shape visible components.',
+  paper:'Visible paper grain, folds, edges or print textures organize surfaces.',grain:'Intentional grain materially shapes the visible texture.',glossy:'Specular highlights materially shape polished surfaces.',
+  maximalist:'Deliberate rich layering and variety organize the inspected composition.',layered:'Overlapping visual groups materially organize hierarchy and depth.',
+  cybersigilism:'Sharp branching metallic or ink-like cybernetic sigils materially shape visible ornament.',
+  'laser-grid':'Luminous geometric perspective grids materially shape the visual environment.',
+  stickerbomb:'Dense overlapping sticker-like motifs materially organize visible ornament.',fractal:'Repeated self-similar forms materially organize imagery.',
+  halftone:'Visible repeated dots or print-screen patterns materially shape the graphics.',
+  'botanical-ornament':'Plant forms materially organize frames, dividers or ornament.',
+  cinematic:'Dramatic staged imagery and hierarchy create a film-like presentation; a still does not prove pacing.',
+  spatial:'Visible depth and perspective organize a spatial composition; a still does not prove navigation.',
+  immersive:'The scene envelops the inspected viewport and uses a coherent environmental presentation.',
+  'interactive-art':'Captured context identifies browser-based interactive artwork; a static image alone cannot prove interaction.',
+  'game-like':'Visible menus, scenes or controls use a coherent game-like interface vocabulary.',
+  glitch:'Visible deliberate media corruption; this label does not establish animation.',
+  parallax:'Captured motion evidence establishes differential movement between layers.',
+  'scroll-story':'Captured scroll states establish a staged narrative transition.',
+  'hover-rich':'Captured hover transitions establish materially changing visual states.',
+  procedural:'Direct implementation evidence establishes generative procedural graphics.',
+  'audio-reactive':'Captured interaction evidence establishes a visual response to audio.',
+  '3d-navigation':'Captured interaction evidence establishes navigation through a 3D environment.',
+};
+for(const [facet,axis] of Object.entries(facetAxes)) {
+  for(const value of SELECTED_SOURCE.facets[facet]??[]) {
+    // These selected tokens describe existing dimensions; do not relabel density/type as aesthetics.
+    if(facet==='composition' && ['dense','sparse','oversized-type'].includes(value))continue;
+    const label=value.toLowerCase().replaceAll(' ','-');
+    if(TAXONOMY[axis].some(c=>c.label===label))continue;
+    const definition=facetDefinitions[label]??(axis==='platform_provenance'?`Direct captured attribution identifies ${value}; resemblance alone is insufficient.`:
+      `Direct captured contextual evidence supports ${value} as an influence; generic motifs alone are insufficient.`);
+    TAXONOMY[axis].push({id:`facet:${facet}:${label}`,label,displayName:value,definition,aliases:[value.toLowerCase()],
+      supportingTraits:[definition],counterexamples:['A source tag, isolated accent or inferred implementation is insufficient.'],confusingNeighbors:['unknown'],
+      evidenceRequirement:['platform_provenance','contextual_influence'].includes(axis)?'Inspected frame plus directly captured contextual evidence.':'Inspected visual evidence; behavioral claims additionally require observed states.'});
+  }
+  if(!TAXONOMY[axis].some(c=>c.label==='unknown'))TAXONOMY[axis].push(unknown(axis));
+}
+for(const [alias,claim] of Object.entries(SOURCE_LABEL_ALIASES))if(!TAXONOMY[claim.axis].some(c=>c.label===claim.label))delete SOURCE_LABEL_ALIASES[alias];
+for(const axis of ['visual_style','aesthetic_substyle','cross_collection'] as const)for(const c of TAXONOMY[axis]) {
+  if(c.label==='unknown')continue;
+  for(const alias of [c.label,...c.aliases]) {
+    // Keep the established clean appearance source tag separate from a dominant Clean aesthetic.
+    if(alias==='clean')continue;
+    SOURCE_LABEL_ALIASES[alias]={axis,label:c.label};
+  }
+}
+export const TAXONOMY_FINGERPRINT = `${TAXONOMY_VERSION}:${SELECTED_SOURCE_HASH}`;
+export function taxonomyDocument() {return {version:TAXONOMY_VERSION,sourceVersion:'I.1',sourceHash:SELECTED_SOURCE_HASH,
+  families:SELECTED_FAMILIES,axes:TAXONOMY,referenceApproval:'No concepts or model classifications certify a reference for publication.'};}
 export function normalizeLabel(axis: TaxonomyAxis, input: string): string | undefined {
   const value = input.trim().toLowerCase();
   return TAXONOMY[axis].find(concept => concept.label === value || concept.aliases.includes(value))?.label;
+}
+
+/** Relations apply to one inspected subject at a time; never consult parent labels. */
+export function validateLabelRelations(labels:Label[], evidence:EvidenceItem[], images:Set<string>):Label[] {
+  const scopes=[...new Set(labels.map(l=>l.regionId))];
+  for(const regionId of scopes) {
+    const scoped=labels.filter(l=>l.regionId===regionId);
+    for(const axis of TAXONOMY_AXES) {
+      const claims=scoped.filter(l=>l.axis===axis);
+      if(new Set(claims.map(l=>l.label)).size!==claims.length)throw new Error('Duplicate taxonomy claim.');
+      if(claims.length>1 && claims.some(l=>l.label==='unknown'))throw new Error('Unknown cannot coexist with a supported claim on the same axis.');
+    }
+    const styles=scoped.filter(l=>l.axis==='visual_style' && l.label!=='unknown');
+    if(styles.length===1 && !styles[0].role)styles[0].role='primary';
+    if(styles.length && (styles.filter(l=>l.role==='primary').length!==1 || styles.some(l=>!l.role)))throw new Error('Specify one primary aesthetic and explicit secondary roles for mixed aesthetics.');
+    for(const claim of scoped) {
+      const concept=TAXONOMY[claim.axis].find(c=>c.label===claim.label)!;
+      if(claim.role && (claim.axis!=='visual_style' || claim.label==='unknown'))throw new Error('Only supported aesthetics have primary or secondary roles.');
+      if(concept.id)claim.conceptId=concept.id;
+      if(claim.label==='unknown')continue;
+      if(['aesthetic_substyle','cross_collection','visual_anchor','experience_mode','platform_provenance','contextual_influence','behavior'].includes(claim.axis) && !claim.evidenceIds.some(id=>images.has(id)))throw new Error('Selected concepts require an inspected frame.');
+      if(claim.axis==='aesthetic_substyle' && !styles.some(l=>l.label===concept.parentLabel))throw new Error('Substyle requires an independently supported parent aesthetic in this subject.');
+      const cited=evidence.filter(e=>claim.evidenceIds.includes(e.id));
+      if(['cross_collection','platform_provenance','contextual_influence'].includes(claim.axis) || claim.axis==='experience_mode' && claim.label==='interactive-art') {
+        const names=[concept.displayName??concept.label,...concept.aliases];
+        if(!cited.some(e=>['page-dom','region-dom','captured-attribution','implementation-provenance'].includes(e.kind) && names.some(name=>JSON.stringify(e.value).toLowerCase().includes(name.toLowerCase()))))throw new Error('Contextual membership requires captured attribution or contextual evidence.');
+      }
+      if(claim.axis==='behavior' && claim.label!=='glitch') {
+        const kind=claim.label==='procedural'?'implementation-provenance':'observed-interaction-state';
+        if(!cited.some(e=>e.kind===kind && typeof e.value==='object' && e.value!==null && (e.value as Record<string,unknown>).pattern===claim.label))throw new Error('Behavior requires directly observed matching state evidence.');
+      }
+    }
+  }
+  return labels;
 }

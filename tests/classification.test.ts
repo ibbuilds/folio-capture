@@ -89,7 +89,7 @@ else {
  if (mode === 'axis') value.labels[0].label = 'dashboard';
  if (mode === 'palette-style' || mode === 'type-style') { const style=value.labels.find(label => label.axis === 'visual_style') || value.labels[0]; style.axis='visual_style'; style.regionId=image.regionId; style.label=mode === 'palette-style' ? 'dark-palette' : 'oversized-typography'; style.evidenceIds=[image.evidenceId]; }
  if (mode === 'source-style') { value.labels[0].axis='visual_style'; value.labels[0].label='minimal'; value.labels[0].regionId=image.regionId; value.labels[0].evidenceIds = [data.evidence.find(e => e.kind === 'source-label').id]; }
- if (mode === 'scroll-image-only' || mode === 'scroll-observed') {
+ if ((mode === 'scroll-image-only' || mode === 'scroll-observed') && data.scope !== 'page') {
   const pattern=value.labels.find(label => label.axis === 'interaction_pattern');
   pattern.label='horizontal-scroll'; pattern.evidenceIds=[image.evidenceId]; pattern.confidence='high';
   if (mode === 'scroll-observed') pattern.evidenceIds.push(data.evidence.find(e => e.kind === 'observed-scroll-state' && e.regionId === pattern.regionId).id);
@@ -127,7 +127,7 @@ test('taxonomy defines constrained, distinct labels and explicit unknowns for ev
   assert(isTaxonomyLabel('color_palette', 'dark'));
   assert(isTaxonomyLabel('color_palette', 'light'));
   assert(isTaxonomyLabel('typography', 'oversized-type'));
-  assert(TAXONOMY.visual_style.find(entry => entry.label === 'minimal')?.definition.includes('Complex UI imagery or dense content can coexist'));
+  assert(TAXONOMY.visual_style.find(entry => entry.label === 'minimalism')?.definition.includes('Complex UI imagery or dense content can coexist'));
 });
 
 test('heuristics retain source claims separately, cite measured evidence, and abstain on style and flows', () => {
@@ -135,7 +135,7 @@ test('heuristics retain source claims separately, cite measured evidence, and ab
   const result = heuristicClassification(manifest, evidence);
   assert.equal(result.status, 'heuristic');
   assert.equal(result.sourceLabels.length, 3);
-  assert(result.labels.some(label => label.label === 'brutalist' && label.provenance === 'source' && label.confidence === 'low'));
+  assert(result.labels.some(label => label.label === 'web-brutalism' && label.provenance === 'source' && label.confidence === 'low'));
   assert(result.labels.some(label => label.label === 'features' && label.provenance === 'heuristic' && label.evidenceIds[0] === 'desktop-region-001-dom'));
   assert(result.labels.some(label => label.label === 'two-column' && label.provenance === 'measured'));
   assert(result.labels.some(label => label.axis === 'visual_style' && label.regionId === 'desktop-region-001' && label.label === 'unknown'));
@@ -178,7 +178,7 @@ test('saved-image enrichment constrains actions and command arguments despite ad
   assert.equal(result.runner, 'codex');
   assert.equal(result.model, 'existing-model');
   assert.equal(result.cacheKey, classificationCacheKey(manifest, evidence, settings));
-  assert(result.labels.some(label => label.label === 'minimal' && label.provenance === 'model' && label.evidenceIds[0]?.startsWith('image:')));
+  assert(result.labels.some(label => label.label === 'minimalism' && label.provenance === 'model' && label.evidenceIds[0]?.startsWith('image:')));
   assert(!result.labels.some(label => label.axis === 'visual_style' && label.regionId === 'desktop-region-001' && label.label === 'unknown'));
   assert.equal(calls.length, 2);
   const call = calls[0]!;
@@ -283,12 +283,12 @@ test('unconfigured model is explicitly recorded as the existing CLI default', as
   assert(result.warnings.some(warning => warning.includes('exact model/version')));
 });
 
-test('all fourteen retrieval axes abstain explicitly while measured typography and named audience retain evidence', () => {
+test('all retrieval axes abstain explicitly while measured typography and named audience retain evidence', () => {
   const { manifest, evidence } = fixture();
   (evidence[0]!.value as Record<string, unknown>).text = 'Our service is built for developers. Get started with features for customers.';
   (evidence[1]!.value as Record<string, unknown>).styles = { fontFamily: 'Inter, sans-serif', backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(12px)' };
   const result = heuristicClassification(manifest, evidence);
-  assert.equal(TAXONOMY_AXES.length, 14);
+  assert.equal(TAXONOMY_AXES.length, 21);
   assert(result.labels.some(label => label.axis === 'audience' && label.label === 'developers' && label.evidenceIds.includes('page-dom')));
   assert(result.labels.some(label => label.axis === 'typography' && label.label === 'sans-serif' && label.provenance === 'measured'));
   assert(!result.labels.some(label => label.axis === 'typography' && label.label === 'serif'));

@@ -38,6 +38,20 @@ test('Recent accumulates replaced cards, preserves entries, and records plateau 
   const events=await recent(routed(async route=>route.fulfill({contentType:'text/html',body:html(`<div id="cards"><a href="/i/first" style="display:block;height:1000px">First</a></div><script>let done=false;addEventListener('scroll',()=>{if(done||scrollY<1)return;done=true;setTimeout(()=>document.querySelector('#cards').innerHTML='<a href="/i/second">Second</a>',35);});</script>`)})));
   assert.equal(events.filter(e=>e.type==='entry').length,2,JSON.stringify(events));assert.equal((events.at(-1) as any).reason,'observed_plateau');
 });
+
+test('Recent retains transient cards while delayed replacements settle inside nested scrolling',async()=>{
+  const events=await recent(routed(async route=>route.fulfill({contentType:'text/html',body:html(`<div id="scroller" style="height:200px;overflow:auto"><div id="cards"><a href="/i/transient" style="display:block;height:1000px">Transient</a></div></div><script>
+    setTimeout(()=>document.querySelector('#cards').innerHTML='<a href="/i/initial" style="display:block;height:1000px">Initial</a>',5);
+    document.querySelector('#scroller').addEventListener('scroll',()=>{if(window.done)return;window.done=true;setTimeout(()=>document.querySelector('#cards').innerHTML='<a href="/i/late" style="display:block;height:1000px">Late</a>',300);});
+  </script>`)})));
+  assert.deepEqual(events.filter(e=>e.type==='entry').map(e=>new URL((e as any).entry.detailUrl).pathname).sort(),['/i/initial','/i/late','/i/transient']);
+  assert.equal((events.at(-1) as any).reason,'observed_plateau');
+});
+
+test('Recent loading that never settles remains incomplete rather than a successful plateau',async()=>{
+  const events=await recent(routed(async route=>route.fulfill({contentType:'text/html',body:html('<a href="/i/test">Test</a><div aria-busy="true" style="width:30px;height:30px">Loading</div>')})));
+  assert.equal((events.at(-1) as any).reason,'incomplete');assert.match((events.at(-1) as any).error,/did not settle/);
+});
 test('Recent follows pagination within selected category without crawling sibling categories',async()=>{
   const visited:string[]=[];
   const events=await recent(routed(async route=>{
@@ -54,8 +68,18 @@ test('Recent resolves only unambiguous original links; concepts and missing link
 test('Recent loading failures and unknown structures never count as processed exhaustion',async()=>{
   const events=await recent(routed(async route=>route.request().url().includes('/api/')?route.fulfill({status:500,body:'failure'}):route.fulfill({contentType:'text/html',body:html('<a href="/i/test">Test</a><script>fetch("/api/cards")</script>')})));
   assert.equal((events.at(-1) as any).reason,'incomplete');
+  assert.equal(events.filter(e=>e.type==='entry').length,1,'Observed identities survive failed loading');
   const unknown=await recent(routed(async route=>route.fulfill({contentType:'text/html',body:html('New structure')})));
   assert.match((unknown.at(-1) as any).error,/Unsupported/);
+});
+
+test('Recent stops before yielding when its observed batch cannot be persisted',async()=>{
+  let yielded=0;
+  await assert.rejects(async()=>{
+    for await(const event of discoverRecent({browser:routed(async route=>route.fulfill({contentType:'text/html',body:html('<a href="/i/test">Test</a><p>No more websites</p>')})),
+      seed:{url:'https://recent.design/websites',kind:'library'},settings,onDiscovered:()=>{throw new Error('Fixture SQLite failure');}}))if(event.type==='entry')yielded++;
+  },/batch persistence failed/);
+  assert.equal(yielded,0);
 });
 test('site mode deduplicates same-origin links and persists bounded breadth-first traversal',async t=>{
   const root=await mkdtemp(join(tmpdir(),'folio-site-'));const store=new Store(root);store.acquireLock();t.after(async()=>{store.close();await rm(root,{recursive:true,force:true,maxRetries:3});});

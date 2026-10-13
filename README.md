@@ -2,11 +2,13 @@
 
 A local reference-collection engine: **sources → discovery → clean capture → quality assessment → classification → export**. The future library frontend and MCP live in another repository.
 
-The [creator philosophy and crawler scope](docs/engine-principles.md) prioritize minimal operation, exceptional references within each aesthetic, and evidence useful to future human and MCP retrieval. The [creator-selected I.1 vocabulary](docs/aesthetics/selection-i1/README.md) is saved as the target for runtime integration.
+The [creator philosophy and crawler scope](docs/engine-principles.md) prioritize minimal operation, exceptional references within each aesthetic, and evidence useful to future human and MCP retrieval. The classifier uses the [creator-selected I.1 vocabulary](docs/aesthetics/selection-i1/README.md): 60 aesthetics, 36 candidate substyles, 11 navigational families and three contextual collections.
 
 ## Setup and use
 
 Requires Node **24.15–24.x**, the pinned Playwright Chromium build, and an authenticated Codex CLI for visual judgments.
+
+See the [Phase 1 runbook](docs/phase-one.md) for model-free collection, saved-image analysis, upgrades and the current supported scope.
 
 ```sh
 npm ci
@@ -45,6 +47,7 @@ Six profiles cover desktop (1920×1080, 1440×1000), tablet (1024×768, 768×102
 ```sh
 npm run capture -- --capture-only --limit 3
 npm run folio -- status
+npm run folio -- coverage
 npm run folio -- retry
 npm run folio -- refresh --source https://example.com/pricing
 npm run folio -- reassess
@@ -69,9 +72,12 @@ output/
   state.sqlite
   index.json                         # collection ledger, includes unassessed captures
   catalog.json                       # accepted, classified references only
+  coverage.json                      # aesthetics, substyles, viewports and traversal gaps
   quarantine.json                    # rejected/uncertain/pending/repair inventory
   exports/<generation>/
     catalog.json
+    coverage.json
+    taxonomy.json                    # definitions, identities, aliases and family membership
     indexes/aesthetic/clean.json
     indexes/section/testimonials.json
     indexes/viewport/tablet.json
@@ -85,7 +91,9 @@ output/
 
 `catalog.json` is published atomically after its immutable category-index generation is ready. Paths to images and indexes are relative to the **output root**. Each reference has stable IDs, parent links, viewport, image dimensions/hashes, exact-scope labels, evidence, provenance and quality decisions. Category indexes reference IDs; they never copy images. Site/page/section context nodes carry no invented inherited labels. Page-wide judgments live on their assessed page/viewport references. Site-wide quality remains unassessed: collecting some pages does not establish the quality of an entire site.
 
-Aesthetics and appearance are separate: minimal/minimalist/minimalistic normalize to minimal; clean remains independently searchable. Retro, vaporwave, futuristic, brutalist, neobrutalist, glass and neumorphic treatments have versioned definitions and evidence constraints. Multiple labels can coexist. Sections never inherit parent aesthetics. Library terminology stays source provenance.
+Aesthetics and appearance are separate: minimal/minimalist/minimalistic normalize to `minimalism`; clean appearance remains independently searchable across aesthetics. Mixed references have one primary aesthetic and explicitly supported secondary aesthetics. Candidate substyles need their own inspected evidence and a supported parent aesthetic in the same subject. Broad terms such as retro/futuristic are not silently mapped to a particular child aesthetic. Contextual collections, cultural influences and platform attribution need captured context; static screenshots do not establish motion. Sections never inherit parent aesthetics. Library terminology stays source provenance.
+
+`coverage` runs offline. It reports all selected aesthetics/substyles, configured profiles, source-tagged pages, current machine-qualified candidates, independent sites, missing viewports and library-entry outcomes. Human-reviewed coverage is untracked, not assumed. Gaps are reporting, not collection quotas. Each export contains a consistent coverage/taxonomy snapshot alongside its indexes. Older classifications stay versioned and are excluded from the current accepted export until reclassified; their history is retained in `references.v2.json`. Run `npm run folio -- classify` to upgrade accepted saved pixels without visiting websites.
 
 Quarantine is **logical**, so images remain at their original capture paths until explicit pruning. Pruning removes only old rejected assets not shared with accepted, uncertain, pending or unassessed subjects. URLs, hashes and reasons remain. Protected/shared assets may therefore survive pruning. Old export generations remain on disk; consumers should start from the current root catalog.
 
@@ -107,4 +115,4 @@ npm test
 
 The suite uses browser fixtures and mock classifiers: no live collection or authenticated model calls. It covers capture cleanup, coordinates, recovery, scoped selection, shared-image pruning, schema validation and adapter traversal. [Quality evaluation](docs/quality-evaluation.md) explains the independently reviewed benchmark input, precision, coverage and uncertainty. [Implementation notes](docs/engine-v2.md), [research](docs/classification-research.md), and [prior capture evidence](docs/validation.md) document scope and limitations.
 
-The [1980s–2026 aesthetics study](docs/aesthetics/README.md) traces UI languages, internet aesthetics, professional directions and surface treatments, including flat design. Its recognition guide distinguishes similar looks and records the strength of their UI evidence. This is research; the runtime taxonomy is unchanged.
+The [1980s–2026 aesthetics study](docs/aesthetics/README.md) remains historical context. The selected I.1 vocabulary supplies runtime labels; contract tests establish behavior, while aesthetic recognition and quality accuracy still need creator-reviewed examples and evaluation.
