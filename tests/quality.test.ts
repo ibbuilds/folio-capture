@@ -12,7 +12,8 @@ import { parseConfig } from '../src/config.ts';
 import { curateCapture, validateQualityPass, validateScopedLabels, CRITERIA, combinePasses } from '../src/quality.ts';
 import { exportAccepted, pruneQuarantine } from '../src/catalog.ts';
 import { referenceSubjects, subjectImageId } from '../src/references.ts';
-import { TAXONOMY, normalizeLabel } from '../src/taxonomy.ts';
+import { TAXONOMY, TAXONOMY_VERSION, normalizeLabel } from '../src/taxonomy.ts';
+import { buildCoverage } from '../src/coverage.ts';
 import type { PageManifest, Region } from '../src/types.ts';
 import type { ClassifierProcessRunner } from '../src/classification.ts';
 
@@ -68,7 +69,7 @@ test('scopes, mixed labels and viewport acceptance preserve images once and reje
   assert.equal(records.filter(r=>r.quality.verdict==='accepted').length,1);
   const selected=records.find(r=>r.quality.verdict==='accepted')!;
   assert.equal(selected.subject.scope,'section');assert.equal(selected.subject.profileId,'desktop');
-  assert.equal(selected.classification!.labels.find(l=>l.axis==='visual_style')!.label,'minimal');
+  assert.equal(selected.classification!.labels.find(l=>l.axis==='visual_style')!.label,'minimalism');
   assert.ok(records.filter(r=>r.subject.scope==='page').every(r=>r.quality.verdict==='rejected'));
   const catalog=await exportAccepted(store);assert.equal(catalog.references.length,1);
   const clean=JSON.parse(await readFile(join(root,catalog.indexes['aesthetic/clean']),'utf8'));
@@ -114,7 +115,7 @@ test('quality validators reject invented evidence and contradictory 9–10 claim
   assert.throws(()=>validateQualityPass(pass('image',8,'accept'),new Set(['image']),new Set(['image'])));
   const a=pass('image');assert.equal(combinePasses(a,pass('image',6)),'uncertain');
   assert.equal(combinePasses(a,pass('image',6,'repair')),'repair');
-  assert.equal(normalizeLabel('visual_style','minimalistic'),'minimal');
+  assert.equal(normalizeLabel('visual_style','minimalistic'),'minimalism');
   assert.equal(normalizeLabel('appearance','clean'),'clean');
   for(const concepts of Object.values(TAXONOMY))for(const c of concepts){assert.ok(c.definition);assert.ok(c.supportingTraits.length);assert.ok(c.counterexamples.length);assert.ok(Array.isArray(c.aliases));}
 });
@@ -154,4 +155,108 @@ test('usage limits disable subsequent curation calls in the same collection run'
   assert.equal(runtime.unavailable,true);assert.equal(calls,1);
   await curateCapture(store,'fixture',config,{runtime,runProcess:mockRunner({counter:()=>calls++})});
   assert.equal(calls,1);assert.ok(store.references().every(r=>r.quality.verdict==='pending'));
+});
+
+test('coverage separates source claims, current selection, viewport gaps and honest traversal states',async t=>{
+  const {store,config,manifest,directory,root}=await setup(t);
+  manifest.provenance=[{seedUrl:'https://styles.refero.design/',discoveredAt:new Date().toISOString(),sourceLabels:['Vaporwave','Minimalistic','Newsprint']}];
+  store.publishCapture(manifest,directory);
+  const discovery=store.job('discovery','https://styles.refero.design/',{});store.finish(discovery,'complete',{},undefined,'plateau');
+  for(const [id,status] of [['resolved','complete'],['missing-original','blocked']] as const) {
+    const job=store.job('resolve',id,{entry:{id,seedUrl:'https://styles.refero.design/',detailUrl:`https://styles.refero.design/detail/${id}`}});
+    store.finish(job,status,status==='complete'?{originalUrl:manifest.requestedUrl}:undefined,status==='blocked'?'Missing original link':undefined);
+  }
+  await curateCapture(store,'fixture',config,{runProcess:mockRunner()});
+  const catalog=await exportAccepted(store,config.profiles);
+  const coverage=JSON.parse(await readFile(join(root,catalog.coverage),'utf8')) as ReturnType<typeof buildCoverage>;
+  assert.equal(coverage.aesthetics.length,60);assert.equal(coverage.substyles.length,36);assert.equal(coverage.profiles.length,6);
+  assert.equal(coverage.totals.collected,6);assert.equal(coverage.totals.machineQualified,1);
+  const minimal=coverage.aesthetics.find(a=>a.label==='minimalism')!;
+  assert.equal(minimal.machineQualified,1);assert.equal(minimal.primary,1);assert.equal(minimal.sourceTaggedPages,1);
+  assert.equal(minimal.perViewport.desktop,1);assert.equal(minimal.perViewport.tablet,0);assert.equal(minimal.perViewport.mobile,0);
+  const vapor=coverage.aesthetics.find(a=>a.label==='vaporwave')!;assert.equal(vapor.sourceTaggedPages,1);assert.equal(vapor.machineQualified,0);
+  assert.ok(coverage.gaps.aesthetics.includes('style:vaporwave'));
+  assert.equal(coverage.humanReview.tracked,false);assert.equal(minimal.humanReviewed,null);
+  assert.equal(coverage.libraryTraversal[0].stoppingReason,'plateau');assert.equal(coverage.libraryTraversal[0].entries.length,2);
+  assert.equal(coverage.libraryTraversal[0].entries.find(e=>e.id==='missing-original')?.status,'blocked');
+  const taxonomy=JSON.parse(await readFile(join(root,catalog.taxonomy),'utf8'));assert.equal(taxonomy.version,TAXONOMY_VERSION);
+  assert.equal(taxonomy.axes.visual_style.length,61);
+});
+
+test('taxonomy upgrade retains historical labels, excludes stale exports, and reclassifies saved pixels only',async t=>{
+  const {store,config,root,directory}=await setup(t);
+  await curateCapture(store,'fixture',config,{runProcess:mockRunner()});
+  const record=store.references().find(r=>r.quality.verdict==='accepted')!;
+  record.classification!.taxonomyVersion='2.0.0';record.classification!.labels.find(l=>l.axis==='visual_style')!.label='minimal';
+  store.saveReference(record);
+  const old=JSON.stringify(record.classification);
+  const stale=await exportAccepted(store);assert.equal(stale.references.length,0);assert.equal(stale.counts.classificationPending,1);
+  let calls=0;
+  await curateCapture(store,'fixture',config,{classifyOnly:true,runProcess:mockRunner({counter:()=>calls++})});
+  assert.equal(calls,1,'Quality passes reused; only the stale accepted classification runs');
+  const upgraded=store.references().find(r=>r.subject.id===record.subject.id)!;
+  assert.equal(upgraded.classification!.taxonomyVersion,TAXONOMY_VERSION);
+  assert.equal(JSON.stringify(upgraded.classificationHistory![0]),old);
+  assert.equal((await exportAccepted(store)).references.length,1);
+  assert.equal(createHash('sha256').update(await readFile(join(root,directory,'desktop-0.png'))).digest('hex'),upgraded.subject.frames[0].sha256);
+});
+
+test('failed taxonomy upgrade leaves the reference pending with old classification retained as history',async t=>{
+  const {store,config}=await setup(t);await curateCapture(store,'fixture',config,{runProcess:mockRunner()});
+  const record=store.references().find(r=>r.quality.verdict==='accepted')!;
+  record.classification!.taxonomyVersion='2.0.0';store.saveReference(record);
+  await curateCapture(store,'fixture',config,{classifyOnly:true,runProcess:mockRunner({failure:()=>true})});
+  const pending=store.references().find(r=>r.subject.id===record.subject.id)!;
+  assert.equal(pending.quality.verdict,'accepted');assert.equal(pending.classification,undefined);
+  assert.equal(pending.classificationHistory![0].taxonomyVersion,'2.0.0');
+  assert.equal((await exportAccepted(store)).references.length,0);
+  assert.equal(buildCoverage(store).totals.classificationPending,1);
+});
+
+test('partial classification image coverage cannot enter the current catalog',async t=>{
+  const {store,config}=await setup(t);await curateCapture(store,'fixture',config,{runProcess:mockRunner()});
+  const record=store.references().find(r=>r.quality.verdict==='accepted')!;
+  record.classification!.inspectedImages=[];store.saveReference(record);
+  assert.equal((await exportAccepted(store)).references.length,0);
+  assert.equal(buildCoverage(store).totals.classificationPending,1);
+  let calls=0;await curateCapture(store,'fixture',config,{classifyOnly:true,runProcess:mockRunner({counter:()=>calls++})});
+  assert.equal(calls,1);assert.equal((await exportAccepted(store)).references.length,1);
+});
+
+test('mixed aesthetics and numeric substyles share one asset and keep their retrieval scopes',async t=>{
+  const {store,config,root}=await setup(t);
+  const ordinary=mockRunner();
+  const mixed:ClassifierProcessRunner=async(command,args,request)=>{
+    const result=await ordinary(command,args,request);
+    if(request.prompt.startsWith('Classify')) {
+      const value=JSON.parse(result.lastMessage!);
+      const style=value.labels.find((l:any)=>l.axis==='visual_style');style.label='pixel-arcade';style.role='primary';
+      value.labels.find((l:any)=>l.axis==='aesthetic_substyle').label='8-bit';
+      value.labels.push({...style,label:'y2k-futurism',role:'secondary'});
+      result.lastMessage=JSON.stringify(value);
+    }
+    return result;
+  };
+  await curateCapture(store,'fixture',config,{runProcess:mixed});
+  const catalog=await exportAccepted(store);assert.equal(catalog.references.length,1);assert.equal(catalog.references[0].images.length,1);
+  const id=catalog.references[0].id;
+  for(const category of ['aesthetic/pixel-arcade','aesthetic/y2k-futurism','aesthetic-primary/pixel-arcade','aesthetic-secondary/y2k-futurism','substyle/8-bit']) {
+    assert.deepEqual(JSON.parse(await readFile(join(root,catalog.indexes[category]),'utf8')).referenceIds,[id]);
+  }
+  const coverage=buildCoverage(store);
+  assert.equal(coverage.aesthetics.find(a=>a.label==='pixel-arcade')?.primary,1);
+  assert.equal(coverage.aesthetics.find(a=>a.label==='y2k-futurism')?.secondary,1);
+  assert.equal(coverage.substyles.find(a=>a.label==='8-bit')?.machineQualified,1);
+});
+
+test('reassessment and forced refresh retain prior scoped decisions and classifications',async t=>{
+  const {store,config}=await setup(t);await curateCapture(store,'fixture',config,{runProcess:mockRunner()});
+  const accepted=store.references().find(r=>r.quality.verdict==='accepted')!;
+  const before=JSON.stringify(accepted.quality);
+  await curateCapture(store,'fixture',config,{reassess:true,runProcess:mockRunner()});
+  const reassessed=store.references().find(r=>r.subject.id===accepted.subject.id)!;
+  assert.equal(JSON.stringify(reassessed.qualityHistory![0]),before);
+  assert.equal(reassessed.classificationHistory!.length,1);
+  await curateCapture(store,'fixture',config,{classifyOnly:true,reclassify:true,runProcess:mockRunner()});
+  assert.equal(store.references().find(r=>r.subject.id===accepted.subject.id)!.classificationHistory!.length,2);
 });

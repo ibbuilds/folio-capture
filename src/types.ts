@@ -57,11 +57,12 @@ export type DiscoveryEvent =
   | { type: 'end'; reason: 'explicit_end' | 'observed_plateau' | 'incomplete'; error?: string; collections: string[]; discovered: number };
 export type ResolvedReference = { originalUrl: string; title: string; sourceLabels: string[]; previewUrl?: string; metadata: Record<string, unknown> };
 export type DiscoveryOptions = { browser: Browser; seed: Source; settings: DiscoverySettings; onProgress?: (message: string) => void; signal?: AbortSignal };
-export type TaxonomyAxis = 'experience' | 'page_purpose' | 'section_purpose' | 'composition' | 'visual_style' | 'appearance' | 'typography' | 'color_palette' | 'density' | 'imagery' | 'surface_treatment' | 'industry' | 'audience' | 'interaction_pattern';
+export type TaxonomyAxis = 'experience' | 'page_purpose' | 'section_purpose' | 'composition' | 'visual_style' | 'appearance' | 'typography' | 'color_palette' | 'density' | 'imagery' | 'surface_treatment' | 'industry' | 'audience' | 'interaction_pattern' | 'aesthetic_substyle' | 'cross_collection' | 'visual_anchor' | 'experience_mode' | 'platform_provenance' | 'contextual_influence' | 'behavior';
 export type Label = {
   axis: TaxonomyAxis; label: string; regionId: string | null; evidenceIds: string[];
   provenance: 'source' | 'measured' | 'heuristic' | 'model' | 'human';
   confidence: 'high' | 'medium' | 'low'; note: string;
+  conceptId?: string; role?: 'primary' | 'secondary';
 };
 export type Classification = {
   schemaVersion: 1; taxonomyVersion: string; promptVersion: string; captureId: string;

@@ -8,6 +8,7 @@ import { heuristicClassification, classificationCacheKey } from './classificatio
 import { Store, type CaptureRecord } from './store.ts';
 import { curateCapture } from './quality.ts';
 import { exportAccepted } from './catalog.ts';
+import { TAXONOMY_VERSION } from './taxonomy.ts';
 import { libraryAdapter, isKnownLibrary } from './adapters.ts';
 import { discoverSite } from './site.ts';
 import { exportCatalog } from './report.ts';
@@ -95,7 +96,7 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
     summary.pendingClassification+=references.filter(r=>r.quality.verdict==='pending' || r.quality.verdict==='accepted'&&!r.classification).length;
   }
 
-  async function publishIndexes() { await exportCatalog(store,false); await exportAccepted(store); }
+  async function publishIndexes() { await exportCatalog(store,false); await exportAccepted(store,config.profiles); }
 
   async function processPage(url:string,provenance:Provenance,source:Source){
     checkInterrupted();const page=store.page(url,provenance);const signature=captureSignature(source);const key=`${page.id}:${signature}`;
@@ -104,7 +105,7 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
       if(prior?.manifest){
         prior.manifest.provenance=page.provenance;await atomicJson(join(inside(config.output,prior.directory),'manifest.json'),prior.manifest);store.publishCapture(prior.manifest,prior.directory);
         await atomicJson(join(inside(config.output,prior.directory),'evidence.json'),{schemaVersion:1,captureId:prior.id,items:evidenceFor(prior.manifest)});
-        if(prior.classification){
+        if(prior.classification?.taxonomyVersion===TAXONOMY_VERSION){
           const updated=heuristicClassification(prior.manifest,evidenceFor(prior.manifest));
           const merged={...prior.classification,sourceLabels:updated.sourceLabels,labels:[...prior.classification.labels.filter(l=>l.provenance!=='source'),...updated.labels.filter(l=>l.provenance==='source')],cacheKey:classificationCacheKey(prior.manifest,evidenceFor(prior.manifest),config.classifier)};
           await atomicJson(join(inside(config.output,prior.directory),'classification.json'),merged);store.saveClassification(prior.id,merged);

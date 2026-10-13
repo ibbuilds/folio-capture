@@ -33,6 +33,11 @@ test('end-to-end capture resumes, publishes atomically, reuses pixels, and repor
     const captures=store.captures();const saved=captures.find(c=>c.manifest)!;
     assert.ok(saved);assert.equal(saved.manifest!.variants.length,6);
     assert.equal(saved.status,'complete',JSON.stringify(saved.manifest!.variants.map(v=>({profile:v.profile.id,warnings:v.warnings}))));
+    const coverage=JSON.parse(await readFile(join(root,'coverage.json'),'utf8'));
+    assert.equal(coverage.aesthetics.length,60);assert.equal(coverage.substyles.length,36);
+    assert.equal(coverage.profiles.length,6);assert.equal(coverage.totals.machineQualified,0);
+    assert.ok(['desktop','tablet','mobile'].every(v=>coverage.viewport[v].collected>0));
+    assert.equal(coverage.libraryTraversal.find((s:any)=>s.source==='https://unsupported.example/catalog')?.status,'unsupported');
     assert.ok(saved.manifest!.variants.every(v=>v.regions.some(r=>r.frames.length)));
     assert.ok(await validateCaptureFiles(join(root,saved.directory),saved.manifest!));
     assert.ok(store.jobs('viewport').every(j=>j.status!=='running'));

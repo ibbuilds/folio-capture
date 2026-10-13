@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { loadConfig } from './config.ts';
 import { evaluateQuality } from './evaluation.ts';
 import { exportAccepted, pruneQuarantine } from './catalog.ts';
+import { exportCoverage } from './coverage.ts';
 import { Store } from './store.ts';
 import { runPipeline } from './pipeline.ts';
 import { exportCatalog } from './report.ts';
@@ -22,10 +23,10 @@ export async function main(args=process.argv.slice(2)) {
     else throw new Error(`Unknown option: ${arg}`);
   }
   if(flags.has('--help') || command==='help'){
-    console.log(`Folio Capture\n\n  npm run capture                       Discover, capture, assess, classify, export\n  npm run capture -- --capture-only      No model required\n  npm run capture -- --limit 3           Process at most 3 pages this run\n  npm run folio -- status                Inspect the job ledger\n  npm run folio -- retry                 Retry recorded failures\n  npm run folio -- refresh               Force new captures\n  npm run folio -- classify              Classify accepted saved references only\n  npm run folio -- classify --refresh    Reclassify saved captures\n  npm run folio -- reassess              Reassess saved pixels; no browser\n  npm run folio -- export                Regenerate accepted catalog\n  npm run folio -- evaluate --benchmark reviewed.json  Evaluate saved decisions\n  npm run folio -- prune                 Prune rejected assets after retention\n  npm run folio -- report                Regenerate local indexes/report\n  npm run folio -- serve                 View report at http://127.0.0.1:4173\n\nOptions: --config sources.yaml, --output folder, --source URL, --port 4173`);
+    console.log(`Folio Capture\n\n  npm run capture                       Discover, capture, assess, classify, export\n  npm run capture -- --capture-only      No model required\n  npm run capture -- --limit 3           Process at most 3 pages this run\n  npm run folio -- status                Inspect the job ledger\n  npm run folio -- coverage              Inspect aesthetic and viewport gaps; offline\n  npm run folio -- retry                 Retry recorded failures\n  npm run folio -- refresh               Force new captures\n  npm run folio -- classify              Classify accepted saved references only\n  npm run folio -- classify --refresh    Reclassify saved captures\n  npm run folio -- reassess              Reassess saved pixels; no browser\n  npm run folio -- export                Regenerate accepted catalog\n  npm run folio -- evaluate --benchmark reviewed.json  Evaluate saved decisions\n  npm run folio -- prune                 Prune rejected assets after retention\n  npm run folio -- report                Regenerate local indexes/report\n  npm run folio -- serve                 View report at http://127.0.0.1:4173\n\nOptions: --config sources.yaml, --output folder, --source URL, --port 4173`);
     return;
   }
-  if(!['run','status','retry','refresh','classify','reassess','export','evaluate','prune','report','serve'].includes(command))throw new Error(`Unknown command: ${command}. Use --help.`);
+  if(!['run','status','coverage','retry','refresh','classify','reassess','export','evaluate','prune','report','serve'].includes(command))throw new Error(`Unknown command: ${command}. Use --help.`);
   const config=await loadConfig(String(flags.get('--config') ?? 'sources.yaml'));
   if(flags.get('--output'))config.output=resolve(String(flags.get('--output')));
   if(command==='serve'){
@@ -46,7 +47,7 @@ export async function main(args=process.argv.slice(2)) {
     server.listen(port,'127.0.0.1',()=>console.log(`Folio report: http://127.0.0.1:${port}/`));
     process.once('SIGINT',()=>server.close());process.once('SIGTERM',()=>server.close());return;
   }
-  if(['status','report','export','evaluate','prune'].includes(command)){
+  if(['status','coverage','report','export','evaluate','prune'].includes(command)){
     const store=new Store(config.output);
     try{
       if(command==='evaluate'){
@@ -54,8 +55,9 @@ export async function main(args=process.argv.slice(2)) {
         const result=evaluateQuality(JSON.parse(await readFile(resolve(String(flags.get('--benchmark'))),'utf8')),store.references());
         store.acquireLock();await atomicJson(join(config.output,'quality-evaluation.json'),result);console.log(JSON.stringify(result.overall,null,2));
       }
-      else if(command==='export'){store.acquireLock();await exportAccepted(store);console.log(join(config.output,'catalog.json'));}
-      else if(command==='prune'){store.acquireLock();console.log(await pruneQuarantine(store,Number(flags.get('--older-than-days')??config.quality?.quarantineDays??30)));}
+      else if(command==='export'){store.acquireLock();await exportAccepted(store,config.profiles);console.log(join(config.output,'catalog.json'));}
+      else if(command==='coverage'){store.acquireLock();const coverage=await exportCoverage(store,config.profiles);console.log(JSON.stringify({totals:coverage.totals,viewport:coverage.viewport,gaps:coverage.gaps},null,2));console.log(join(config.output,'coverage.json'));}
+      else if(command==='prune'){store.acquireLock();console.log(await pruneQuarantine(store,Number(flags.get('--older-than-days')??config.quality?.quarantineDays??30),config.profiles));}
       else if(command==='report'){store.acquireLock();await exportCatalog(store);console.log(join(config.output,'report.html'));}
       else{const jobs=store.jobs();console.table(jobs.map(j=>({stage:j.stage,status:j.status,attempts:j.attempts,source:j.key,reason:j.error ?? j.stoppingReason ?? ''})));console.log(`${store.captures().filter(c=>c.manifest).length} published capture versions.`);}
     }finally{store.close();}return;

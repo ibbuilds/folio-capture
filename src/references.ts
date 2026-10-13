@@ -21,11 +21,14 @@ export type QualityRecord = {
 };
 export type ScopedClassification = {
   taxonomyVersion: string; promptVersion: string; cacheKey: string; model: string;
+  taxonomyFingerprint?: string;
   reportedModel?: string; classifiedAt: string; labels: Label[]; inspectedImages: string[];
 };
 export type ReferenceRecord = {
   schemaVersion: 2; subject: ReferenceSubject; directory: string; sourceUrl: string;
   quality: QualityRecord; classification?: ScopedClassification;
+  classificationHistory?: ScopedClassification[];
+  qualityHistory?: QualityRecord[];
   pruned?: { at: string; paths: string[] };
 };
 

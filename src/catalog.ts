@@ -3,14 +3,17 @@ import { join, relative, extname } from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { Store } from './store.ts';
 import { atomicJson, idFor, inside, now } from './utils.ts';
-import { trustedAsset } from './quality.ts';
+import { trustedAsset, retainClassification } from './quality.ts';
 import type { ReferenceRecord } from './references.ts';
+import type { CaptureProfile } from './types.ts';
+import { hasCurrentClassification, buildCoverage } from './coverage.ts';
+import { taxonomyDocument, TAXONOMY_VERSION } from './taxonomy.ts';
 
 /** Immutable export generations: catalog.json is the single atomic publication point. */
-export async function exportAccepted(store:Store) {
+export async function exportAccepted(store:Store,profiles?:CaptureProfile[]) {
   const latest=new Set(store.latestCaptures().map(c=>c.id));
   const records=store.references().filter(r=>latest.has(r.subject.captureId));
-  const eligible=records.filter(r=>r.quality.verdict==='accepted' && r.classification && !r.pruned);
+  const eligible=records.filter(r=>r.quality.verdict==='accepted' && hasCurrentClassification(r) && !r.pruned);
   const references=[];
   const exceptions:Array<{id:string;reason:string}>=[];
   for(const record of eligible) {
@@ -24,7 +27,7 @@ export async function exportAccepted(store:Store) {
       references.push({id:record.subject.id,parentId:record.subject.parentId,siteId:record.subject.siteId,pageId:record.subject.pageId,
         sectionId:record.subject.sectionId,captureId:record.subject.captureId,scope:record.subject.scope,profileId:record.subject.profileId,
         viewport:record.subject.viewport,finalUrl:store.capture(record.subject.captureId)?.manifest?.variants.find(v=>v.profile.id===record.subject.profileId)?.finalUrl,title:record.subject.title,order:record.subject.order,url:record.sourceUrl,
-        labels:record.classification!.labels,quality:record.quality,
+        labels:record.classification!.labels,quality:record.quality,taxonomyVersion:record.classification!.taxonomyVersion,
         provenance:store.capture(record.subject.captureId)?.manifest?.provenance??[],
         images:record.subject.frames.map((f,order)=>({id:idFor([record.subject.captureId,f.path]),order,path:`${record.directory}/${f.path}`,
           thumbnail:`${record.directory}/${f.thumbnail}`,width:f.width,height:f.height,sha256:f.sha256,bounds:f.bounds,scrollY:f.scrollY,kind:f.kind})),
@@ -32,7 +35,7 @@ export async function exportAccepted(store:Store) {
     } catch(error) {
       exceptions.push({id:record.subject.id,reason:String(error)});
       record.quality.verdict='repair';record.quality.reasons=[`Export asset verification failed: ${String(error)}`];
-      delete record.classification;store.saveReference(record);
+      retainClassification(record);delete record.classification;store.saveReference(record);
       const job=store.getJob('quality',`${record.subject.id}:${record.quality.cacheKey}`);
       if(job)store.finish(job,'complete',{verdict:'repair'},String(error));
     }
@@ -44,14 +47,17 @@ export async function exportAccepted(store:Store) {
   const sections=[...new Map(graphRecords.filter(r=>r.subject.sectionId).map(r=>[r.subject.sectionId!,{id:r.subject.sectionId!,parentId:r.subject.pageId,title:r.subject.title,order:r.subject.order,correspondence:'inferred; labels never inherited',labels:[]}])).values()];
   const indexes:Record<string,string[]>={};
   const add=(key:string,id:string)=>{indexes[key]??=[];if(!indexes[key].includes(id))indexes[key].push(id);};
-  const axes:Record<string,string>={visual_style:'aesthetic',appearance:'appearance',section_purpose:'section',page_purpose:'page',experience:'experience',composition:'composition'};
+  const axes:Record<string,string>={visual_style:'aesthetic',aesthetic_substyle:'substyle',cross_collection:'collection',appearance:'appearance',section_purpose:'section',page_purpose:'page',experience:'experience',composition:'composition'};
   for(const reference of references) {
     add(`viewport/${reference.viewport}`,reference.id);add(`profile/${reference.profileId}`,reference.id);
     for(const label of reference.labels) {
       if(label.label==='unknown' || label.provenance==='source')continue;
       const axis=axes[label.axis]??label.axis;
-      if(!/^[a-z][a-z0-9_-]*$/.test(label.label))continue;
+      if(!/^[a-z0-9][a-z0-9_-]*$/.test(label.label))continue;
       add(`${axis}/${label.label}`,reference.id);
+      if(label.axis==='visual_style' && label.role)add(`aesthetic-${label.role}/${label.label}`,reference.id);
+      const concept=taxonomyDocument().axes[label.axis].find(c=>c.label===label.label);
+      if(label.axis==='visual_style' && concept?.familyId)add(`family/${concept.familyId.toLowerCase()}`,reference.id);
       // Clean is a discovery synonym across aesthetics; it remains an appearance label in metadata.
       if(label.axis==='appearance' && label.label==='clean')add('aesthetic/clean',reference.id);
     }
@@ -59,22 +65,28 @@ export async function exportAccepted(store:Store) {
   const generation=`exports/${Date.now()}-${randomUUID().slice(0,8)}`;
   const staging=inside(store.output,`${generation}.staging`);
   await mkdir(staging,{recursive:true});
+  const coverage=buildCoverage(store,profiles,acceptedIds);
+  await atomicJson(join(staging,'coverage.json'),coverage);
+  await atomicJson(join(staging,'taxonomy.json'),taxonomyDocument());
   for(const [key,ids] of Object.entries(indexes))await atomicJson(join(staging,'indexes',`${key}.json`),{schemaVersion:2,category:key,referenceIds:ids});
-  const catalog={schemaVersion:2,generatedAt:now(),experimental:true,qualityValidation:'unvalidated',assetBase:'.',generation,
+  const catalog={schemaVersion:2,generatedAt:now(),experimental:true,qualityValidation:'unvalidated',editorialApproval:'unreviewed-candidates',taxonomyVersion:TAXONOMY_VERSION,
+    taxonomy:`${generation}/taxonomy.json`,coverage:`${generation}/coverage.json`,assetBase:'.',generation,
+    indexSemantics:{'aesthetic/clean':'Combined retrieval of supported Clean aesthetic and clean appearance; exact axes remain in reference labels. Primary/secondary aesthetic indexes contain only aesthetic claims.'},
     sites,pages,sections,references,indexes:Object.fromEntries(Object.keys(indexes).map(key=>[key,`${generation}/indexes/${key}.json`])),
-    counts:{accepted:references.length,classificationPending:records.filter(r=>r.quality.verdict==='accepted'&&!r.classification).length,
+    counts:{accepted:references.length,classificationPending:records.filter(r=>r.quality.verdict==='accepted'&&!r.pruned&&!hasCurrentClassification(r)).length,
       rejected:records.filter(r=>r.quality.verdict==='rejected').length,uncertain:records.filter(r=>r.quality.verdict==='uncertain').length,
       pending:records.filter(r=>r.quality.verdict==='pending').length,repair:records.filter(r=>r.quality.verdict==='repair').length},exceptions};
   await atomicJson(join(staging,'catalog.json'),catalog);
   await rename(staging,inside(store.output,generation));
   await atomicJson(join(store.output,'catalog.json'),catalog);
+  await atomicJson(join(store.output,'coverage.json'),coverage);
   await atomicJson(join(store.output,'quarantine.json'),{schemaVersion:2,policy:'Logical quarantine: assets stored once at their original capture paths.',
     references:store.references().filter(r=>r.quality.verdict!=='accepted').map(r=>({id:r.subject.id,verdict:r.quality.verdict,reasons:r.quality.reasons,pruned:r.pruned??null}))});
   return catalog;
 }
 
 /** Explicit, conservative removal. Unassessed, uncertain and shared assets are protected. */
-export async function pruneQuarantine(store:Store,olderThanDays:number) {
+export async function pruneQuarantine(store:Store,olderThanDays:number,profiles?:CaptureProfile[]) {
   if(!Number.isFinite(olderThanDays)||olderThanDays<0)throw new Error('Retention must be a nonnegative number of days.');
   const records=store.references();
   const cutoff=Date.now()-olderThanDays*86400000;
@@ -108,6 +120,6 @@ export async function pruneQuarantine(store:Store,olderThanDays:number) {
     }
     await atomicJson(join(inside(store.output,record.directory),'references.v2.json'),{schemaVersion:2,captureId:record.subject.captureId,references:store.references(record.subject.captureId)});
   }
-  await exportAccepted(store);
+  await exportAccepted(store,profiles);
   return {removed,retainedShared:protectedPaths.size};
 }
