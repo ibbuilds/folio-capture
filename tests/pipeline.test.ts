@@ -12,7 +12,7 @@ import type { PageManifest } from '../src/types.ts';
 test('end-to-end capture resumes, publishes atomically, reuses pixels, and reports all viewport families',async()=>{
   const root=await mkdtemp(join(tmpdir(),'folio-pipeline-'));
   let requests=0;
-  const server=createServer((req,res)=>{
+  const server=createServer((_req,res)=>{
     requests++;
     res.writeHead(200,{'Content-Type':'text/html'});
     res.end(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Folio fixture</title><style>body{margin:0;background:white}header{height:48px;background:#eee}section{min-height:240px;padding:24px;box-sizing:border-box}h1{font-size:48px}h2{font-size:28px}@media(max-width:800px){h1{font-size:30px}section{min-height:320px}}</style></head><body><header>Folio fixture navigation</header><main><section><h1>Build better ideas</h1><p>Features for teams. Get started.</p></section><section><h2>Our process</h2><p>How it works: collect references and compare.</p></section></main><footer>Footer</footer></body></html>`);

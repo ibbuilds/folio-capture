@@ -4,7 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { devices, type BrowserContext, type Page } from 'playwright';
 import sharp from 'sharp';
-import type { CaptureOptions, EvidenceItem, Rect, Region, ViewportCapture } from './types.ts';
+import type { CaptureOptions, Rect, Region, ViewportCapture } from './types.ts';
 import { documentToViewport, intersectRect, mergeCoverage, uncoveredRanges } from './geometry.ts';
 import { sweepCleanup } from './cleanup.ts';
 import { captureRegionImage } from './image-capture.ts';
@@ -363,7 +363,8 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
         const image=await captureRegionImage(page,documentToViewport(visible,scroll.x,scroll.y),profile,settings.screenshotTimeoutMs,verifyEncodedViewport);
         if (!image) { warn(`Invalid screenshot bounds for ${region.id}.`); break; }
         const {buffer:encoded,crop}=image;
-        const methods=(result.environment.referenceImageMethods??={}) as Record<string,number>;methods[image.method]=(methods[image.method]??0)+1;
+        result.environment.referenceImageMethods??={};
+        const methods=result.environment.referenceImageMethods as Record<string,number>;methods[image.method]=(methods[image.method]??0)+1;
         const suffix = `${region.id}-${String(++part).padStart(3, '0')}`;
         const imagePath = `${profile.id}/sections/${suffix}.png`, thumbnail = `thumbnails/${profile.id}/${suffix}.webp`;
         await relativeWrite(imagePath, encoded);
@@ -467,7 +468,8 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
           const image=await captureRegionImage(page,documentToViewport(visible,metrics.scroll.x,metrics.scroll.y),profile,settings.screenshotTimeoutMs,verifyEncodedViewport);
           if (!image) { unhandled.push({ ...scroller, reason: 'invalid-frame-bounds' }); break; }
           const {buffer:encoded,crop}=image;
-          const methods=(result.environment.referenceImageMethods??={}) as Record<string,number>;methods[image.method]=(methods[image.method]??0)+1;
+          result.environment.referenceImageMethods??={};
+          const methods=result.environment.referenceImageMethods as Record<string,number>;methods[image.method]=(methods[image.method]??0)+1;
           const suffix = `${parent.id}-${scroller.key}-state-${String(sequence).padStart(3, '0')}`;
           const imagePath = `${profile.id}/sections/${suffix}.png`, thumbnail = `thumbnails/${profile.id}/${suffix}.webp`;
           await relativeWrite(imagePath, encoded);

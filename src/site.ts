@@ -1,5 +1,5 @@
 import type { Browser } from 'playwright';
-import { Store } from './store.ts';
+import type { Store } from './store.ts';
 import type { DiscoverySettings, Provenance, Source } from './types.ts';
 import { canonicalUrl, errorMessage, now } from './utils.ts';
 

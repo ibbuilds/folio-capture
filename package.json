@@ -5,11 +5,16 @@
   "description": "Our local, resumable design-reference collection pipeline",
   "type": "module",
   "packageManager": "pnpm@12.11.2",
-  "engines": { "node": ">=24.15.0 <25" },
+  "engines": {
+    "node": ">=24.15.0 <25"
+  },
   "scripts": {
     "capture": "node src/cli.ts run",
     "folio": "node src/cli.ts",
     "setup": "playwright install chromium --no-shell",
+    "lint": "biome lint . --error-on-warnings",
+    "format": "biome format --write .",
+    "check": "npm run lint && npm run build",
     "build": "tsc --noEmit",
     "test": "node --test --test-concurrency=1 tests/*.test.ts",
     "test:live": "node scripts/live-smoke.ts",
@@ -22,6 +27,7 @@
     "zod": "4.3.6"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.15",
     "@types/node": "24.10.1",
     "typescript": "5.9.3"
   }

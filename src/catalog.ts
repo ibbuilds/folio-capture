@@ -1,7 +1,7 @@
 import { mkdir, rename, rm, readFile } from 'node:fs/promises';
 import { join, relative, extname } from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
-import { Store } from './store.ts';
+import type { Store } from './store.ts';
 import { atomicJson, idFor, inside, now } from './utils.ts';
 import { trustedAsset, retainClassification } from './quality.ts';
 import type { ReferenceRecord } from './references.ts';

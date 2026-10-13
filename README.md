@@ -111,9 +111,11 @@ Neither capture nor export generates or opens a frontend automatically. The opti
 ## Verification
 
 ```sh
-npm run build
+npm run check
 npm test
 ```
+
+Biome is pinned for linting and formatting. VS Code recommends Biome and YAML extensions; TypeScript, Git and Node debugging are built in. Workspace settings format supported files on save and apply safe TypeScript lint fixes. `npm run lint` checks the configured source and configuration files; `npm run format` explicitly formats them. CI enforces lint, TypeScript and tests. Existing source formatting is adopted incrementally rather than rewritten during setup. Guarded non-null assertions remain allowed; explicit `any` is limited to the existing SQLite boundary, test doubles and benchmark instrumentation.
 
 The suite uses browser fixtures and mock classifiers: no live collection or authenticated model calls. It covers capture cleanup, coordinates, recovery, scoped selection, shared-image pruning, schema validation and adapter traversal. [Quality evaluation](docs/quality-evaluation.md) explains the independently reviewed benchmark input, precision, coverage and uncertainty. [Implementation notes](docs/engine-v2.md), [research](docs/classification-research.md), and [prior capture evidence](docs/validation.md) document scope and limitations.
 
