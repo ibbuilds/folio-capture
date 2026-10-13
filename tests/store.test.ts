@@ -51,6 +51,9 @@ test('ledger persists separate stages, deduplicates origins, recovers interrupte
     const capture=first.job('capture',a.id,{url:a.url});const classification=first.job('classification',a.id,{captureId:'saved'});
     first.start(capture);first.finish(classification,'blocked',undefined,'quota');
     assert.equal(first.recoverRunning(),1);assert.equal(first.getJob('capture',a.id)?.status,'pending');assert.equal(first.getJob('classification',a.id)?.status,'blocked');
+    assert.deepEqual(first.jobs('capture',[]),[]);
+    assert.deepEqual(first.jobs('capture',['pending','blocked']).map(j=>j.id),[capture.id]);
+    assert.deepEqual(first.jobs(undefined,['blocked']).map(j=>j.id),[classification.id]);
     first.releaseLock();second.acquireLock();second.retryFailures(['classification']);assert.equal(second.getJob('classification',a.id)?.status,'pending');
     assert.equal(second.getJob('capture',a.id)?.attempts,1);
   }finally{first.close();second.close();await rm(root,{recursive:true,force:true});}

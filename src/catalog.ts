@@ -11,8 +11,8 @@ import { taxonomyDocument, TAXONOMY_VERSION } from './taxonomy.ts';
 
 /** Immutable export generations: catalog.json is the single atomic publication point. */
 export async function exportAccepted(store:Store,profiles?:CaptureProfile[]) {
-  const latest=new Set(store.latestCaptures().map(c=>c.id));
-  const records=store.references().filter(r=>latest.has(r.subject.captureId));
+  const captures=store.exportCaptures(),captureById=new Map(captures.map(c=>[c.id,c]));
+  const records=store.exportReferences();
   const eligible=records.filter(r=>r.quality.verdict==='accepted' && hasCurrentClassification(r) && !r.pruned);
   const references=[];
   const exceptions:Array<{id:string;reason:string}>=[];
@@ -26,16 +26,19 @@ export async function exportAccepted(store:Store,profiles?:CaptureProfile[]) {
       }
       references.push({id:record.subject.id,parentId:record.subject.parentId,siteId:record.subject.siteId,pageId:record.subject.pageId,
         sectionId:record.subject.sectionId,captureId:record.subject.captureId,scope:record.subject.scope,profileId:record.subject.profileId,
-        viewport:record.subject.viewport,finalUrl:store.capture(record.subject.captureId)?.manifest?.variants.find(v=>v.profile.id===record.subject.profileId)?.finalUrl,title:record.subject.title,order:record.subject.order,url:record.sourceUrl,
+        viewport:record.subject.viewport,finalUrl:captureById.get(record.subject.captureId)?.manifest?.variants.find(v=>v.profile.id===record.subject.profileId)?.finalUrl,title:record.subject.title,order:record.subject.order,url:record.sourceUrl,
         labels:record.classification!.labels,quality:record.quality,taxonomyVersion:record.classification!.taxonomyVersion,
-        provenance:store.capture(record.subject.captureId)?.manifest?.provenance??[],
+        provenance:captureById.get(record.subject.captureId)?.manifest?.provenance??[],
         images:record.subject.frames.map((f,order)=>({id:idFor([record.subject.captureId,f.path]),order,path:`${record.directory}/${f.path}`,
           thumbnail:`${record.directory}/${f.thumbnail}`,width:f.width,height:f.height,sha256:f.sha256,bounds:f.bounds,scrollY:f.scrollY,kind:f.kind})),
       });
     } catch(error) {
       exceptions.push({id:record.subject.id,reason:String(error)});
       record.quality.verdict='repair';record.quality.reasons=[`Export asset verification failed: ${String(error)}`];
-      retainClassification(record);delete record.classification;store.saveReference(record);
+      // Projections omit evidence/history. Repair the authoritative record, preserving both.
+      const full=store.reference(record.subject.id);
+      if(full){full.quality.verdict='repair';full.quality.reasons=record.quality.reasons;retainClassification(full);delete full.classification;store.saveReference(full);}
+      delete record.classification;
       const job=store.getJob('quality',`${record.subject.id}:${record.quality.cacheKey}`);
       if(job)store.finish(job,'complete',{verdict:'repair'},String(error));
     }
@@ -45,8 +48,8 @@ export async function exportAccepted(store:Store,profiles?:CaptureProfile[]) {
   const sites=[...new Map(graphRecords.map(r=>[r.subject.siteId,{id:r.subject.siteId,url:new URL(r.sourceUrl).origin,labels:[],assessment:'unassessed',coverage:'Only collected pages; not an exhaustive site judgment'}])).values()];
   const pages=[...new Map(graphRecords.map(r=>[r.subject.pageId,{id:r.subject.pageId,parentId:r.subject.siteId,url:r.sourceUrl,labels:[],classificationScope:'See independently assessed viewport references'}])).values()];
   const sections=[...new Map(graphRecords.filter(r=>r.subject.sectionId).map(r=>[r.subject.sectionId!,{id:r.subject.sectionId!,parentId:r.subject.pageId,title:r.subject.title,order:r.subject.order,correspondence:'inferred; labels never inherited',labels:[]}])).values()];
-  const indexes:Record<string,string[]>={};
-  const add=(key:string,id:string)=>{indexes[key]??=[];if(!indexes[key].includes(id))indexes[key].push(id);};
+  const indexes:Record<string,Set<string>>={};
+  const add=(key:string,id:string)=>{indexes[key]??=new Set();indexes[key].add(id);};
   const axes:Record<string,string>={visual_style:'aesthetic',aesthetic_substyle:'substyle',cross_collection:'collection',appearance:'appearance',section_purpose:'section',page_purpose:'page',experience:'experience',composition:'composition'};
   for(const reference of references) {
     add(`viewport/${reference.viewport}`,reference.id);add(`profile/${reference.profileId}`,reference.id);
@@ -65,10 +68,10 @@ export async function exportAccepted(store:Store,profiles?:CaptureProfile[]) {
   const generation=`exports/${Date.now()}-${randomUUID().slice(0,8)}`;
   const staging=inside(store.output,`${generation}.staging`);
   await mkdir(staging,{recursive:true});
-  const coverage=buildCoverage(store,profiles,acceptedIds);
+  const coverage=buildCoverage(store,profiles,acceptedIds,{captures,records});
   await atomicJson(join(staging,'coverage.json'),coverage);
   await atomicJson(join(staging,'taxonomy.json'),taxonomyDocument());
-  for(const [key,ids] of Object.entries(indexes))await atomicJson(join(staging,'indexes',`${key}.json`),{schemaVersion:2,category:key,referenceIds:ids});
+  for(const [key,ids] of Object.entries(indexes))await atomicJson(join(staging,'indexes',`${key}.json`),{schemaVersion:2,category:key,referenceIds:[...ids]},false);
   const catalog={schemaVersion:2,generatedAt:now(),experimental:true,qualityValidation:'unvalidated',editorialApproval:'unreviewed-candidates',taxonomyVersion:TAXONOMY_VERSION,
     taxonomy:`${generation}/taxonomy.json`,coverage:`${generation}/coverage.json`,assetBase:'.',generation,
     indexSemantics:{'aesthetic/clean':'Combined retrieval of supported Clean aesthetic and clean appearance; exact axes remain in reference labels. Primary/secondary aesthetic indexes contain only aesthetic claims.'},
@@ -76,12 +79,12 @@ export async function exportAccepted(store:Store,profiles?:CaptureProfile[]) {
     counts:{accepted:references.length,classificationPending:records.filter(r=>r.quality.verdict==='accepted'&&!r.pruned&&!hasCurrentClassification(r)).length,
       rejected:records.filter(r=>r.quality.verdict==='rejected').length,uncertain:records.filter(r=>r.quality.verdict==='uncertain').length,
       pending:records.filter(r=>r.quality.verdict==='pending').length,repair:records.filter(r=>r.quality.verdict==='repair').length},exceptions};
-  await atomicJson(join(staging,'catalog.json'),catalog);
+  await atomicJson(join(staging,'catalog.json'),catalog,false);
   await rename(staging,inside(store.output,generation));
-  await atomicJson(join(store.output,'catalog.json'),catalog);
+  await atomicJson(join(store.output,'catalog.json'),catalog,false);
   await atomicJson(join(store.output,'coverage.json'),coverage);
   await atomicJson(join(store.output,'quarantine.json'),{schemaVersion:2,policy:'Logical quarantine: assets stored once at their original capture paths.',
-    references:store.references().filter(r=>r.quality.verdict!=='accepted').map(r=>({id:r.subject.id,verdict:r.quality.verdict,reasons:r.quality.reasons,pruned:r.pruned??null}))});
+    references:store.quarantineInventory()});
   return catalog;
 }
 
