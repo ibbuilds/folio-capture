@@ -207,6 +207,20 @@ test('organizing old captures recovers an interrupted rename without changing by
   }finally{store.close();}
 });
 
+test('organizing preserves pruning tombstones through interrupted rename recovery',async t=>{
+  const {root,config,directory,manifest}=await fixture(t,2);const store=new Store(root);
+  try{
+    store.acquireLock();await curateCapture(store,'fixture',config,{log:()=>{}});
+    const frame=manifest.variants[0].regions[0].frames[0],record=store.references('fixture')[0];
+    record.pruned={at:new Date().toISOString(),paths:[`${directory}/${frame.path}`,`${directory}/${frame.thumbnail}`]};store.saveReference(record);
+    await rm(join(root,directory,frame.path));await rm(join(root,directory,frame.thumbnail));
+    assert.equal((await organizeOutput(store,undefined,async()=>{throw new Error('Interrupted pruned migration');})).exceptions.length,1);
+    const result=await organizeOutput(store);assert.equal(result.exceptions.length,0,JSON.stringify(result));
+    const moved=store.capture('fixture')!.directory;assert.ok(store.reference(record.subject.id)!.pruned!.paths.every(path=>path.startsWith(`${moved}/`)));
+    assert.ok(await readFile(join(root,moved,manifest.variants[0].regions[0].frames[1].path)));
+  }finally{store.close();}
+});
+
 test('organizing never overwrites an existing destination or moves linked user folders',async t=>{
   const {root,directory}=await fixture(t);const store=new Store(root);
   try {

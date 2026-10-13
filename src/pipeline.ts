@@ -40,7 +40,8 @@ export async function validateCaptureFiles(root: string, manifest: PageManifest)
 /** Intentional tombstones are not corrupt captures and must not trigger recapture. */
 export async function validateStoredCapture(store:Store,capture:CaptureRecord):Promise<boolean> {
   if(!capture.manifest)return false;
-  const removed=new Set(store.references(capture.id).flatMap(r=>r.pruned?.paths??[]));
+  const recordedDirectory=store.capture(capture.id)?.directory ?? capture.directory;
+  const removed=new Set(store.references(capture.id).flatMap(r=>r.pruned?.paths??[]).map(path=>path.startsWith(`${recordedDirectory}/`)?`${capture.directory}${path.slice(recordedDirectory.length)}`:path));
   if(!removed.size)return validateCaptureFiles(inside(store.output,capture.directory),capture.manifest);
   const remaining={...capture.manifest,variants:capture.manifest.variants.map(v=>({...v,status:'incomplete' as const,
     regions:v.regions.map(r=>({...r,frames:r.frames.filter(f=>!removed.has(`${capture.directory}/${f.path}`)&&!removed.has(`${capture.directory}/${f.thumbnail}`))}))}))};
