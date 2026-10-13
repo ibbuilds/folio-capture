@@ -1,4 +1,5 @@
 import type { TaxonomyAxis, Label, EvidenceItem } from './types.ts';
+import { ReviewValidationError, type ReviewIssue } from './review-validation.ts';
 import { SELECTED_AESTHETICS, SELECTED_SUBSTYLES, SELECTED_COLLECTIONS, SELECTED_SOURCE, SELECTED_SOURCE_HASH, SELECTED_FAMILIES } from './selected-taxonomy.ts';
 
 export const TAXONOMY_VERSION = '3.0.0-I.1';
@@ -344,34 +345,37 @@ export function normalizeLabel(axis: TaxonomyAxis, input: string): string | unde
 
 /** Relations apply to one inspected subject at a time; never consult parent labels. */
 export function validateLabelRelations(labels:Label[], evidence:EvidenceItem[], images:Set<string>):Label[] {
+  const issues:ReviewIssue[]=[];
+  const issue=(path:string,message:string)=>issues.push({path,message});
   const scopes=[...new Set(labels.map(l=>l.regionId))];
   for(const regionId of scopes) {
     const scoped=labels.filter(l=>l.regionId===regionId);
     for(const axis of TAXONOMY_AXES) {
       const claims=scoped.filter(l=>l.axis===axis);
-      if(new Set(claims.map(l=>l.label)).size!==claims.length)throw new Error('Duplicate taxonomy claim.');
-      if(claims.length>1 && claims.some(l=>l.label==='unknown'))throw new Error('Unknown cannot coexist with a supported claim on the same axis.');
+      if(new Set(claims.map(l=>l.label)).size!==claims.length)issue(axis,'Duplicate taxonomy claim.');
+      if(claims.length>1 && claims.some(l=>l.label==='unknown'))issue(axis,'Unknown cannot coexist with a supported claim on the same axis.');
     }
     const styles=scoped.filter(l=>l.axis==='visual_style' && l.label!=='unknown');
     if(styles.length===1 && !styles[0].role)styles[0].role='primary';
-    if(styles.length && (styles.filter(l=>l.role==='primary').length!==1 || styles.some(l=>!l.role)))throw new Error('Specify one primary aesthetic and explicit secondary roles for mixed aesthetics.');
+    if(styles.length && (styles.filter(l=>l.role==='primary').length!==1 || styles.some(l=>!l.role)))issue('visual_style','Specify one primary aesthetic and explicit secondary roles for mixed aesthetics.');
     for(const claim of scoped) {
       const concept=TAXONOMY[claim.axis].find(c=>c.label===claim.label)!;
-      if(claim.role && (claim.axis!=='visual_style' || claim.label==='unknown'))throw new Error('Only supported aesthetics have primary or secondary roles.');
+      if(claim.role && (claim.axis!=='visual_style' || claim.label==='unknown'))issue(claim.axis,'Only supported aesthetics have primary or secondary roles.');
       if(concept.id)claim.conceptId=concept.id;
       if(claim.label==='unknown')continue;
-      if(['aesthetic_substyle','cross_collection','visual_anchor','experience_mode','platform_provenance','contextual_influence','behavior'].includes(claim.axis) && !claim.evidenceIds.some(id=>images.has(id)))throw new Error('Selected concepts require an inspected frame.');
-      if(claim.axis==='aesthetic_substyle' && !styles.some(l=>l.label===concept.parentLabel))throw new Error('Substyle requires an independently supported parent aesthetic in this subject.');
+      if(['aesthetic_substyle','cross_collection','visual_anchor','experience_mode','platform_provenance','contextual_influence','behavior'].includes(claim.axis) && !claim.evidenceIds.some(id=>images.has(id)))issue(claim.axis,'Selected concepts require an inspected frame.');
+      if(claim.axis==='aesthetic_substyle' && !styles.some(l=>l.label===concept.parentLabel))issue(claim.axis,'Substyle requires an independently supported parent aesthetic in this subject.');
       const cited=evidence.filter(e=>claim.evidenceIds.includes(e.id));
       if(['cross_collection','platform_provenance','contextual_influence'].includes(claim.axis) || claim.axis==='experience_mode' && claim.label==='interactive-art') {
         const names=[concept.displayName??concept.label,...concept.aliases];
-        if(!cited.some(e=>['page-dom','region-dom','captured-attribution','implementation-provenance'].includes(e.kind) && names.some(name=>JSON.stringify(e.value).toLowerCase().includes(name.toLowerCase()))))throw new Error('Contextual membership requires captured attribution or contextual evidence.');
+        if(!cited.some(e=>['page-dom','region-dom','captured-attribution','implementation-provenance'].includes(e.kind) && names.some(name=>JSON.stringify(e.value).toLowerCase().includes(name.toLowerCase()))))issue(claim.axis,'Contextual membership requires captured attribution or contextual evidence.');
       }
       if(claim.axis==='behavior' && claim.label!=='glitch') {
         const kind=claim.label==='procedural'?'implementation-provenance':'observed-interaction-state';
-        if(!cited.some(e=>e.kind===kind && typeof e.value==='object' && e.value!==null && (e.value as Record<string,unknown>).pattern===claim.label))throw new Error('Behavior requires directly observed matching state evidence.');
+        if(!cited.some(e=>e.kind===kind && typeof e.value==='object' && e.value!==null && (e.value as Record<string,unknown>).pattern===claim.label))issue(claim.axis,'Behavior requires directly observed matching state evidence.');
       }
     }
   }
+  if(issues.length)throw new ReviewValidationError(issues);
   return labels;
 }

@@ -4,16 +4,16 @@ import type { ReferenceRecord } from './references.ts';
 import { hasCurrentClassification } from './coverage.ts';
 import { trustedAsset } from './quality.ts';
 import { atomicJson, errorMessage, hash, inside } from './utils.ts';
-import { imageName,pageFolder,nameComponent } from './naming.ts';
+import { imageName, pageFolder, nameComponent } from './naming.ts';
 
 type ViewReference = {
   id: string;
   title: string;
   url: string;
   profileId: string;
-  order?:number;
-  scope?:string;
-  images: Array<{ path: string;kind?:string }>;
+  order?: number;
+  scope?: string;
+  images: Array<{ path: string; kind?: string }>;
 };
 type ManagedFile = { path: string; source?: string; ino?: string; dev?: string; sha256?: string };
 type Inventory = {
@@ -21,9 +21,25 @@ type Inventory = {
   files: ManagedFile[];
   exceptions: Array<{ path: string; reason: string }>;
 };
+/** Separate owned paths can publish independently; the ownership ledger is written first. */
+async function eachFile<T>(items: T[], action: (item: T) => Promise<void>) {
+  let next = 0;
+  const results = await Promise.allSettled(
+    Array.from({ length: Math.min(4, items.length) }, async () => {
+      while (next < items.length) {
+        const item = items[next++];
+        await action(item);
+      }
+    }),
+  );
+  for (const result of results) if (result.status === 'rejected') throw result.reason;
+}
 function folder(reference: ViewReference) {
-  const section=reference.scope==='page'?'whole-page':`s${String((reference.order??0)+1).padStart(3,'0')}-${nameComponent(reference.title,32)}`;
-  return `${pageFolder(reference.url).slice('captures/'.length)}/${section}/${nameComponent(reference.profileId,32)}`;
+  const section =
+    reference.scope === 'page'
+      ? 'whole-page'
+      : `s${String((reference.order ?? 0) + 1).padStart(3, '0')}-${nameComponent(reference.title, 32)}`;
+  return `${pageFolder(reference.url).slice('captures/'.length)}/${section}/${nameComponent(reference.profileId, 32)}`;
 }
 
 /** Ordinary category folders share original image bytes through hard links, never copies. */
@@ -42,17 +58,23 @@ export async function exportFileViews(
   const previousByPath = new Map(previous.files.map((f) => [f.path, f]));
   const desired: ManagedFile[] = [],
     notes = new Map<string, unknown>();
-  const assigned=new Map<string,string>(),claimed=new Set<string>();
-  const readableFolder=(reference:ViewReference)=>{
-    const existing=assigned.get(reference.id);if(existing)return existing;
-    const base=folder(reference);let directory=base,ordinal=1;
-    while(claimed.has(directory))directory=`${base}--${++ordinal}`;
-    assigned.set(reference.id,directory);claimed.add(directory);return directory;
+  const assigned = new Map<string, string>(),
+    claimed = new Set<string>();
+  const readableFolder = (reference: ViewReference) => {
+    const existing = assigned.get(reference.id);
+    if (existing) return existing;
+    const base = folder(reference);
+    let directory = base,
+      ordinal = 1;
+    while (claimed.has(directory)) directory = `${base}--${++ordinal}`;
+    assigned.set(reference.id, directory);
+    claimed.add(directory);
+    return directory;
   };
   const add = (directory: string, reference: ViewReference, note: unknown) => {
     for (const [i, image] of reference.images.entries())
       desired.push({
-        path: `${directory}/${imageName(reference.url,reference.profileId,{...(reference.scope==='page'?{}:{section:{title:reference.title,order:reference.order??0}}),part:i+1,...(image.kind==='scroll-state'?{stateKey:'scroll'}:{})})}.png`,
+        path: `${directory}/${imageName(reference.url, reference.profileId, { ...(reference.scope === 'page' ? {} : { section: { title: reference.title, order: reference.order ?? 0 } }), part: i + 1, ...(image.kind === 'scroll-state' ? { stateKey: 'scroll' } : {}) })}.png`,
         source: image.path,
       });
     const path = `${directory}/reference.json`;
@@ -84,8 +106,12 @@ export async function exportFileViews(
       title: record.subject.title,
       url: record.sourceUrl,
       profileId: record.subject.profileId,
-      order:record.subject.order,scope:record.subject.scope,
-      images: record.subject.frames.map((f) => ({ path: `${record.directory}/${f.path}`,kind:f.kind })),
+      order: record.subject.order,
+      scope: record.subject.scope,
+      images: record.subject.frames.map((f) => ({
+        path: `${record.directory}/${f.path}`,
+        kind: f.kind,
+      })),
     };
     const status =
       record.quality.verdict === 'accepted' ? 'classification-pending' : record.quality.verdict;
@@ -118,7 +144,7 @@ export async function exportFileViews(
     return hash(await readFile(target, 'utf8')) === file.sha256;
   }
   const prepared: ManagedFile[] = [];
-  for (const file of desired) {
+  await eachFile(desired, async (file) => {
     try {
       ownedPath(file.path);
       if (file.source) {
@@ -142,27 +168,24 @@ export async function exportFileViews(
     } catch (error) {
       inventory.exceptions.push({ path: file.path, reason: errorMessage(error) });
     }
-  }
+  });
+  prepared.sort((a, b) => a.path.localeCompare(b.path));
   // Persist ownership before file creation. Restart can recover partially generated views.
   await atomicJson(inside(output, 'file-views.json'), {
     ...inventory,
     files: [...new Map([...previous.files, ...prepared].map((f) => [f.path, f])).values()],
   });
-  for (const file of prepared) {
+  await eachFile(prepared, async (file) => {
     try {
       const target = ownedPath(file.path);
       // Check existing parent components for junctions/symlinks before mkdir or publication.
-      const pieces = file.path.split('/');
-      let current = '';
-      for (const piece of pieces.slice(0, -1)) {
-        current += `${piece}/`;
-        try {
-          await trustedAsset(output, current);
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-        }
+      try {
+        await trustedAsset(output, dirname(file.path));
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
       }
       await mkdir(dirname(target), { recursive: true });
+      await trustedAsset(output, dirname(file.path));
       if (file.source) {
         const source = await trustedAsset(output, file.source);
         try {
@@ -186,13 +209,15 @@ export async function exportFileViews(
         } catch (error) {
           if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
         }
-        await atomicJson(target, notes.get(file.path));
+        const old = previousByPath.get(file.path);
+        if (old?.sha256 !== file.sha256 || !(await matchesOwned(file)))
+          await atomicJson(target, notes.get(file.path));
       }
       inventory.files.push(file);
     } catch (error) {
       inventory.exceptions.push({ path: file.path, reason: errorMessage(error) });
     }
-  }
+  });
   const desiredPaths = new Set(desired.map((f) => f.path));
   for (const old of previous.files)
     if (!desiredPaths.has(old.path)) {
@@ -220,6 +245,8 @@ export async function exportFileViews(
         parent = parent.split('/').slice(0, -1).join('/');
       }
     }
+  inventory.files.sort((a, b) => a.path.localeCompare(b.path));
+  inventory.exceptions.sort((a, b) => a.path.localeCompare(b.path));
   await atomicJson(inside(output, 'file-views.json'), inventory);
   return {
     categories: 'categories',
