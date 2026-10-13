@@ -62,9 +62,9 @@ test('a disconnected Chromium is relaunched instead of poisoning later viewport 
   let launches=0;
   const summary=await runPipeline(config,{log:()=>{},launchBrowser:async()=>{
     const owned=await chromium.launch({headless:true,channel:'chromium',executablePath:process.env.FOLIO_TEST_BROWSER_PATH});
-    if(++launches===1)await owned.close();
+    launches++;
     const original=owned.newContext.bind(owned);
-    owned.newContext=async options=>{const context=await original(options);await context.route('**/*',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><main><section><h1>Reliable recovery</h1><p>Saved fixture</p></section></main>'}));return context;};
+    owned.newContext=async options=>{if(launches===1)await owned.close();const context=await original(options);await context.route('**/*',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><main><section><h1>Reliable recovery</h1><p>Saved fixture</p></section></main>'}));return context;};
     return owned;
   }});
   assert.equal(launches,2);assert.equal(summary.captured,1);assert.equal(summary.failed,0);assert.ok(summary.pendingClassification>0,'MCP workflow stays explicitly pending');
