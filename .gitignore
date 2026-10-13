@@ -1,8 +1,10 @@
 node_modules/
 .cache/
 output/
+output-trial/
 validation-output/
 .folio-test-output/
 *.sqlite*
 .env
+sources.local.yaml
 dist/
