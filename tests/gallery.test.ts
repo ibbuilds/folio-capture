@@ -763,15 +763,37 @@ test('ads, consent, frames and open shadows are cleaned while protected designs 
     );
     const settings = parseConfig({
       sources: ['https://page.test/'],
-      capture: { preserveSelectors: ['#design', '#product'] },
+      capture: { preserveSelectors: ['#design', '#product', '#protected-frame-host'] },
     }).capture;
+    await page.evaluate(() => {
+      const host = document.createElement('div');
+      host.id = 'protected-frame-host';
+      host.attachShadow({ mode: 'open' }).innerHTML =
+        '<iframe src="https://frame.test/protected" style="height:70px"></iframe>';
+      document.body.append(host);
+    });
+    await page
+      .locator('#protected-frame-host')
+      .locator('iframe')
+      .contentFrame()
+      .locator('[data-ad-slot]')
+      .waitFor({ state: 'visible' });
     const result = await sweepCleanup(page, settings, log);
     assert.equal(await page.locator('#ad').isVisible(), false);
     assert.equal(await page.locator('#design').isVisible(), true);
     assert.equal(await page.locator('#product').isVisible(), true);
     assert.equal(await page.locator('#onetrust-banner-sdk').count(), 0);
     assert.equal(await page.locator('#host').locator('[data-ad-slot]').isVisible(), false);
-    assert.equal(await page.locator('iframe').isVisible(), false);
+    assert.equal(await page.locator('iframe[title="Advertisement"]').isVisible(), false);
+    assert.equal(
+      await page
+        .locator('#protected-frame-host')
+        .locator('iframe')
+        .contentFrame()
+        .locator('[data-ad-slot]')
+        .isVisible(),
+      true,
+    );
     assert.equal(result.unresolved.length, 0);
     assert.ok(log.some((event) => event.action === 'block-ad-request'));
     assert.ok(intercepted.every((url) => !url.includes('googlesyndication')));

@@ -12,7 +12,7 @@ async function activeFrame(frame: Frame, page: Page, preserve: string[]): Promis
     const element = await frame.frameElement();
     const box = await element.boundingBox(), viewport = page.viewportSize();
     const protectedFrame = await element.evaluate((el, selectors) => selectors.some(selector => {
-      try { return el instanceof Element && (el.matches(selector) || !!el.closest(selector)); } catch { return false; }
+      try { if(!(el instanceof Element))return false;for(let ancestor:Element|null=el;ancestor;ancestor=ancestor.parentElement??(ancestor.getRootNode() instanceof ShadowRoot?(ancestor.getRootNode() as ShadowRoot).host:null))if(ancestor.matches(selector))return true;return false; } catch { return false; }
     }), preserve);
     await element.dispose();
     return !protectedFrame && !!box && box.width > 0 && box.height > 0 && box.x + box.width > 0 && box.y + box.height > 0 && (!viewport || box.y < viewport.height && box.x < viewport.width);
