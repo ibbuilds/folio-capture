@@ -753,6 +753,20 @@ test('HTTP and STDIO expose genuine MCP tools with clean protocol and no model i
   t.after(() => new Promise<void>((resolve) => http.close(() => resolve())));
   const url = `http://127.0.0.1:${port}`;
   assert.equal((await fetch(`${url}/health`)).status, 200);
+  for (const path of [
+    '/.well-known/oauth-protected-resource/mcp',
+    '/.well-known/oauth-protected-resource',
+    '/.well-known/oauth-authorization-server',
+    '/.well-known/openid-configuration',
+    '/unknown',
+  ]) {
+    const absent = await fetch(`${url}${path}`);
+    assert.equal(absent.status, 404, path);
+    assert.deepEqual(await absent.json(), { error: 'not_found' });
+  }
+  const wrongMethod = await fetch(`${url}/mcp`);
+  assert.equal(wrongMethod.status, 405);
+  assert.equal(wrongMethod.headers.get('allow'), 'POST');
   assert.equal(
     (await fetch(`${url}/mcp`, { method: 'POST', headers: { Origin: 'https://untrusted.test' } }))
       .status,

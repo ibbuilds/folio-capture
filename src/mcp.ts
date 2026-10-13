@@ -239,8 +239,16 @@ export async function serveBridgeHttp(
       );
       return;
     }
-    if (req.url !== '/mcp' || req.method !== 'POST') {
-      res.writeHead(405);
+    if (req.url !== '/mcp') {
+      // OAuth discovery probes absent well-known endpoints. A 404 lets the
+      // secure tunnel identify this as a server without OAuth, rather than
+      // trying to parse the MCP method error as authentication metadata.
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'not_found' }));
+      return;
+    }
+    if (req.method !== 'POST') {
+      res.writeHead(405, { Allow: 'POST' });
       res.end('POST /mcp');
       return;
     }
