@@ -12,27 +12,20 @@ npm run setup
 npm run capture
 ```
 
-The normal command discovers original destinations, captures desktop/tablet/mobile profiles, assesses individual subjects, classifies qualified references and exports. Existing CLI authentication is used for Codex; its configured executable must be on PATH or supplied as `classifier.command`. Collection and browser work need no model. Visual quality and aesthetic inference use the model and existing account limits. Authentication/model failures leave analysis pending while collection continues.
+The normal command discovers original destinations, traverses their public navigation (25 pages/depth two by default), captures desktop/tablet/mobile, queues or performs quality/classification, and exports only qualified references. Original references are processed before the library page. A disconnected browser is relaunched on the next attempt. Limits and navigation failures remain explicit.
 
-For collection without AI:
+Only two classifier providers are supported:
 
-```sh
-npm run capture -- --capture-only
-```
+- **MCP (default):** collect with `npm run capture -- --classifier mcp`, then connect a ChatGPT conversation to the included MCP server. `npm run bridge -- --http` provides the loopback HTTP endpoint; `mcp.json` describes the native STDIO launch. See the [connection steps](../README.md#chatgpt-classifier-connection). ChatGPT inspects saved images and submits JSON; the engine never starts Codex or calls an AI API. Work remains pending until the connected client reviews it.
+- **Codex:** `npm run capture -- --classifier codex`. Existing ChatGPT CLI authentication is used; executable/model settings are configurable. Model action tools are disabled. This uses Codex allowances.
 
-This writes PNGs, thumbnails, manifests, structural metadata and pending assessment records. It does not produce machine-qualified visual references. Finish analysis later from saved images:
-
-```sh
-npm run folio -- reassess
-npm run folio -- classify
-npm run folio -- coverage
-```
+There is no no-classifier collection option. Saved-image commands (`reassess`, `classify`) use the configured provider; MCP queues fresh work for the connected conversation. Failure, invalid responses and usage limits remain pending. Neither transport tests nor existing Figma integration verify ordinary ChatGPT Desktop Chat support for this new plugin; that connection must be tested on the target client.
 
 ## Classification and coverage
 
 Runtime taxonomy `3.0.0-I.1` uses the selected 60 aesthetics, 36 provisional substyles, three contextual collections and 11 navigational families. Stable concept IDs remain distinct from physical image paths. A reference can have one primary aesthetic and several evidenced secondary aesthetics. Clean appearance is independently searchable. Substyles need separately supported subtype and parent claims within the same subject. Labels never transfer between sections, pages or viewports. Platform/cultural claims need captured context; static images do not prove motion.
 
-The current catalog links an immutable taxonomy and coverage snapshot. Category indexes, primary/secondary indexes, substyle indexes and viewport indexes all reference the same image files. The compatibility search `aesthetic/clean` combines Clean aesthetic and clean appearance; labels retain the exact axes. Primary/secondary aesthetic indexes and aesthetic coverage use actual aesthetic claims. `coverage.json` includes all selected concepts even when their count is zero. Source-tagged pages are unverified coverage; qualified counts require current image-scoped classifications. Counts distinguish profiles, viewport families, independent pages/sites and pending or rejected subjects. Human-reviewed coverage is explicitly untracked. A gap never relaxes the quality threshold or becomes a quota.
+The current catalog links an immutable taxonomy and coverage snapshot. Category indexes, primary/secondary indexes, substyle indexes and viewport indexes all reference the same image files. Readable `categories/` folders expose PNG hard links by aesthetic, substyle, section, composition and viewport without copying bytes; `review/` holds unfinished or unqualified references separately. The compatibility search `aesthetic/clean` combines Clean aesthetic and clean appearance; labels retain the exact axes. Primary/secondary aesthetic indexes and aesthetic coverage use actual aesthetic claims. `coverage.json` includes all selected concepts even when their count is zero. Source-tagged pages are unverified coverage; qualified counts require current image-scoped classifications. Counts distinguish profiles, viewport families, independent pages/sites and pending or rejected subjects. Human-reviewed coverage is explicitly untracked. A gap never relaxes the quality threshold or becomes a quota.
 
 Library traversal records every queued entry and its resolution status. Explicit exhaustion, observed plateau, unsupported structures and loading failures remain distinct. Recent continuously retains observed identities through card replacement and waits for settled loading checks before counting a plateau.
 
