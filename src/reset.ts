@@ -1,6 +1,7 @@
 import {lstat,readdir,rm,writeFile} from 'node:fs/promises';
 import {dirname,resolve,relative,isAbsolute,parse,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {DatabaseSync} from 'node:sqlite';
 import {Store} from './store.ts';
 import {inside} from './utils.ts';
 import {trustedAsset} from './quality.ts';
@@ -30,6 +31,11 @@ export async function resetOutput(output:string,configPath:string,afterRemoval?:
   for(const name of ['state.sqlite-wal','state.sqlite-shm',marker]){
     try{await trustedAsset(root,name);}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}
   }
+  const existing=new DatabaseSync(join(root,'state.sqlite'),{readOnly:true,timeout:1000});
+  try{
+    const tables=new Set(existing.prepare("SELECT name FROM sqlite_schema WHERE type='table'").all().map(row=>row.name));
+    if(!['meta','jobs','pages','captures','page_urls','page_folders','assets','reference_records'].every(table=>tables.has(table)) || existing.prepare("SELECT value FROM meta WHERE key='schema_version'").get()?.value!=='1')throw new Error('This is not a supported Folio registry. Nothing deleted.');
+  }finally{existing.close();}
   const store=new Store(root,{resetting:true});
   try{
     store.assertWorkflowAccess();store.acquireLock();store.assertNoEngines();

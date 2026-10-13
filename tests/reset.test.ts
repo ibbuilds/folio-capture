@@ -8,6 +8,16 @@ import {resetOutput} from '../src/reset.ts';
 import {serveBridgeHttp} from '../src/mcp.ts';
 import {parseConfig} from '../src/config.ts';
 import {main as cli} from '../src/cli.ts';
+import {DatabaseSync} from 'node:sqlite';
+
+test('reset refuses an unrelated SQLite database before changing its schema or files',async t=>{
+  const root=await mkdtemp(join(tmpdir(),'folio-reset-unrelated-'));t.after(()=>rm(root,{recursive:true,force:true}));
+  const output=join(root,'output');await mkdir(output);const db=new DatabaseSync(join(output,'state.sqlite'));
+  db.exec("CREATE TABLE unrelated (value TEXT); INSERT INTO unrelated VALUES ('Keep me');");db.close();await writeFile(join(output,'catalog.json'),'Unrelated file');
+  await assert.rejects(resetOutput(output,join(root,'sources.yaml')),/not a supported Folio/);
+  const check=new DatabaseSync(join(output,'state.sqlite'));try{assert.equal(check.prepare('SELECT value FROM unrelated').get()!.value,'Keep me');assert.equal(check.prepare("SELECT count(*) AS n FROM sqlite_schema WHERE type='table'").get()!.n,1);}finally{check.close();}
+  assert.equal(await readFile(join(output,'catalog.json'),'utf8'),'Unrelated file');
+});
 
 async function fixture(t:test.TestContext){
   const root=await mkdtemp(join(tmpdir(),'folio-reset-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:3}));
