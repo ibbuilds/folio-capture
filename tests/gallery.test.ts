@@ -788,7 +788,9 @@ test('browser alerts and unsolicited windows cannot stall discovery flow', async
     route.fulfill({
       contentType: 'text/html',
       body: html(
-        '<script>alert("Promotion");window.open("https://promo.test/");window.flowReady=true;</script>',
+        route.request().url() === 'https://page.test/'
+          ? '<script>alert("Promotion");window.open("https://promo.test/one");window.open("https://promo.test/two");window.flowReady=true;</script>'
+          : '<p>Unsolicited promotion</p>',
       ),
     }),
   );
@@ -800,13 +802,15 @@ test('browser alerts and unsolicited windows cannot stall discovery flow', async
     );
     for (
       let step = 0;
-      step < 20 && !log.some((item) => item.action === 'close-unrequested-window');
+      step < 40 &&
+      (context.pages().length > 1 ||
+        log.filter((item) => item.action === 'close-unrequested-window').length < 2);
       step++
     )
       await page.waitForTimeout(50);
     assert.equal(context.pages().length, 1);
     assert.ok(log.some((item) => item.action === 'dismiss-browser-dialog'));
-    assert.ok(log.some((item) => item.action === 'close-unrequested-window'));
+    assert.equal(log.filter((item) => item.action === 'close-unrequested-window').length, 2);
   } finally {
     await context.close();
   }
