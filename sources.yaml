@@ -1,4 +1,5 @@
-# Add original pages or supported reference-library URLs here.
+# Active defaults use supported UI reference-library adapters.
+# Direct original webpage URLs can also be added to sources.
 # The output folder is resolved relative to this file; an absolute path also works.
 output: ./output
 freshnessDays: 730
@@ -10,9 +11,41 @@ quality:
   maxImages: 24 # Larger subjects remain uncertain rather than sampling unseen frames.
   quarantineDays: 30 # Applied only by the explicit prune command.
 sources:
-  - https://linear.app/
-  - https://vercel.com/
-  - https://www.flyhyer.com/
-  # Uncomment to collect Refero Styles. It can contain thousands of entries.
-  # - url: https://styles.refero.design/
-  #   kind: library
+  - url: https://recent.design/websites
+    kind: library
+    name: Recent websites
+  - url: https://styles.refero.design/
+    kind: library
+    name: Refero Styles
+
+  # Selected UI libraries awaiting dedicated traversal adapters; inactive.
+  # Enabling one now records an unsupported-library exception.
+  # Whole websites and landing pages:
+  # - {url: https://refs.gallery/, kind: library}
+  # - {url: https://www.siteofsites.co/, kind: library}
+  # - {url: https://www.awwwards.com/websites/sites_of_the_day/, kind: library}
+  # - {url: https://www.a1.gallery/, kind: library}
+  # - {url: https://maxibestof.one/, kind: library}
+  # - {url: https://www.siteinspire.com/, kind: library}
+  # - {url: https://minimal.gallery/, kind: library}
+  # - {url: https://curated.design/, kind: library}
+  # - {url: https://www.hoverstat.es/, kind: library}
+  # - {url: https://www.lapa.ninja/, kind: library}
+  # - {url: https://saaspo.com/, kind: library}
+  # - {url: https://www.landingfolio.com/, kind: library}
+  # - {url: https://onepagelove.com/inspiration, kind: library}
+  # - {url: https://www.landing.love/, kind: library}
+  # Sections and page details:
+  # - {url: https://www.a1.gallery/sections, kind: library}
+  # - {url: https://curated.design/sections/, kind: library}
+  # - {url: https://www.navbar.gallery/, kind: library}
+  # - {url: https://www.unsection.com/, kind: library}
+  # - {url: https://www.footer.design/, kind: library}
+  # - {url: https://www.cta.gallery/, kind: library}
+  # - {url: https://www.404s.design/, kind: library}
+  # - {url: https://bentogrids.com/, kind: library}
+
+# For a bounded first trial, copy this config to sources.local.yaml and add:
+# discovery:
+#   maxEntries: 3
+# Then run: npm run capture -- --config sources.local.yaml --limit 3
