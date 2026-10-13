@@ -362,9 +362,21 @@ test('original controls outrank creator links and unrelated recommended websites
       await route.fulfill({ contentType: 'text/html', body: html(body) });
     }),
     entryUrl: 'https://onepagelove.com/tim-van-damme-max-voltar',
+    entry: {
+      id: 'listing-reference',
+      seedUrl: 'https://onepagelove.com/inspiration',
+      listingUrl: 'https://onepagelove.com/inspiration',
+      detailUrl: 'https://onepagelove.com/tim-van-damme-max-voltar',
+      title: 'Tim Van Damme',
+      discoveredAt: new Date().toISOString(),
+      sourceLabels: ['Typography'],
+      previewUrl: 'https://images.test/reference.png',
+    },
     settings,
   });
   assert.equal(resolved.originalUrl, 'https://timvandamme.com/');
+  assert.deepEqual(resolved.sourceLabels, ['Typography']);
+  assert.equal(resolved.previewUrl, 'https://images.test/reference.png');
   const footer = await resolveGallery(spec('footer-design'), {
     browser: routed(async (route) => {
       await route.fulfill({
@@ -443,6 +455,22 @@ test('analytics and anonymous membership checks do not mask real data-loading fa
       'https://api.recent.design/admin/presence',
     ],
     ['https://refs.gallery/', 'refs-gallery', 'https://panorama.wixapps.net/api/v1/bulklog'],
+    ['https://refs.gallery/', 'refs-gallery', 'https://frog.wix.com/bpm'],
+    [
+      'https://recent.design/app-store-screenshots',
+      'recent-app-screenshots',
+      'https://api.recent.design/e',
+    ],
+    [
+      'https://www.unsection.com/',
+      'unsection',
+      'https://www.supafeedback.com/api/announcement-impressions',
+    ],
+    [
+      'https://www.unsection.com/',
+      'unsection',
+      'https://www.supafeedback.com/api/widget/73x6840flm/changelog-signal',
+    ],
   ]) {
     const result = await collect('', {
       seed,
@@ -454,7 +482,7 @@ test('analytics and anonymous membership checks do not mask real data-loading fa
             : {
                 contentType: 'text/html',
                 body: html(
-                  `<a href="${id === 'refs-gallery' ? '/projects/first' : id === 'recent-app-screenshots' ? '/i/first' : '/sites/first'}">First</a><p>No more results</p><script>fetch('${url}').catch(()=>{})</script>`,
+                  `<a href="${id === 'refs-gallery' ? '/projects/first' : id === 'recent-app-screenshots' ? '/i/first' : id === 'unsection' ? '/section/first' : '/sites/first'}">First</a><p>No more results</p><script>fetch('${url}',{method:'${url.endsWith('/e') ? 'POST' : 'GET'}'}).catch(()=>{})</script>`,
                 ),
               },
         );
@@ -485,6 +513,25 @@ test('optional iframe failures and detail prefetches do not prevent listing exha
   });
   assert.equal(ending(result).reason, 'explicit_end');
   assert.equal(entries(result).length, 1);
+});
+
+test('a document HEAD probe is optional while a failing document data fetch remains incomplete', async () => {
+  for (const method of ['HEAD', 'GET']) {
+    const result = await collect('', {
+      handler: async (route) =>
+        route.fulfill(
+          route.request().resourceType() === 'fetch'
+            ? { status: 503, body: 'Unavailable' }
+            : {
+                contentType: 'text/html',
+                body: html(
+                  `<a href="/projects/first">First</a><p>No more results</p><script>fetch(location.href,{method:'${method}'}).catch(()=>{})</script>`,
+                ),
+              },
+        ),
+    });
+    assert.equal(ending(result).reason, method === 'HEAD' ? 'explicit_end' : 'incomplete');
+  }
 });
 
 test('discovery-only queues recoverable captures without loading original websites or invoking a model', async () => {

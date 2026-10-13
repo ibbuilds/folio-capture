@@ -14,7 +14,7 @@ export type GallerySpec = {
   paginationRoots?: string[];
   allowDisplayedUrl?: boolean;
   prefetchDetails?: boolean;
-  ignoredRequests?: Array<{ host: string; paths: string }>;
+  ignoredRequests?: Array<{ host: string; paths: string; method?: string }>;
   relatedSelector?: string;
   relatedText?: string;
   intermediates?: Array<{ hosts: string[]; paths: string; selector: string }>;
@@ -228,6 +228,12 @@ export const GALLERY_SPECS: GallerySpec[] = [
   },
   {
     id: 'unsection',
+    ignoredRequests: [
+      {
+        host: 'supafeedback.com',
+        paths: '^/api/(?:announcement-impressions|widget/[^/]+/changelog-signal)/?$',
+      },
+    ],
     hosts: ['unsection.com'],
     listings: '^/(?:category/[^/]+|sections)?/?$',
     details: '^/section/[^/]+/?$',
@@ -277,7 +283,10 @@ export const GALLERY_SPECS: GallerySpec[] = [
   {
     id: 'recent-app-screenshots',
     prefetchDetails: true,
-    ignoredRequests: [{ host: 'api.recent.design', paths: '^/admin/presence/?$' }],
+    ignoredRequests: [
+      { host: 'api.recent.design', paths: '^/admin/presence/?$' },
+      { host: 'api.recent.design', paths: '^/e/?$', method: 'POST' },
+    ],
     hosts: ['recent.design'],
     listings: '^/app-store-screenshots(?:/[^/]+)?/?$',
     details: '^/i/[^/]+/?$',

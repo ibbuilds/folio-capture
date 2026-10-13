@@ -28,6 +28,7 @@ export const GALLERY_AD_HOSTS = [
 export function isTelemetryUrl(value: string): boolean {
   try {
     const host = new URL(value).hostname;
+    if (host === 'frog.wix.com') return true;
     if (host === 'panorama.wixapps.net' && /^\/api\/v1\/bulklog\/?$/.test(new URL(value).pathname))
       return true;
     return [

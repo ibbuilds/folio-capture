@@ -9,7 +9,7 @@ import type { resolveReferoEntry } from './discovery.ts';
 import { canonicalUrl, delay, errorMessage, idFor, now } from './utils.ts';
 import type { Page, Request } from 'playwright';
 class RecentPersistenceError extends Error {}
-const RECENT_SPEC:GallerySpec={id:'recent',hosts:['recent.design'],listings:'^/websites(?:/[^/]+)?/?$',details:'^/i/[^/]+/?$',allowDisplayedUrl:true,prefetchDetails:true,ignoredRequests:[{host:'api.recent.design',paths:'^/admin/presence/?$'}]};
+const RECENT_SPEC:GallerySpec={id:'recent',hosts:['recent.design'],listings:'^/websites(?:/[^/]+)?/?$',details:'^/i/[^/]+/?$',allowDisplayedUrl:true,prefetchDetails:true,ignoredRequests:[{host:'api.recent.design',paths:'^/admin/presence/?$'},{host:'api.recent.design',paths:'^/e/?$',method:'POST'}]};
 
 async function recentSnapshot(page:Page) {
   return page.evaluate(()=>{

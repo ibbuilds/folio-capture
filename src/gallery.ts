@@ -40,12 +40,16 @@ export function isGalleryLoadingRequest(request: Request, page: Page, spec: Gall
     /* Worker requests have no frame. */
   }
   if (request.isNavigationRequest()) return true;
+  // Next's HEAD probe checks the already-rendered document; it carries no listing content.
+  if (request.method() === 'HEAD' && canonicalUrl(request.url()) === canonicalUrl(page.url()))
+    return false;
   const url = new URL(request.url()),
     headers = request.headers();
   return (
     !spec.ignoredRequests?.some(
       (rule) =>
         url.hostname.replace(/^www\./, '') === rule.host &&
+        (!rule.method || request.method() === rule.method) &&
         new RegExp(rule.paths).test(url.pathname),
     ) &&
     !(
@@ -774,8 +778,8 @@ export async function resolveGallery(
         return {
           originalUrl: original,
           title,
-          sourceLabels: [...new Set(labels)],
-          previewUrl,
+          sourceLabels: [...new Set([...(entry?.sourceLabels || []), ...labels])],
+          previewUrl: previewUrl || entry?.previewUrl,
           metadata: {
             adapter: spec.id,
             detailUrl: page.url(),
