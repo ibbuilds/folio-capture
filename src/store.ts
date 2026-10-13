@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { JobStatus, PageManifest, Provenance, Classification } from './types.ts';
 import { canonicalUrl, idFor, now } from './utils.ts';
@@ -15,8 +15,9 @@ export class Store {
   readonly db: DatabaseSync;
   readonly output: string;
   private lockToken: string | undefined;
-  constructor(output: string) {
+  constructor(output: string, options:{resetting?:boolean}={}) {
     this.output = output;
+    if(!options.resetting && existsSync(join(output,'.folio-reset.json')))throw new Error('A collection reset was interrupted. Stop Folio and finish npm run clean before using this output.');
     mkdirSync(output, { recursive: true });
     this.db = new DatabaseSync(join(output, 'state.sqlite'), { timeout: 5000 });
     this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
@@ -65,6 +66,27 @@ export class Store {
     this.lockToken = undefined;
   }
   close() { this.releaseLock(); this.db.close(); }
+  registerEngine() {
+    this.acquireLock();
+    try{const key=`engine:${randomUUID()}`;this.db.prepare('INSERT INTO meta VALUES (?,?)').run(key,JSON.stringify({pid:process.pid}));return key;}
+    finally{this.releaseLock();}
+  }
+  unregisterEngine(key:string){this.db.prepare('DELETE FROM meta WHERE key=?').run(key);}
+  assertNoEngines() {
+    for(const row of this.db.prepare("SELECT value FROM meta WHERE key LIKE 'engine:%'").all()){
+      const owner=JSON.parse(String(row.value));
+      try{process.kill(owner.pid,0);}catch(error){if((error as NodeJS.ErrnoException).code==='ESRCH')continue;throw error;}
+      throw new Error('Stop the Folio engine/bridge with Ctrl+C before resetting its output.');
+    }
+  }
+  resetRegistry() {
+    this.db.exec('BEGIN IMMEDIATE');
+    try{
+      this.db.exec("DELETE FROM reference_records; DELETE FROM captures; DELETE FROM page_folders; DELETE FROM page_urls; DELETE FROM pages; DELETE FROM assets; DELETE FROM jobs; DELETE FROM meta WHERE key NOT IN ('schema_version','runtime_lock');");
+      this.db.exec('COMMIT');
+    }catch(error){this.db.exec('ROLLBACK');throw error;}
+    this.db.exec('VACUUM; PRAGMA wal_checkpoint(TRUNCATE);');
+  }
   recoverRunning() {
     return this.db.prepare("UPDATE jobs SET status='pending', error='Recovered after interrupted run', updated_at=? WHERE status='running' AND stage!='workflow'").run(now()).changes;
   }

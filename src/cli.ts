@@ -12,6 +12,7 @@ import { serveBridgeHttp } from './mcp.ts';
 import { Workflow } from './workflow.ts';
 import { organizeOutput } from './organize.ts';
 import { doctor } from './doctor.ts';
+import { resetOutput } from './reset.ts';
 import { exportCatalog } from './report.ts';
 import { inside, errorMessage, atomicJson } from './utils.ts';
 
@@ -27,10 +28,10 @@ export async function main(args=process.argv.slice(2)) {
     else throw new Error(`Unknown option: ${arg}`);
   }
   if(flags.has('--help') || command==='help'){
-    console.log(`Folio Capture\n\n  npm run capture                       Discover, capture, assess, classify, export\n  npm run capture -- --classifier mcp    ChatGPT reviews through the MCP bridge\n  npm run capture -- --classifier codex  Codex CLI assesses and classifies\n  npm run capture -- --limit 3           Capture at most 3 new pages this run\n  npm run folio -- status                Inspect the job ledger\n  npm run folio -- doctor                Check engine/authentication and pairing\n  npm run folio -- organize              Migrate saved folders safely; engine stopped\n  npm run folio -- coverage              Inspect aesthetic and viewport gaps; offline\n  npm run folio -- retry                 Retry recorded failures\n  npm run folio -- refresh               Force new captures\n  npm run folio -- classify              Classify accepted saved references only\n  npm run folio -- classify --refresh    Reclassify saved captures\n  npm run folio -- reassess              Reassess saved pixels; no browser\n  npm run folio -- export                Regenerate accepted catalog\n  npm run folio -- evaluate --benchmark reviewed.json  Evaluate saved decisions\n  npm run folio -- prune                 Prune rejected assets after retention\n  npm run folio -- report                Regenerate local indexes/report\n  npm run folio -- serve                 View report at http://127.0.0.1:4173\n\nOptions: --classifier mcp|codex, --config sources.yaml, --output folder, --source URL, --port 4173`);
+    console.log(`Folio Capture\n\n  npm run capture                       Discover, capture, assess, classify, export\n  npm run capture -- --classifier mcp    ChatGPT reviews through the MCP bridge\n  npm run capture -- --classifier codex  Codex CLI assesses and classifies\n  npm run capture -- --limit 3           Capture at most 3 new pages this run\n  npm run folio -- status                Inspect the job ledger\n  npm run folio -- doctor                Check engine/authentication and pairing\n  npm run folio -- organize              Migrate saved folders safely; engine stopped\n  npm run clean                         Delete generated output and reset all history\n  npm run folio -- coverage              Inspect aesthetic and viewport gaps; offline\n  npm run folio -- retry                 Retry recorded failures\n  npm run folio -- refresh               Force new captures\n  npm run folio -- classify              Classify accepted saved references only\n  npm run folio -- classify --refresh    Reclassify saved captures\n  npm run folio -- reassess              Reassess saved pixels; no browser\n  npm run folio -- export                Regenerate accepted catalog\n  npm run folio -- evaluate --benchmark reviewed.json  Evaluate saved decisions\n  npm run folio -- prune                 Prune rejected assets after retention\n  npm run folio -- report                Regenerate local indexes/report\n  npm run folio -- serve                 View report at http://127.0.0.1:4173\n\nOptions: --classifier mcp|codex, --config sources.yaml, --output folder, --source URL, --port 4173`);
     return;
   }
-  if(!['run','status','doctor','organize','coverage','retry','refresh','classify','reassess','export','evaluate','prune','report','serve'].includes(command))throw new Error(`Unknown command: ${command}. Use --help.`);
+  if(!['run','reset','status','doctor','organize','coverage','retry','refresh','classify','reassess','export','evaluate','prune','report','serve'].includes(command))throw new Error(`Unknown command: ${command}. Use --help.`);
   const config=await loadConfig(String(flags.get('--config') ?? 'sources.yaml'));
   if(flags.has('--classifier')){
     const provider=flags.get('--classifier');
@@ -38,6 +39,7 @@ export async function main(args=process.argv.slice(2)) {
     config.classifier.runner=provider;
   }
   if(flags.get('--output'))config.output=resolve(String(flags.get('--output')));
+  if(command==='reset'){console.log(JSON.stringify(await resetOutput(config.output,String(flags.get('--config')??'sources.yaml')),null,2));return;}
   if(command==='doctor'){
     const port=Number(flags.get('--port')??4317);if(!Number.isInteger(port)||port<1024||port>65535)throw new Error('Invalid port.');
     const result=await doctor(config,port);console.log(JSON.stringify(result,null,2));return;
