@@ -12,6 +12,7 @@ import { parseConfig } from '../src/config.ts';
 import { main as cli } from '../src/cli.ts';
 import { AnalysisBridge, BRIDGE_CONTEXT_ID } from '../src/bridge.ts';
 import { serveBridgeHttp } from '../src/mcp.ts';
+import { packageDesktopPlugin } from '../scripts/package-desktop-plugin.ts';
 import { Store } from '../src/store.ts';
 import { curateCapture, CRITERIA } from '../src/quality.ts';
 import { TAXONOMY } from '../src/taxonomy.ts';
@@ -150,6 +151,83 @@ function labels(scope: string, id: string) {
       })),
   };
 }
+
+test('installed Desktop package runs from a bare cache and returns screenshots and validated results', async (t) => {
+  const { config, root } = await fixture(t);
+  const server = await serveBridgeHttp(config, 0);
+  t.after(() => new Promise<void>((resolve) => server.close(() => resolve())));
+  const port = (server.address() as { port: number }).port;
+  const packaged = await packageDesktopPlugin(join(root, 'installed-cache', 'folio-capture'));
+  assert.deepEqual(
+    packaged.files.map((f) => f.file),
+    ['plugin.json', 'mcp.json', 'scripts/desktop-bridge.mjs'],
+  );
+  const client = new Client({ name: 'desktop-plugin-contract', version: '1.0.0' });
+  await client.connect(
+    new StdioClientTransport({
+      command: process.execPath,
+      args: [join(packaged.directory, 'scripts', 'desktop-bridge.mjs')],
+      cwd: root,
+      env: {
+        ...(process.env as Record<string, string>),
+        FOLIO_BRIDGE_URL: `http://127.0.0.1:${port}/mcp`,
+      },
+      stderr: 'pipe',
+    }),
+  );
+  try {
+    assert.ok((await client.listTools()).tools.some((t) => t.name === 'submit_result'));
+    const context = await client.callTool({ name: 'get_context', arguments: {} });
+    assert.equal(context.isError, undefined);
+    const packet = await client.callTool({
+      name: 'get_packet',
+      arguments: { contextId: BRIDGE_CONTEXT_ID },
+    });
+    const blocks = packet.content as any[];
+    assert.ok(blocks.some((b) => b.type === 'image' && b.mimeType === 'image/png'));
+    const { packet: task } = JSON.parse(blocks[0].text);
+    const invalid = await client.callTool({
+      name: 'submit_result',
+      arguments: { packetId: task.id, value: pass('invented') },
+    });
+    assert.equal(invalid.isError, true);
+    const result = await client.callTool({
+      name: 'submit_result',
+      arguments: { packetId: task.id, value: pass(task.images[0].id) },
+    });
+    assert.equal(JSON.parse((result.content as any[])[0].text).committed, true);
+    const status = await client.callTool({ name: 'status', arguments: {} });
+    assert.equal(JSON.parse((status.content as any[])[0].text).modelCallsStartedByBridge, 0);
+  } finally {
+    await client.close();
+  }
+});
+
+test('Desktop launcher refuses external endpoints and gives an actionable offline error', async (t) => {
+  const { root } = await fixture(t);
+  const packaged = await packageDesktopPlugin(join(root, 'offline-package'));
+  await writeFile(join(packaged.directory, 'private-config.json'), 'Private test fixture');
+  await assert.rejects(packageDesktopPlugin(packaged.directory), /must be empty/);
+  const script = join(packaged.directory, 'scripts', 'desktop-bridge.mjs');
+  const offline = new Client({ name: 'offline-test', version: '1.0.0' });
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [script],
+    cwd: root,
+    env: { ...(process.env as Record<string, string>), FOLIO_BRIDGE_URL: 'http://127.0.0.1:1/mcp' },
+    stderr: 'pipe',
+  });
+  await assert.rejects(offline.connect(transport), /Start npm run bridge/);
+  await transport.close();
+  const { spawnSync } = await import('node:child_process');
+  const external = spawnSync(process.execPath, [script], {
+    env: { ...process.env, FOLIO_BRIDGE_URL: 'https://outside.test/mcp' },
+    encoding: 'utf8',
+  });
+  assert.notEqual(external.status, 0);
+  assert.match(external.stderr, /only to a loopback/);
+  assert.equal(external.stdout, '');
+});
 
 test('only MCP and Codex providers are configurable; old opt-out CLI flags are rejected', async () => {
   for (const runner of ['none', 'off', '', false])

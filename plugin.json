@@ -1,7 +1,19 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "folio-capture",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Read local Folio screenshots and submit scoped quality and taxonomy judgments through the connected chat model. No Codex or API inference calls.",
-  "author": {"name": "ibbuilds"}
+  "author": {"name": "ibbuilds"},
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Folio Capture",
+        "shortDescription": "Classify local UI references",
+        "longDescription": "Review saved Folio screenshots in ChatGPT Desktop. Start Folio's local HTTP bridge, then request its status and process its review queue. The launcher uses no Codex or model API.",
+        "developerName": "ibbuilds",
+        "category": "Productivity",
+        "defaultPrompt": "Check Folio's status, then process its saved review queue. Inspect all supplied images and submit valid judgments. Keep replies brief."
+      }
+    }
+  }
 }

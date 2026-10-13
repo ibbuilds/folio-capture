@@ -10,6 +10,7 @@
       "src/**/*.ts",
       "tests/**/*.ts",
       "scripts/**/*.ts",
+      "scripts/desktop-bridge.mjs",
       "package.json",
       "tsconfig.json",
       "biome.json",

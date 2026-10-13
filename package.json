@@ -19,7 +19,8 @@
     "test": "node --test --test-concurrency=1 tests/*.test.ts",
     "test:live": "node scripts/live-smoke.ts",
     "benchmark": "node --expose-gc scripts/benchmark-performance.ts",
-    "bridge": "node src/mcp.ts"
+    "bridge": "node src/mcp.ts",
+    "desktop:package": "node scripts/package-desktop-plugin.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.1",
