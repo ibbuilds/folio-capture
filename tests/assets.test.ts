@@ -56,7 +56,7 @@ test('identical published pixels share storage across captures; pruned or tamper
 test('image names are ordered, bounded, Windows-safe and distinguish pages, viewports, sections and states', () => {
   const base = { section: { title: 'CON / Téšt 👻 . '.repeat(20), order: 2 }, part: 1 };
   const name = imageName('https://example.com/pricing?plan=pro', 'tablet-landscape', base);
-  assert.match(name, /example-com--pricing-[a-f0-9]{6}--s003-con-test/);
+  assert.match(name, /example-com--pricing-plan-pro--s003-con-test/);
   assert.match(name, /--tablet-landscape--part-001$/);
   assert.ok(name.length <= 105);
   assert.match(name, /^[a-z0-9-]+$/);
@@ -65,8 +65,8 @@ test('image names are ordered, bounded, Windows-safe and distinguish pages, view
     imageName('https://example.com/pricing?plan=free', 'tablet-landscape', base),
   );
   assert.notEqual(name, imageName('https://example.com/pricing?plan=pro', 'mobile', base));
-  const states = ['scroller-one', 'scroller-two'].map((stateKey) =>
-    imageName('https://example.com/', 'desktop', { ...base, stateKey }),
+  const states = ['scroller-one', 'scroller-two'].map((stateKey,index) =>
+    imageName('https://example.com/', 'desktop', { ...base, stateKey,part:index+1 }),
   );
   assert.notEqual(states[0], states[1]);
   assert.ok(

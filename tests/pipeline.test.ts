@@ -5,10 +5,22 @@ import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseConfig } from '../src/config.ts';
-import { runPipeline, validateCaptureFiles } from '../src/pipeline.ts';
+import { runPipeline as unpairedPipeline, validateCaptureFiles } from '../src/pipeline.ts';
+import { runPairedFixture as runPipeline } from './support/paired-capture.ts';
 import { Store } from '../src/store.ts';
 import { chromium } from 'playwright';
 import type { PageManifest } from '../src/types.ts';
+
+test('unpaired MCP and unavailable Codex are refused before any browser or capture, including direct script calls',async t=>{
+  const root=await mkdtemp(join(tmpdir(),'folio-no-unpaired-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:3}));
+  let launches=0;const launchBrowser=async()=>{launches++;throw new Error('Browser must not start');};
+  const config=parseConfig({output:root,sources:['https://example.test/']});
+  await assert.rejects(unpairedPipeline(config,{launchBrowser,log:()=>{}}),/paired to an active classifier/);
+  await assert.rejects(unpairedPipeline(config,{workflowId:'fake',onCaptureReady:async()=>{},assertClassifierActive:()=>{},launchBrowser,log:()=>{}}),/paired to an active classifier/);
+  config.classifier.runner='codex';config.classifier.command='nonexistent-folio-classifier';
+  await assert.rejects(unpairedPipeline(config,{launchBrowser,log:()=>{}}),/Codex CLI is unavailable/);
+  assert.equal(launches,0);const store=new Store(root);try{assert.equal(store.captures().length,0);}finally{store.close();}
+});
 
 test('end-to-end capture resumes, publishes atomically, reuses pixels, and reports all viewport families',async()=>{
   const root=await mkdtemp(join(tmpdir(),'folio-pipeline-'));
@@ -33,6 +45,8 @@ test('end-to-end capture resumes, publishes atomically, reuses pixels, and repor
     const store=new Store(root);inspectedStore=store;
     const captures=store.captures();const saved=captures.find(c=>c.manifest)!;
     assert.ok(saved);assert.equal(saved.manifest!.variants.length,6);
+    assert.ok(saved.directory.startsWith(`captures/127.0.0.1--port-${address.port}/home/`));
+    assert.ok(saved.manifest!.variants.every(v=>v.regions.flatMap(r=>r.frames).every(f=>f.path.includes('--part-')||f.path.includes('--state-'))));
     assert.equal(saved.status,'complete',JSON.stringify(saved.manifest!.variants.map(v=>({profile:v.profile.id,warnings:v.warnings}))));
     const coverage=JSON.parse(await readFile(join(root,'coverage.json'),'utf8'));
     assert.equal(coverage.aesthetics.length,60);assert.equal(coverage.substyles.length,36);
@@ -89,7 +103,7 @@ test('a disconnected Chromium is relaunched instead of poisoning later viewport 
     owned.newContext=async options=>{if(launches===1)await owned.close();const context=await original(options);await context.route('**/*',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><main><section><h1>Reliable recovery</h1><p>Saved fixture</p></section></main>'}));return context;};
     return owned;
   }});
-  assert.equal(launches,2);assert.equal(summary.captured,1);assert.equal(summary.failed,0);assert.ok(summary.pendingClassification>0,'MCP workflow stays explicitly pending');
+  assert.equal(launches,2);assert.equal(summary.captured,1);assert.equal(summary.failed,0);assert.equal(summary.pendingClassification,0,'The paired fixture supplies validated judgments');
   const store=new Store(root);try{
     assert.ok(store.captures()[0].manifest!.variants.every(v=>v.status==='complete'));
     assert.equal(store.jobs('viewport').find(j=>j.payload.profile==='desktop')!.attempts,2);

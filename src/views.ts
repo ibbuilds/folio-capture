@@ -4,7 +4,7 @@ import type { ReferenceRecord } from './references.ts';
 import { hasCurrentClassification } from './coverage.ts';
 import { trustedAsset } from './quality.ts';
 import { atomicJson, errorMessage, hash, inside } from './utils.ts';
-import { imageName } from './naming.ts';
+import { imageName,pageFolder,nameComponent } from './naming.ts';
 
 type ViewReference = {
   id: string;
@@ -21,14 +21,9 @@ type Inventory = {
   files: ManagedFile[];
   exceptions: Array<{ path: string; reason: string }>;
 };
-const component = (value: string) =>
-  value
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 48) || 'reference';
 function folder(reference: ViewReference) {
-  return `${component(new URL(reference.url).hostname)}--${component(reference.title)}--${component(reference.profileId)}--${reference.id}`;
+  const section=reference.scope==='page'?'whole-page':`s${String((reference.order??0)+1).padStart(3,'0')}-${nameComponent(reference.title,32)}`;
+  return `${pageFolder(reference.url).slice('captures/'.length)}/${section}/${nameComponent(reference.profileId,32)}`;
 }
 
 /** Ordinary category folders share original image bytes through hard links, never copies. */
@@ -47,6 +42,13 @@ export async function exportFileViews(
   const previousByPath = new Map(previous.files.map((f) => [f.path, f]));
   const desired: ManagedFile[] = [],
     notes = new Map<string, unknown>();
+  const assigned=new Map<string,string>(),claimed=new Set<string>();
+  const readableFolder=(reference:ViewReference)=>{
+    const existing=assigned.get(reference.id);if(existing)return existing;
+    const base=folder(reference);let directory=base,ordinal=1;
+    while(claimed.has(directory))directory=`${base}--${++ordinal}`;
+    assigned.set(reference.id,directory);claimed.add(directory);return directory;
+  };
   const add = (directory: string, reference: ViewReference, note: unknown) => {
     for (const [i, image] of reference.images.entries())
       desired.push({
@@ -63,7 +65,7 @@ export async function exportFileViews(
     for (const id of ids) {
       const reference = byId.get(id);
       if (reference)
-        add(`categories/${category}/${folder(reference)}`, reference, {
+        add(`categories/${category}/${readableFolder(reference)}`, reference, {
           id,
           url: reference.url,
           category,
@@ -87,7 +89,7 @@ export async function exportFileViews(
     };
     const status =
       record.quality.verdict === 'accepted' ? 'classification-pending' : record.quality.verdict;
-    add(`review/${status}/${folder(reference)}`, reference, {
+    add(`review/${status}/${readableFolder(reference)}`, reference, {
       id: reference.id,
       url: reference.url,
       status,

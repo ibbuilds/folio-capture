@@ -21,6 +21,10 @@ import { Workflow } from '../src/workflow.ts';
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { organizeOutput } from '../src/organize.ts';
+import { registerCaptureAssets } from '../src/assets.ts';
+import { captureVersion } from '../src/naming.ts';
+import { doctor } from '../src/doctor.ts';
 
 async function fixture(t: test.TestContext, parts = 1) {
   const root = await mkdtemp(join(tmpdir(), 'folio-mcp-'));
@@ -113,6 +117,7 @@ async function fixture(t: test.TestContext, parts = 1) {
     ],
   };
   store.createCapture(page, 'sig', directory, 'staging', 'fixture');
+  await writeFile(join(root,directory,'manifest.json'),JSON.stringify(manifest));
   store.publishCapture(manifest, directory);
   store.close();
   const config = parseConfig({
@@ -156,6 +161,88 @@ function labels(scope: string, id: string) {
   };
 }
 
+test('compact context retains every allowed label and full definitions remain retrievable',async t=>{
+  const {bridge}=await fixture(t);const context=bridge.context();assert.ok(Buffer.byteLength(JSON.stringify(context))<20000);
+  for(const [axis,concepts] of Object.entries(TAXONOMY))assert.deepEqual(context.taxonomy[axis].map(c=>c.label),concepts.map(c=>c.label));
+  const full=await bridge.concepts(context.clientId,[{axis:'visual_style',label:'minimalism'},{axis:'appearance',label:'clean'}]);
+  assert.deepEqual(full.concepts[0],{axis:'visual_style',...TAXONOMY.visual_style.find(c=>c.label==='minimalism')!});
+  await assert.rejects(bridge.concepts(context.clientId,[{axis:'visual_style',label:'invented'}]),/Unknown taxonomy/);
+});
+
+test('a forged pairing token cannot start collection and a disconnected classifier cannot advance',async t=>{
+  const {config,bridge}=await fixture(t);let entered=0,advanced=0;
+  const workflow=new Workflow(config,{connectionMs:60,waitMs:5,pipeline:async(_config,options={})=>{
+    options.assertClassifierActive?.();entered++;
+    await new Promise(accept=>setTimeout(accept,180));options.assertClassifierActive?.();advanced++;
+    throw new Error('A disconnected classifier must not reach another capture');
+  }});
+  await assert.rejects(workflow.start(BRIDGE_CONTEXT_ID,'a'.repeat(64)),/Pairing requires/);
+  const ctx=bridge.context();const run=await workflow.start(ctx.contextId,ctx.clientId);
+  // Saved tasks are deliberately completed before collection; the client then stops requesting work.
+  for(;;){const next=await workflow.next(ctx.contextId,run.runId,run.clientId);if('done'in next){if(next.done)assert.fail();break;}
+    while(next.remaining){const more=await bridge.images(next.packet.id,next.nextOffset,4);next.remaining=more.remaining;next.nextOffset=more.nextOffset;}
+    await bridge.submit(next.packet.id,pass(next.images[0].id,false));
+  }
+  await new Promise(accept=>setTimeout(accept,240));
+  const status=await bridge.status();assert.equal(entered,1);assert.equal(advanced,0);assert.equal(status.workflow?.phase,'paused');assert.equal(status.connection.paired,false);
+});
+
+test('organizing old captures recovers an interrupted rename without changing bytes, IDs or judgments',async t=>{
+  const {bridge,root,directory,manifest}=await fixture(t);
+  for(;;){const packet=await bridge.next(BRIDGE_CONTEXT_ID);if('done'in packet)break;
+    const value=packet.packet.phase==='classification'?labels(packet.packet.scope,packet.images[0].id):pass(packet.images[0].id,packet.packet.scope==='section');await bridge.submit(packet.packet.id,value);
+  }
+  const before=await readFile(join(root,directory,'0.png'));const store=new Store(root);
+  try {
+    store.acquireLock();await registerCaptureAssets(store,directory);
+    const prior=store.references().find(r=>r.quality.verdict==='accepted')!;const classification=JSON.stringify(prior.classification);
+    const failed=await organizeOutput(store,undefined,async()=>{throw new Error('Simulated crash after rename');});assert.equal(failed.exceptions.length,1);assert.equal(store.capture('fixture')!.directory,directory);
+    const repaired=await organizeOutput(store);assert.equal(repaired.moved,1,JSON.stringify(repaired));assert.equal(repaired.exceptions.length,0);
+    const relocated=store.capture('fixture')!;assert.match(relocated.directory,/^captures\/product\.test\/home\//);
+    assert.equal(relocated.manifest!.captureId,manifest.captureId);assert.deepEqual(await readFile(join(root,relocated.directory,'0.png')),before);
+    assert.equal(JSON.stringify(store.reference(prior.subject.id)!.classification),classification);
+    assert.equal(store.reference(prior.subject.id)!.directory,relocated.directory);assert.equal(store.asset(manifest.variants[0].regions[0].frames[0].sha256),`${relocated.directory}/0.png`);
+    const catalog=JSON.parse(await readFile(join(root,'catalog.json'),'utf8'));assert.ok(catalog.references[0].images[0].path.startsWith('captures/product.test/home/'));
+    assert.equal((await organizeOutput(store)).moved,0);
+  }finally{store.close();}
+});
+
+test('organizing never overwrites an existing destination or moves linked user folders',async t=>{
+  const {root,directory}=await fixture(t);const store=new Store(root);
+  try {
+    store.acquireLock();const capture=store.capture('fixture')!,page=store.pages()[0];
+    const target=`${store.folder(page)}/${captureVersion(capture.createdAt,1)}`;
+    await mkdir(join(root,target),{recursive:true});await writeFile(join(root,target,'my-notes.txt'),'Preserve me');
+    const result=await organizeOutput(store);assert.equal(result.moved,0);assert.match(result.exceptions[0].reason,/already exists/);
+    assert.equal(await readFile(join(root,target,'my-notes.txt'),'utf8'),'Preserve me');assert.ok(await readFile(join(root,directory,'0.png')));
+  }finally{store.close();}
+});
+
+test('organizing recovers staged and published-before-commit checkpoints after a rename interruption',async t=>{
+  const {root,directory,manifest}=await fixture(t);const store=new Store(root);
+  try{
+    store.acquireLock();store.db.prepare("UPDATE captures SET manifest=NULL,status='running',staging_directory=? WHERE id='fixture'").run(`${directory}/missing-stage`);
+    const first=await organizeOutput(store,undefined,async()=>{throw new Error('Simulated crash');});assert.equal(first.exceptions.length,1);
+    const retry=await organizeOutput(store);assert.equal(retry.exceptions.length,0,JSON.stringify(retry));
+    assert.ok(await readFile(join(root,store.capture('fixture')!.directory,manifest.variants[0].regions[0].frames[0].path)));
+    const page=store.page('https://stage.test/');store.createCapture(page,'sig','captures/old/stage','captures/old/.staging','stage');
+    await mkdir(join(root,'captures/old/.staging'),{recursive:true});await writeFile(join(root,'captures/old/.staging','partial.png'),'Untouched checkpoint');
+    assert.equal((await organizeOutput(store,undefined,async()=>{throw new Error('Simulated stage crash');})).exceptions.length,1);
+    assert.equal((await organizeOutput(store)).exceptions.length,0);const stage=store.capture('stage')!;
+    assert.ok(stage.stagingDirectory!.startsWith('.staging/stage.test/home/'));assert.equal(await readFile(join(root,stage.stagingDirectory!,'partial.png'),'utf8'),'Untouched checkpoint');
+    const empty=store.page('https://empty.test/');store.createCapture(empty,'sig','captures/old/empty','captures/old/.empty','empty');
+    assert.equal((await organizeOutput(store)).exceptions.length,0);assert.ok(store.capture('empty')!.directory.startsWith('captures/empty.test/home/'));
+  }finally{store.close();}
+});
+
+test('doctor distinguishes a reachable bridge from a paired classifier without starting collection',async t=>{
+  const {config,bridge}=await fixture(t);const server=await serveBridgeHttp(config,0);
+  t.after(()=>new Promise<void>(accept=>server.close(()=>accept())));const port=(server.address() as {port:number}).port;
+  const disconnected=await doctor(config,port);assert.equal(disconnected.ready,false);assert.ok('engineReachable'in disconnected && disconnected.engineReachable);
+  const workflow=new Workflow(config),context=bridge.context();const run=await workflow.start(context.contextId,context.clientId);
+  assert.equal((await doctor(config,port)).ready,true);await workflow.stop(run.runId,run.clientId);assert.equal((await doctor(config,port)).ready,false);
+});
+
 test('installed Desktop package runs from a bare cache and returns screenshots and validated results', async (t) => {
   const { config, root } = await fixture(t);
   const server = await serveBridgeHttp(config, 0);
@@ -164,7 +251,7 @@ test('installed Desktop package runs from a bare cache and returns screenshots a
   const packaged = await packageDesktopPlugin(join(root, 'installed-cache', 'folio-capture'));
   assert.deepEqual(
     packaged.files.map((f) => f.file),
-    ['plugin.json', 'mcp.json', 'scripts/desktop-bridge.mjs'],
+    ['plugin.json', 'mcp.json', 'scripts/desktop-bridge.mjs', 'skills/folio-capture/SKILL.md'],
   );
   const client = new Client({ name: 'desktop-plugin-contract', version: '1.0.0' });
   await client.connect(
@@ -297,6 +384,7 @@ test('one ChatGPT start drives backlog, capture, validated review and export; co
     } finally {
       guard.close();
     }
+    let conceptLookupDone = false;
     let packets = 0,
       done = false,
       sawWaiting = false;
@@ -334,6 +422,20 @@ test('one ChatGPT start drives backlog, capture, validated review and export; co
         packet.phase === 'classification'
           ? labels(packet.scope, packet.images[0].id)
           : pass(packet.images[0].id, packet.scope === 'section');
+      if (packet.phase === 'classification' && 'labels' in value && !conceptLookupDone) {
+        const unread = await client.callTool({
+          name: 'submit_result',
+          arguments: { packetId: packet.id, value, ...session },
+        });
+        assert.equal(unread.isError, true);
+        await call('get_concepts', {
+          ...session,
+          concepts: value.labels
+            .filter((label) => label.label !== 'unknown')
+            .map(({ axis, label }) => ({ axis, label })),
+        });
+        conceptLookupDone = true;
+      }
       const first = await call('submit_result', { packetId: packet.id, value, ...session });
       assert.equal(first.committed, true);
       assert.equal(
@@ -585,10 +687,10 @@ test('all original images must be delivered; changed DOM or pixels and stale rev
   const { bridge, root, directory, manifest, config } = await fixture(t, 5);
   const task = await bridge.next(BRIDGE_CONTEXT_ID);
   if ('done' in task) assert.fail('task missing');
-  assert.equal(task.images.length, 4);
-  assert.equal(task.remaining, 1);
+  assert.equal(task.images.length, 1);
+  assert.equal(task.remaining, 4);
   await assert.rejects(bridge.submit(task.packet.id, pass(task.images[0].id)), /Retrieve all/);
-  await bridge.images(task.packet.id, task.nextOffset, 1);
+  await bridge.images(task.packet.id, task.nextOffset, 4);
   const store = new Store(root);
   manifest.variants[0].title = 'Changed evidence';
   store.publishCapture(manifest, directory);

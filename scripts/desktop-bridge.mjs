@@ -38,6 +38,7 @@ async function forward(line) {
       signal: AbortSignal.timeout(30000),
       headers: {
         'Content-Type': 'application/json',
+        'X-Folio-Client': 'desktop-plugin/0.5.0',
         Accept: 'application/json, text/event-stream',
         ...(protocolVersion ? { 'MCP-Protocol-Version': protocolVersion } : {}),
         ...(process.env.FOLIO_MCP_TOKEN

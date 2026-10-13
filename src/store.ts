@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { JobStatus, PageManifest, Provenance, Classification } from './types.ts';
 import { canonicalUrl, idFor, now } from './utils.ts';
 import type { ReferenceRecord } from './references.ts';
+import { pageFolder } from './naming.ts';
 
 export type Job = { id: string; stage: string; key: string; status: JobStatus; attempts: number; payload: any; result: any; error: string | null; stoppingReason: string | null; createdAt: string; updatedAt: string };
 export type PageRecord = { id: string; url: string; provenance: Provenance[]; latestCaptureId: string | null };
@@ -30,6 +31,7 @@ export class Store {
       CREATE INDEX IF NOT EXISTS pages_latest_capture ON pages(latest_capture_id);
       CREATE TABLE IF NOT EXISTS page_urls (url TEXT PRIMARY KEY, page_id TEXT NOT NULL REFERENCES pages(id), reason TEXT NOT NULL, observed_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS assets (sha256 TEXT PRIMARY KEY, path TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS page_folders (page_id TEXT PRIMARY KEY REFERENCES pages(id), directory TEXT UNIQUE NOT NULL);
     `);
     this.db.prepare("INSERT OR IGNORE INTO meta VALUES ('schema_version','1')").run();
     if(!this.db.prepare("SELECT value FROM meta WHERE key='page_urls_migrated'").get()) {
@@ -73,6 +75,32 @@ export class Store {
     try { process.kill(active.payload.ownerPid,0); }
     catch(error) { if((error as NodeJS.ErrnoException).code==='ESRCH')return; }
     throw new Error('An automatic Folio workflow owns collection. Use its ChatGPT loop or stop_run before starting another collector.');
+  }
+  requirePairedWorkflow(runId?:string) {
+    const active=this.getJob('workflow','active');
+    const client=active?this.getJob('mcp-client',active.payload.clientId):undefined;
+    if(!runId || active?.status!=='running' || active.payload.runId!==runId || active.payload.ownerPid!==process.pid || client?.status!=='complete' || client.payload.runId!==runId)throw new Error('MCP collection requires the local bridge paired to an active classifier chat. Start the engine, then get_context and start_run in that chat. No collection started.');
+  }
+  folder(page:PageRecord):string {
+    const known=this.db.prepare('SELECT directory FROM page_folders WHERE page_id=?').get(page.id) as {directory:string}|undefined;
+    if(known)return known.directory;
+    const base=pageFolder(page.url);let directory=base,ordinal=1;
+    while(this.db.prepare('SELECT page_id FROM page_folders WHERE directory=?').get(directory))directory=`${base}--${++ordinal}`;
+    this.db.prepare('INSERT INTO page_folders VALUES (?,?)').run(page.id,directory);return directory;
+  }
+  relocateCapture(captureId:string,from:string,to:string,stagingDirectory:string|null) {
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      this.db.prepare('UPDATE captures SET directory=?,staging_directory=? WHERE id=?').run(to,stagingDirectory,captureId);
+      for(const reference of this.references(captureId)) {
+        reference.directory=to;
+        if(reference.pruned)reference.pruned.paths=reference.pruned.paths.map(path=>path.startsWith(`${from}/`)?`${to}${path.slice(from.length)}`:path);
+        this.db.prepare('UPDATE reference_records SET record=? WHERE id=?').run(JSON.stringify(reference),reference.subject.id);
+      }
+      const aliases=this.db.prepare('SELECT sha256,path FROM assets WHERE substr(path,1,?)=?').all(from.length+1,`${from}/`);
+      for(const row of aliases)this.saveAsset(String(row.sha256),`${to}${String(row.path).slice(from.length)}`);
+      this.db.exec('COMMIT');
+    }catch(error){this.db.exec('ROLLBACK');throw error;}
   }
   asset(sha256:string):string|undefined {return (this.db.prepare('SELECT path FROM assets WHERE sha256=?').get(sha256) as {path:string}|undefined)?.path;}
   saveAsset(sha256:string,path:string) {this.db.prepare('INSERT OR REPLACE INTO assets VALUES (?,?)').run(sha256,path);}

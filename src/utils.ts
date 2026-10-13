@@ -6,6 +6,7 @@ export const now = () => new Date().toISOString();
 export const hash = (value: unknown) => createHash('sha256').update(typeof value === 'string' ? value : JSON.stringify(value)).digest('hex');
 export const idFor = (value: unknown) => hash(value).slice(0, 24);
 export const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
+export class ClassifierUnavailable extends Error {}
 export class ResolvedDuplicate extends Error {
   readonly destination:string;
   readonly captureId:string;

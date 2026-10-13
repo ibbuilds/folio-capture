@@ -7,7 +7,7 @@ import type { AddressInfo } from 'node:net';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { runPipeline } from '../src/pipeline.ts';
+import { runPairedFixture as runPipeline } from './support/paired-capture.ts';
 import { Store } from '../src/store.ts';
 import { loadConfig, parseConfig } from '../src/config.ts';
 import { libraryAdapter } from '../src/adapters.ts';
@@ -571,14 +571,14 @@ test('normal MCP collection preserves resolved entries and pending classificatio
       log: () => {},
     });
     assert.equal(result.captured, 1);
-    assert.ok(result.pendingClassification>0);
+    assert.equal(result.pendingClassification,0);
     assert.ok(visited.some((url) => url.includes('original.test')));
     const store = new Store(root);
     try {
       assert.equal(store.jobs('capture', ['pending']).length, 1);
       assert.equal(store.jobs('resolve', ['complete']).length, 1);
       assert.equal(store.captures().length, 1);
-      assert.ok(store.references().every(r=>r.quality.verdict==='pending'));
+      assert.ok(store.references().every(r=>r.quality.verdict==='rejected'));
     } finally {
       store.close();
     }
