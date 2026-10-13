@@ -62,7 +62,6 @@ test('cleanup reconciles scan and observer races within existing bounds', { time
       for (let repeat = 0; repeat < 6; repeat++) {
         const context = await browser!.newContext({ viewport: { width: 800, height: 600 } });
         try {
-          await context.addInitScript({ content: 'globalThis.__name ??= function (value) { return value; };' });
           const page = await context.newPage();
           await page.goto(`${fixture.url}/${route}`, { waitUntil: 'domcontentloaded' });
           const log: Intervention[] = [];
@@ -117,7 +116,6 @@ test('verified Apple locale chooser closes without selecting a country or touchi
     for (const route of ['apple-locale', 'country-design']) {
       const context = await browser.newContext({ viewport: { width: 800, height: 600 } });
       try {
-        await context.addInitScript({ content: 'globalThis.__name ??= function (value) { return value; };' });
         const page = await context.newPage();
         await page.goto(`${fixture.url}/${route}`, { waitUntil: 'domcontentloaded' });
         const originalUrl = page.url(), log: Intervention[] = [];
@@ -147,7 +145,6 @@ test('ElevenLabs floating Voice chat is hidden without opening it or hiding inli
     for (const variant of ['known', 'preserved', 'other-host']) {
       const context = await browser.newContext({ viewport: { width: 800, height: 600 } });
       try {
-        await context.addInitScript({ content: 'globalThis.__name ??= function (value) { return value; };' });
         const url = `https://${variant === 'other-host' ? 'example.test' : 'elevenlabs.io'}/folio-fixture`;
         await context.route('**/*', route => route.request().url() === url ? route.fulfill({ status: 200, contentType: 'text/html', body: html }) : route.abort());
         const page = await context.newPage();

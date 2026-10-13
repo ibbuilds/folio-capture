@@ -156,7 +156,8 @@ export type ClassifierProcessRunner = (command: string, args: string[], request:
 
 export class ClassifierError extends Error {
   diagnostics?: { stdout: string; stderr: string };
-  constructor(message: string, public kind: 'process' | 'timeout' | 'unexpected-tool' | 'validation' | 'aborted') { super(message); this.name = 'ClassifierError'; }
+  kind: 'process' | 'timeout' | 'unexpected-tool' | 'validation' | 'aborted';
+  constructor(message: string, kind: ClassifierError['kind']) { super(message); this.name = 'ClassifierError'; this.kind = kind; }
 }
 function reportedModel(event: Record<string, unknown>): string | undefined {
   if (event.type !== 'thread.started') return undefined;
