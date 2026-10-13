@@ -34,7 +34,7 @@ export async function resetOutput(output:string,configPath:string,afterRemoval?:
   const existing=new DatabaseSync(join(root,'state.sqlite'),{readOnly:true,timeout:1000});
   try{
     const tables=new Set(existing.prepare("SELECT name FROM sqlite_schema WHERE type='table'").all().map(row=>row.name));
-    if(!['meta','jobs','pages','captures','page_urls','page_folders','assets','reference_records'].every(table=>tables.has(table)) || existing.prepare("SELECT value FROM meta WHERE key='schema_version'").get()?.value!=='1')throw new Error('This is not a supported Folio registry. Nothing deleted.');
+    if(!['meta','jobs','pages','captures'].every(table=>tables.has(table)) || existing.prepare("SELECT value FROM meta WHERE key='schema_version'").get()?.value!=='1')throw new Error('This is not a supported Folio registry. Nothing deleted.');
   }finally{existing.close();}
   const store=new Store(root,{resetting:true});
   try{

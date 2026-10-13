@@ -39,6 +39,12 @@ test('clean resets all collection history, assets and views while preserving sou
   await resetOutput(output,config);
 });
 
+test('reset accepts legacy Folio registries before later metadata tables were introduced',async t=>{
+  const {output,config}=await fixture(t);const db=new DatabaseSync(join(output,'state.sqlite'));
+  db.exec('DROP TABLE reference_records; DROP TABLE assets; DROP TABLE page_folders; DROP TABLE page_urls;');db.close();
+  await resetOutput(output,config);const store=new Store(output);try{assert.equal(store.pages().length,0);assert.equal(store.jobs().length,0);}finally{store.close();}
+});
+
 test('reset refuses active collectors and unpaired waiting bridges without removing anything',async t=>{
   const {output,config}=await fixture(t);const store=new Store(output);store.acquireLock();
   try{await assert.rejects(resetOutput(output,config),/Another Folio/);}finally{store.close();}
