@@ -122,6 +122,18 @@ test('replaced reference cards and duplicate tracking links retain all identitie
   assert.equal(ending(result).reason, 'explicit_end');
 });
 
+test('large streamed galleries remain navigable and retain cards recycled before settlement', async () => {
+  const cards = Array.from({ length: 3000 }, (_, i) => `<a href="/projects/card-${i}">Card ${i}</a>`).join('');
+  const result = await collect(
+    `<main id="cards">${cards}</main><script>document.addEventListener('DOMContentLoaded',()=>{document.querySelector('#cards').innerHTML='<a href="/projects/final">Final</a><p>No more results</p>'})</script>`,
+    { settings: { navigationTimeoutMs: 3000, maxDurationMs: 10000 } },
+  );
+  assert.equal(entries(result).length, 3001);
+  assert.equal(ending(result).reason, 'explicit_end');
+  assert.ok(entries(result).some(entry => entry.detailUrl.endsWith('/projects/card-0')));
+  assert.ok(entries(result).some(entry => entry.detailUrl.endsWith('/projects/final')));
+});
+
 test('an unsupported secondary collection cannot hide behind an earlier successful collection', async () => {
   const result = await collect('', {
     handler: async (route) => {

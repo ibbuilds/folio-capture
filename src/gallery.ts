@@ -192,10 +192,21 @@ async function observeCards(page: Page, spec: GallerySpec): Promise<void> {
       };
       window.__folioGallery = { entries, collect: dom.collect, card: dom.card };
       new MutationObserver((changes) => {
+        const roots = new Set<Node>();
         for (const change of changes) {
-          dom.collect(change.target);
-          for (const node of [...change.addedNodes, ...change.removedNodes]) dom.collect(node);
+          if (change.type === 'childList') {
+            // Parsing a large listing adds many children to the same grid. Rescanning that
+            // growing grid for every child makes discovery quadratic and stalls navigation.
+            for (const node of [...change.addedNodes, ...change.removedNodes]) roots.add(node);
+            const anchor = (change.target instanceof Element
+              ? change.target
+              : change.target.parentElement)?.closest('a[href]');
+            if (anchor) roots.add(anchor);
+          } else {
+            roots.add(change.target instanceof Element ? change.target : change.target.parentElement!);
+          }
         }
+        for (const root of roots) if (root) dom.collect(root);
       }).observe(document, {
         subtree: true,
         childList: true,
