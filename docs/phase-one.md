@@ -16,10 +16,10 @@ The normal command discovers original destinations, traverses their public navig
 
 Only two classifier providers are supported:
 
-- **MCP (default):** collect with `npm run capture -- --classifier mcp`, then connect a ChatGPT conversation to the included MCP server. `npm run bridge -- --http` provides the loopback HTTP endpoint; `mcp.json` describes the native STDIO launch. See the [connection steps](../README.md#chatgpt-classifier-connection). ChatGPT inspects saved images and submits JSON; the engine never starts Codex or calls an AI API. Work remains pending until the connected client reviews it.
+- **MCP (default):** start `npm run bridge -- --http`, install the Folio Capture private plugin in ChatGPT Desktop, and verify `status` in a new ordinary Chat conversation with `@Folio Capture`. Then collect with `npm run capture -- --classifier mcp`. `mcp.json` starts a dependency-free launcher that forwards requests to the local engine. See the [connection steps](../README.md#chatgpt-classifier-connection). ChatGPT inspects saved images and submits JSON; the engine never starts Codex or calls an AI API. Work remains pending until the connected client reviews it.
 - **Codex:** `npm run capture -- --classifier codex`. Existing ChatGPT CLI authentication is used; executable/model settings are configurable. Model action tools are disabled. This uses Codex allowances.
 
-There is no no-classifier collection option. Saved-image commands (`reassess`, `classify`) use the configured provider; MCP queues fresh work for the connected conversation. Failure, invalid responses and usage limits remain pending. Neither transport tests nor existing Figma integration verify ordinary ChatGPT Desktop Chat support for this new plugin; that connection must be tested on the target client.
+There is no no-classifier collection option. Saved-image commands (`reassess`, `classify`) use the configured provider; MCP queues fresh work for the connected conversation. Failure, invalid responses and usage limits remain pending. Tests verify the packaged launcher independently from the source checkout; actual Desktop tool selection and image rendering must also be checked in the target conversation.
 
 ## Classification and coverage
 
