@@ -2,6 +2,8 @@
 
 The quality gate is experimental. A fixed, independently reviewed set of excellent, borderline and weak references is required before claiming the 98% observed accepted-precision target. No gold judgments are generated automatically or inferred from gallery membership.
 
+The creator's reviewed references will anchor the future library's standards. Automatic local candidate qualification and final library admission are separate decisions. A target such as twenty examples per aesthetic or substyle helps organize collection; reliability must still be measured on held-out evidence before enabling automatic admission. See the [crawler progression](engine-principles.md).
+
 Choose saved references across all viewport families and aesthetics, including clean/minimal, editorial, brutalist/neobrutalist, glass/neumorphic, futuristic, retro and vaporwave. Split by independent domain/brand/template when tuning versus evaluating; related sections and responsive variants are correlated. Freeze human judgments before viewing model outcomes. Reviewers assess the intended aesthetic, not conformity to a preferred style.
 
 Provide a JSON dataset in this format (placeholder IDs/hashes below must be replaced with actual saved references):
