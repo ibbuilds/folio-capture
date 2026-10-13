@@ -4,13 +4,16 @@ import type { ReferenceRecord } from './references.ts';
 import { hasCurrentClassification } from './coverage.ts';
 import { trustedAsset } from './quality.ts';
 import { atomicJson, errorMessage, hash, inside } from './utils.ts';
+import { imageName } from './naming.ts';
 
 type ViewReference = {
   id: string;
   title: string;
   url: string;
   profileId: string;
-  images: Array<{ path: string }>;
+  order?:number;
+  scope?:string;
+  images: Array<{ path: string;kind?:string }>;
 };
 type ManagedFile = { path: string; source?: string; ino?: string; dev?: string; sha256?: string };
 type Inventory = {
@@ -47,7 +50,7 @@ export async function exportFileViews(
   const add = (directory: string, reference: ViewReference, note: unknown) => {
     for (const [i, image] of reference.images.entries())
       desired.push({
-        path: `${directory}/part-${String(i + 1).padStart(3, '0')}.png`,
+        path: `${directory}/${imageName(reference.url,reference.profileId,{...(reference.scope==='page'?{}:{section:{title:reference.title,order:reference.order??0}}),part:i+1,...(image.kind==='scroll-state'?{stateKey:'scroll'}:{})})}.png`,
         source: image.path,
       });
     const path = `${directory}/reference.json`;
@@ -79,7 +82,8 @@ export async function exportFileViews(
       title: record.subject.title,
       url: record.sourceUrl,
       profileId: record.subject.profileId,
-      images: record.subject.frames.map((f) => ({ path: `${record.directory}/${f.path}` })),
+      order:record.subject.order,scope:record.subject.scope,
+      images: record.subject.frames.map((f) => ({ path: `${record.directory}/${f.path}`,kind:f.kind })),
     };
     const status =
       record.quality.verdict === 'accepted' ? 'classification-pending' : record.quality.verdict;

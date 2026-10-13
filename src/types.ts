@@ -44,6 +44,7 @@ export type ViewportCapture = {
 export type CaptureOptions = {
   browser: Browser; url: string; profile: CaptureProfile; settings: CaptureSettings;
   outputDir: string; onProgress?: (message: string) => void; signal?: AbortSignal;
+  onNavigation?:(finalUrl:string)=>Promise<void>;
 };
 export type Provenance = { seedUrl: string; listingUrl?: string; detailUrl?: string; discoveredAt: string; sourceLabels: string[]; previewUrl?: string; resolutionPath?: string[]; navigationPath?: string[] };
 export type PageManifest = {

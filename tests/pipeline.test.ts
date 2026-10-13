@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseConfig } from '../src/config.ts';
@@ -53,6 +53,28 @@ test('end-to-end capture resumes, publishes atomically, reuses pixels, and repor
     assert.equal(index.pages[0].variants.length,6);assert.equal(JSON.parse(await readFile(join(root,'catalog.json'),'utf8')).references.length,0);
     await assert.rejects(readFile(join(root,'report.html'),'utf8')); // Report is explicitly opt-in.
   }finally{inspectedStore?.close();await new Promise<void>(resolve=>server.close(()=>resolve()));await rm(root,{recursive:true,force:true,maxRetries:3,retryDelay:100});}
+});
+
+test('limited runs advance past reusable pages and verified redirects, without duplicate capture pixels',async t=>{
+  const root=await mkdtemp(join(tmpdir(),'folio-progress-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:3}));
+  const server=createServer((req,res)=>{
+    if(req.url==='/alias'){res.writeHead(302,{Location:'/one'});res.end();return;}
+    res.writeHead(200,{'Content-Type':'text/html'});res.end('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}section{height:1000px;padding:40px;box-sizing:border-box}</style><main><section><h1>Consistent fixture</h1><p>Saved reference.</p></section></main>');
+  });
+  await new Promise<void>(accept=>server.listen(0,'127.0.0.1',accept));t.after(()=>new Promise<void>(accept=>server.close(()=>accept())));
+  const origin=`http://127.0.0.1:${(server.address() as {port:number}).port}`;
+  const config=parseConfig({output:root,sources:[`${origin}/one`,`${origin}/alias`,`${origin}/two`],profiles:[{id:'desktop',width:1440,height:1000,dpr:2,isMobile:false,hasTouch:false}],capture:{maxAttempts:1,mediaTimeoutMs:400,settleTimeoutMs:600,cleanupTimeoutMs:400,explorationTimeoutMs:4000,attemptTimeoutMs:15000}});
+  assert.equal((await runPipeline(config,{limit:1,log:()=>{}})).captured,1);
+  const next=await runPipeline(config,{limit:1,log:()=>{}});assert.equal(next.captured,1);assert.ok(next.reused>=1);
+  const store=new Store(root);
+  try {
+    const captures=store.latestCaptures();assert.equal(captures.length,2);
+    assert.equal(store.page(`${origin}/alias`).id,store.page(`${origin}/one`).id);
+    assert.ok(store.jobs('capture').some(j=>j.stoppingReason==='verified_redirect_reuse'));
+    const a=captures[0].manifest!.variants[0].regions[0].frames[0],b=captures[1].manifest!.variants[0].regions[0].frames[0];
+    assert.equal(a.sha256,b.sha256);assert.equal((await stat(join(root,captures[0].directory,a.path))).ino,(await stat(join(root,captures[1].directory,b.path))).ino);
+  } finally {store.close();}
+  const replay=await runPipeline(config,{limit:1,log:()=>{}});assert.equal(replay.captured,0);assert.equal(replay.reused,2);
 });
 
 test('a disconnected Chromium is relaunched instead of poisoning later viewport attempts',async t=>{

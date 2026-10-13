@@ -9,6 +9,8 @@ import { documentToViewport, intersectRect, mergeCoverage, uncoveredRanges } fro
 import { sweepCleanup } from './cleanup.ts';
 import { guardNuisances } from './nuisance.ts';
 import { captureRegionImage } from './image-capture.ts';
+import { imageName, NAMING_VERSION } from './naming.ts';
+import { ResolvedDuplicate } from './utils.ts';
 
 type DomRegion = { title: string; selector: string; y: number; end: number; semantic: boolean; sticky: boolean; value: Record<string, unknown> };
 class UnsupportedViewportError extends Error {}
@@ -211,7 +213,7 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
   const result: ViewportCapture = { profile, status: 'failed', requestedUrl: options.url, finalUrl: options.url, title: '',
     capturedAt: new Date().toISOString(), pageHeight: 0, regions: [], evidence: [], warnings: [], interventions: [], coverage: [], stoppingReason: 'not_started',
     environment: { browser: 'chromium', browserVersion: browser.version(), platform: os.platform(), release: os.release(), architecture: os.arch(),
-      viewport: { width: profile.width, height: profile.height }, deviceScaleFactor: profile.dpr, screenshotScale: 'device', locale: 'en-US', timezone: 'UTC', colorScheme: 'light', reducedMotion: 'no-preference' } };
+      namingVersion:NAMING_VERSION,viewport: { width: profile.width, height: profile.height }, deviceScaleFactor: profile.dpr, screenshotScale: 'device', locale: 'en-US', timezone: 'UTC', colorScheme: 'light', reducedMotion: 'no-preference' } };
   let context: BrowserContext | undefined;
   let page: Page | undefined;
   let timedOut = false;
@@ -246,7 +248,7 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
     check();
     const cleaned = await sweepCleanup(page!, settings, result.interventions, async () => {
       if (rawDiagnosticWritten) return;
-      const diagnostic = `diagnostics/${profile.id}/before-cleanup.png`;
+      const diagnostic = `diagnostics/${profile.id}/${imageName(options.url,profile.id,{diagnostic:'before-cleanup'})}.png`;
       await relativeWrite(diagnostic, await page!.screenshot({ type: 'png', timeout: settings.screenshotTimeoutMs, scale: 'device' }));
       result.evidence.push({ id: `${profile.id}-before-cleanup`, kind: 'raw-diagnostic', value: { path: diagnostic, purpose: 'Before the first nuisance intervention' } });
       rawDiagnosticWritten = true;
@@ -289,7 +291,7 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
     if (response && response.status() >= 400) {
       result.status = response.status() === 401 || response.status() === 403 || response.status() === 429 ? 'blocked' : 'failed';
       result.stoppingReason = `http_${response.status()}`;
-      const diagnostic = `diagnostics/${profile.id}/blocked.png`;
+      const diagnostic = `diagnostics/${profile.id}/${imageName(options.url,profile.id,{diagnostic:'blocked'})}.png`;
       await relativeWrite(diagnostic, await page.screenshot({ timeout: settings.screenshotTimeoutMs, scale: 'device' }));
       result.overview = diagnostic; return result;
     }
@@ -299,11 +301,12 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
       return /(?:just a moment|access denied|attention required|verify you are human|checking your browser)/i.test(title) ||
         (text.length < 1200 && /(?:verify (?:that )?you are human|checking your browser|captcha verification|enable javascript and cookies to continue)/i.test(text));
     });
+    if(!gate)await options.onNavigation?.(result.finalUrl);
     const initialCleanup = await cleanup();
     await readiness(false);
     const finalInitialCleanup = await cleanup();
     const supportedViewport = await observeViewport();
-    result.overview = `${profile.id}/overview.png`;
+    result.overview = `${profile.id}/${imageName(options.url,profile.id,{diagnostic:'overview'})}.png`;
     const overview = await page.screenshot({ type: 'png', timeout: settings.screenshotTimeoutMs, scale: 'device', caret: 'hide' });
     const overviewDimensions = await sharp(overview).metadata();
     result.environment.encodedViewport = { width: overviewDimensions.width, height: overviewDimensions.height };
@@ -367,7 +370,7 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
         const {buffer:encoded,crop}=image;
         result.environment.referenceImageMethods??={};
         const methods=result.environment.referenceImageMethods as Record<string,number>;methods[image.method]=(methods[image.method]??0)+1;
-        const suffix = `${region.id}-${String(++part).padStart(3, '0')}`;
+        const suffix = imageName(options.url,profile.id,{section:region,part:++part,...(region.roleHint==='scroll-dependent'?{stateKey:region.id}:{})});
         const imagePath = `${profile.id}/sections/${suffix}.png`, thumbnail = `thumbnails/${profile.id}/${suffix}.webp`;
         await relativeWrite(imagePath, encoded);
         await relativeWrite(thumbnail, await sharp(encoded).resize({ width: 480, withoutEnlargement: true }).webp({ quality: 85 }).toBuffer());
@@ -472,7 +475,7 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
           const {buffer:encoded,crop}=image;
           result.environment.referenceImageMethods??={};
           const methods=result.environment.referenceImageMethods as Record<string,number>;methods[image.method]=(methods[image.method]??0)+1;
-          const suffix = `${parent.id}-${scroller.key}-state-${String(sequence).padStart(3, '0')}`;
+          const suffix = imageName(options.url,profile.id,{section:parent,stateKey:scroller.key,part:sequence});
           const imagePath = `${profile.id}/sections/${suffix}.png`, thumbnail = `thumbnails/${profile.id}/${suffix}.webp`;
           await relativeWrite(imagePath, encoded);
           await relativeWrite(thumbnail, await sharp(encoded).resize({ width: 480, withoutEnlargement: true }).webp({ quality: 85 }).toBuffer());
@@ -521,11 +524,12 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
     result.status = result.warnings.length ? 'incomplete' : 'complete';
     result.stoppingReason = reachedBottom ? result.status === 'complete' ? 'page_end' : 'quality_warning' : 'exploration_limit';
   } catch (error) {
+    if(error instanceof ResolvedDuplicate)throw error;
     result.status = error instanceof UnsupportedViewportError || result.regions.some(region => region.frames.length) ? 'incomplete' : 'failed';
     result.stoppingReason = options.signal?.aborted ? 'aborted' : timedOut ? 'attempt_timeout' : error instanceof UnsupportedViewportError ? 'unsupported_layout_viewport' : 'capture_error';
     warn(error instanceof Error ? error.message : String(error));
     if (page && !page.isClosed() && !timedOut) {
-      try { await relativeWrite(`diagnostics/${profile.id}/error.png`, await page.screenshot({ timeout: settings.screenshotTimeoutMs })); } catch { /* Original error is retained. */ }
+      try { await relativeWrite(`diagnostics/${profile.id}/${imageName(options.url,profile.id,{diagnostic:'error'})}.png`, await page.screenshot({ timeout: settings.screenshotTimeoutMs })); } catch { /* Original error is retained. */ }
     }
   } finally {
     clearTimeout(timer); options.signal?.removeEventListener('abort', abort);
