@@ -1,7 +1,7 @@
 import { chromium, type Browser } from 'playwright';
 import { mkdir, rename, readFile, copyFile, rm } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
-import { randomUUID, createHash } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import sharp from 'sharp';
 import { captureViewport } from './capture.ts';
 import { heuristicClassification, classificationCacheKey } from './classification.ts';
@@ -9,14 +9,17 @@ import { Store, type CaptureRecord } from './store.ts';
 import { curateCapture } from './quality.ts';
 import { exportAccepted } from './catalog.ts';
 import { shareCaptureAssets, registerCaptureAssets } from './assets.ts';
+import { ensureCodexReady } from './classifier-ready.ts';
+import { captureVersion } from './naming.ts';
+import type { ClassifierProcessRunner } from './classification.ts';
 import { TAXONOMY_VERSION } from './taxonomy.ts';
 import { libraryAdapter, isKnownLibrary } from './adapters.ts';
 import { discoverSite } from './site.ts';
 import { exportCatalog } from './report.ts';
-import { atomicJson, canonicalUrl, delay, errorMessage, hash, inside, isRelatedDestination, jsonFile, now, ResolvedDuplicate } from './utils.ts';
+import { atomicJson, canonicalUrl, delay, errorMessage, hash, inside, isRelatedDestination, jsonFile, now, ResolvedDuplicate, ClassifierUnavailable } from './utils.ts';
 import type { Config, EvidenceItem, PageManifest, Source, ViewportCapture, Provenance, Classification, DiscoveredEntry } from './types.ts';
 
-export type RunOptions = { launchBrowser?: () => Promise<Browser>; refresh?: boolean; retry?: boolean; classifyOnly?: boolean; reassess?: boolean; source?: string; limit?: number; signal?: AbortSignal; log?: (message:string)=>void; workflowId?:string; onCaptureReady?:(captureId:string)=>Promise<void> };
+export type RunOptions = { launchBrowser?: () => Promise<Browser>; refresh?: boolean; retry?: boolean; classifyOnly?: boolean; reassess?: boolean; source?: string; limit?: number; signal?: AbortSignal; log?: (message:string)=>void; workflowId?:string; onCaptureReady?:(captureId:string)=>Promise<void>; assertClassifierActive?:()=>void; preflightClassifier?:typeof ensureCodexReady; runProcess?:ClassifierProcessRunner };
 export type RunSummary = { discovered:number; queued:number; captured:number; reused:number; unresolved:number; incomplete:number; unsupported:number; blocked:number; failed:number; classified:number; pendingClassification:number; interrupted:boolean };
 
 export async function validateCaptureFiles(root: string, manifest: PageManifest): Promise<boolean> {
@@ -37,7 +40,8 @@ export async function validateCaptureFiles(root: string, manifest: PageManifest)
 /** Intentional tombstones are not corrupt captures and must not trigger recapture. */
 export async function validateStoredCapture(store:Store,capture:CaptureRecord):Promise<boolean> {
   if(!capture.manifest)return false;
-  const removed=new Set(store.references(capture.id).flatMap(r=>r.pruned?.paths??[]));
+  const recordedDirectory=store.capture(capture.id)?.directory ?? capture.directory;
+  const removed=new Set(store.references(capture.id).flatMap(r=>r.pruned?.paths??[]).map(path=>path.startsWith(`${recordedDirectory}/`)?`${capture.directory}${path.slice(recordedDirectory.length)}`:path));
   if(!removed.size)return validateCaptureFiles(inside(store.output,capture.directory),capture.manifest);
   const remaining={...capture.manifest,variants:capture.manifest.variants.map(v=>({...v,status:'incomplete' as const,
     regions:v.regions.map(r=>({...r,frames:r.frames.filter(f=>!removed.has(`${capture.directory}/${f.path}`)&&!removed.has(`${capture.directory}/${f.thumbnail}`))}))}))};
@@ -89,7 +93,7 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
   const visited=new Set<string>();
   const analysisState={unavailable:false};
   const captureSignature = (source:Source) => hash({ version:2,playwright:'1.62.1',profiles:config.profiles,capture:{...config.capture,preserveSelectors:[...config.capture.preserveSelectors,...source.preserveSelectors??[]],dismissSelectors:[...config.capture.dismissSelectors,...source.dismissSelectors??[]]} });
-  const checkInterrupted=()=>options.signal?.throwIfAborted();
+  const checkInterrupted=()=>{options.signal?.throwIfAborted();options.assertClassifierActive?.();};
   async function ensureBrowser(){
     checkInterrupted();
     if(!browser?.isConnected()){
@@ -100,10 +104,11 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
   }
 
   async function classify(capture:CaptureRecord, force=false) {
-    await curateCapture(store,capture.id,config,{runtime:analysisState,classifyOnly:options.classifyOnly&&!options.reassess,reassess:options.reassess,reclassify:force,signal:options.signal,log});
+    await curateCapture(store,capture.id,config,{runtime:analysisState,classifyOnly:options.classifyOnly&&!options.reassess,reassess:options.reassess,reclassify:force,signal:options.signal,log,runProcess:options.runProcess});
     const references=store.references(capture.id);
     summary.classified+=references.filter(r=>r.classification).length;
     summary.pendingClassification+=references.filter(r=>r.quality.verdict==='pending' || r.quality.verdict==='accepted'&&!r.classification).length;
+    if(config.classifier.runner==='codex' && references.some(r=>r.quality.verdict==='pending' || r.quality.verdict==='accepted'&&!r.classification))throw new ClassifierUnavailable('Classifier unavailable or returned an invalid result. Collection paused; saved jobs remain pending.');
     if(options.onCaptureReady && references.some(r=>!r.pruned && (r.quality.verdict==='pending' || r.quality.verdict==='accepted'&&!r.classification))){
       // Published pixels are immutable. Yield the writer lock while the chat reviews them.
       store.releaseLock();locked=false;
@@ -152,9 +157,11 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
     }
     store.start(job);
     const existing=store.inProgressCapture(page.id,signature);
-    const captureId=existing?.id ?? `${new Date().toISOString().replace(/[:.]/g,'-')}-${randomUUID().slice(0,8)}`;
-    const directory=existing?.directory ?? `captures/${page.id}/${captureId}`;
-    const stagingDirectory=existing?.stagingDirectory ?? `captures/${page.id}/.staging-${captureId}`;
+    const ordinal=store.captures().filter(c=>c.pageId===page.id).length+1,startedAt=now();
+    const captureId=existing?.id ?? hash([page.id,startedAt,ordinal]).slice(0,24);
+    const folder=store.folder(page),version=captureVersion(startedAt,ordinal);
+    const directory=existing?.directory ?? `${folder}/${version}`;
+    const stagingDirectory=existing?.stagingDirectory ?? `.staging/${folder.slice('captures/'.length)}/${version}`;
     const root=inside(config.output,stagingDirectory);
     await mkdir(root,{recursive:true});
     if(!existing)store.createCapture(page,signature,directory,stagingDirectory,captureId);
@@ -180,7 +187,7 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
         const timeout=AbortSignal.timeout(config.capture.attemptTimeoutMs);
         const signal=options.signal ? AbortSignal.any([timeout,options.signal]) : timeout;
         try {
-          result=await captureViewport({browser:await ensureBrowser(),url:page.url,profile,settings:{...config.capture,preserveSelectors:[...config.capture.preserveSelectors,...source.preserveSelectors??[]],dismissSelectors:[...config.capture.dismissSelectors,...source.dismissSelectors??[]]},outputDir:root,onProgress:message=>log(`  ${profile.id}: ${message}`),signal,onNavigation:async finalUrl=>{
+          result=await captureViewport({browser:await ensureBrowser(),url:page.url,profile,settings:{...config.capture,preserveSelectors:[...config.capture.preserveSelectors,...source.preserveSelectors??[]],dismissSelectors:[...config.capture.dismissSelectors,...source.dismissSelectors??[]]},outputDir:root,onProgress:message=>{checkInterrupted();log(`  ${profile.id}: ${message}`);},signal,onNavigation:async finalUrl=>{
             if(options.refresh || variants.length || !isRelatedDestination(page.url,finalUrl) || canonicalUrl(page.url)===canonicalUrl(finalUrl))return;
             const known=store.pageForUrl(finalUrl);
             const prior=known && known.id!==page.id?store.latestUsable(known.id,signature,config.freshnessDays):undefined;
@@ -246,6 +253,11 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
   }
 
   try {
+    if(config.classifier.runner==='mcp'){
+      store.requirePairedWorkflow(options.workflowId);
+      if(!options.onCaptureReady || !options.assertClassifierActive)throw new Error('MCP collection requires its paired classifier controller.');
+      options.assertClassifierActive();
+    }else await (options.preflightClassifier??ensureCodexReady)(config.classifier,options.signal);
     store.assertWorkflowAccess(options.workflowId);store.acquireLock();locked=true;store.recoverRunning();await recoverPublished(store,log);
     if(options.retry)store.retryFailures();
     if(options.classifyOnly){let analyzed=0;for(const capture of store.latestCaptures().filter(c=>c.manifest && (!options.source || c.manifest.provenance.some(p=>canonicalUrl(p.seedUrl)===canonicalUrl(options.source!)) || canonicalUrl(c.manifest.requestedUrl)===canonicalUrl(options.source!)) && c.manifest.variants.some(v=>v.regions.some(r=>r.frames.length)))){checkInterrupted();await classify(capture,Boolean(options.refresh));if(options.limit && ++analyzed>=options.limit)break;}return summary;}
@@ -298,7 +310,7 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
     }
     return summary;
   }catch(error){
-    if(options.signal?.aborted){summary.interrupted=true;log('Interrupted. Saved jobs will resume on the next run.');return summary;}
+    if(options.signal?.aborted || error instanceof ClassifierUnavailable){summary.interrupted=true;log(error instanceof ClassifierUnavailable?error.message:'Interrupted. Saved jobs will resume on the next run.');return summary;}
     throw error;
   }finally{
     summary.queued=store.jobs('capture',['pending','running']).length;

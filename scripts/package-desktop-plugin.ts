@@ -13,7 +13,9 @@ export async function packageDesktopPlugin(
       'The desktop package destination must be empty; existing files were preserved.',
     );
   await mkdir(join(destination, 'scripts'), { recursive: true });
-  for (const file of ['plugin.json', 'mcp.json', 'scripts/desktop-bridge.mjs']) {
+  await mkdir(join(destination,'skills','folio-capture'),{recursive:true});
+  const files=['plugin.json','mcp.json','scripts/desktop-bridge.mjs','skills/folio-capture/SKILL.md'];
+  for (const file of files) {
     const output = join(destination, file);
     await copyFile(resolve(file), output);
   }
@@ -23,7 +25,7 @@ export async function packageDesktopPlugin(
     name: manifest.name,
     version: manifest.version,
     files: await Promise.all(
-      ['plugin.json', 'mcp.json', 'scripts/desktop-bridge.mjs'].map(async (file) => ({
+      files.map(async (file) => ({
         file,
         sha256: createHash('sha256')
           .update(await readFile(join(destination, file)))

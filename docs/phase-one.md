@@ -33,6 +33,8 @@ Library traversal records every queued entry and its resolution status. Explicit
 
 Old captures remain readable and their image files are reused. Current accepted exports exclude stale taxonomy/prompt/fingerprint records and partial inspection. Reclassification saves the previous classification as history; reassessment retains previous quality decisions. Failed upgrades remain pending and cannot fall back to exporting old labels as current. No new browser visit is needed for these analysis commands.
 
+Stop the engine and wait for the terminal prompt before updating. Run `git switch main`, `git pull --ff-only`, `corepack pnpm install --frozen-lockfile`, `npm run setup`, then `npm run folio -- organize` to migrate existing capture folders safely. New output is `captures/<domain>/<page>/<timestamp--version>/`; staging work is separate. Start the engine, update the Desktop plugin to 0.5.0, restart Desktop and use a new conversation. `npm run folio -- doctor --classifier mcp` distinguishes a reachable engine from a paired classifier. Collection refuses an unpaired MCP controller or a Codex CLI without ChatGPT authentication before opening Chromium, and pauses when the classifier becomes unavailable.
+
 ## Readiness and later phases
 
 The implementation is verified with deterministic browser fixtures and mock classifiers. They check collection, cleanup, recovery, all six profiles, exact-scope selection, alias normalization, mixed labels, substyle relationships, traversal, export integrity and version upgrades. They do not establish aesthetic recognition accuracy or the 9–10 selection standard empirically. Practical source trials and an independently reviewed calibration set remain necessary.

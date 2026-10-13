@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "folio-capture",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Run local Folio collection and scoped screenshot review as one resumable ChatGPT loop. No Codex or API inference calls.",
   "author": {"name": "ibbuilds"},
   "extensions": {
@@ -12,7 +12,7 @@
         "longDescription": "Start Folio's local engine, then start one ordinary ChatGPT Desktop conversation. Folio collects configured sources, waits for validated screenshot reviews and exports organized local references. Progress resumes after interruption. The launcher uses no Codex or model API.",
         "developerName": "ibbuilds",
         "category": "Productivity",
-        "defaultPrompt": "Start Folio's automatic collection and review loop. Call get_context once, then start_run with contextId and clientId. Continue get_packet with runId and clientId, including waiting responses, inspect every image with get_images when necessary, and submit_result for assessment, critique and accepted classification. Continue until done without per-design prompts. Report the final status briefly."
+        "defaultPrompt": "Start Folio's automatic collection and review loop. Call get_context once, then start_run with contextId and clientId. Continue get_packet with runId and clientId, including waiting responses, inspect every image with get_images when necessary, and submit_result for assessment, critique and accepted classification. Use get_concepts to read supported labels' full definitions before classification. Continue until done without per-design prompts. If Folio tools are unavailable, report the disconnected local engine and stop; plugin discovery is not collection. Report the final status briefly."
       }
     }
   }

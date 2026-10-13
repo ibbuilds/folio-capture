@@ -6,6 +6,18 @@ import { join } from 'node:path';
 import { Store } from '../src/store.ts';
 import { canonicalUrl, inside } from '../src/utils.ts';
 import { parseConfig } from '../src/config.ts';
+import { pageFolder } from '../src/naming.ts';
+
+test('public site folders are readable, Windows-safe and durable across collisions and restart',async t=>{
+  const root=await mkdtemp(join(tmpdir(),'folio-folders-'));t.after(()=>rm(root,{recursive:true,force:true}));let store=new Store(root);
+  try{
+    assert.equal(pageFolder('https://linear.app/'),'captures/linear.app/home');
+    assert.equal(pageFolder('https://example.com/con'),'captures/example.com/con-page');
+    const a=store.page('https://example.com/a-b'),b=store.page('https://example.com/a_b');
+    const first=store.folder(a),second=store.folder(b);assert.equal(first,'captures/example.com/a-b');assert.equal(second,`${first}--2`);
+    store.close();store=new Store(root);assert.equal(store.folder(a),first);assert.equal(store.folder(b),second);
+  }finally{store.close();}
+});
 
 test('URLs strip tracking while preserving content state and reject credentials',()=>{
   assert.equal(canonicalUrl('https://example.com/pricing?plan=pro&utm_source=test#annual'),'https://example.com/pricing?plan=pro#annual');

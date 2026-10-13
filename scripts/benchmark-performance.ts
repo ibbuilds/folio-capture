@@ -10,7 +10,7 @@ import { Store } from '../src/store.ts';
 import { parseConfig, DEFAULT_PROFILES } from '../src/config.ts';
 import { exportAccepted } from '../src/catalog.ts';
 import { buildCoverage } from '../src/coverage.ts';
-import { runPipeline } from '../src/pipeline.ts';
+import { runPairedFixture as runPipeline } from '../tests/support/paired-capture.ts';
 import { referenceSubjects, subjectImageId, type ReferenceRecord } from '../src/references.ts';
 import { TAXONOMY, TAXONOMY_VERSION, TAXONOMY_FINGERPRINT } from '../src/taxonomy.ts';
 import { SCOPED_PROMPT_VERSION, RUBRIC_VERSION } from '../src/quality.ts';

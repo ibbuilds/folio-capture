@@ -475,7 +475,7 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
           const {buffer:encoded,crop}=image;
           result.environment.referenceImageMethods??={};
           const methods=result.environment.referenceImageMethods as Record<string,number>;methods[image.method]=(methods[image.method]??0)+1;
-          const suffix = imageName(options.url,profile.id,{section:parent,stateKey:scroller.key,part:sequence});
+          const suffix = imageName(options.url,profile.id,{section:parent,stateKey:scroller.key,part:parent.frames.length+1});
           const imagePath = `${profile.id}/sections/${suffix}.png`, thumbnail = `thumbnails/${profile.id}/${suffix}.webp`;
           await relativeWrite(imagePath, encoded);
           await relativeWrite(thumbnail, await sharp(encoded).resize({ width: 480, withoutEnlargement: true }).webp({ quality: 85 }).toBuffer());

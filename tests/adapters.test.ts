@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { discoverRecent, resolveRecentEntry, isRecentLibrary, recentListing } from '../src/recent.ts';
 import { libraryAdapter, isKnownLibrary } from '../src/adapters.ts';
 import { discoverSite, siteLink } from '../src/site.ts';
-import { runPipeline } from '../src/pipeline.ts';
+import { runPairedFixture as runPipeline } from './support/paired-capture.ts';
 import { Store } from '../src/store.ts';
 import { parseConfig } from '../src/config.ts';
 import type { DiscoveryEvent } from '../src/types.ts';

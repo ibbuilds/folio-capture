@@ -27,6 +27,7 @@ type ActiveRun = {
   task: Promise<void>;
   lastActivity: number;
   timer: ReturnType<typeof setInterval>;
+  receiptAt: number;
 };
 const activeRuns = new Map<string, ActiveRun>();
 export type WorkflowDependencies = {
@@ -35,6 +36,7 @@ export type WorkflowDependencies = {
   startOptions?: StartOptions;
   waitMs?: number;
   idleMs?: number;
+  connectionMs?: number;
 };
 
 /** A chat initiates the run once. Collection waits at published-page boundaries for review.
@@ -65,6 +67,16 @@ export class Workflow {
     if (!active || active.state.runId !== runId || active.state.clientId !== clientId)
       throw new Error('This chat does not own an active run. Call start_run to resume saved work.');
     active.lastActivity = Date.now();
+    if (active.lastActivity - active.receiptAt >= 1000) {
+      const store = new Store(this.config.output);
+      try {
+        const client = store.getJob('mcp-client', clientId)!;
+        store.job('mcp-client', clientId, { ...client.payload, lastSeen: now() });
+        active.receiptAt = active.lastActivity;
+      } finally {
+        store.close();
+      }
+    }
     return active;
   }
   private async waitForReview(active: ActiveRun, captureId?: string) {
@@ -127,6 +139,15 @@ export class Workflow {
     try {
       store.assertWorkflowAccess();
       store.acquireLock();
+      const client = store.getJob('mcp-client', clientId);
+      if (
+        !client ||
+        client.payload.contextId !== contextId ||
+        Date.now() - Date.parse(client.payload.issuedAt) > this.config.classifier.timeoutMs
+      )
+        throw new Error(
+          "Pairing requires clientId from this engine's get_context. Refresh the plugin connection and call get_context again. No collection started.",
+        );
       const stale = store.getJob('workflow', 'active');
       if (stale?.status === 'running') {
         const abandoned = {
@@ -153,19 +174,34 @@ export class Workflow {
         task: Promise.resolve(),
         lastActivity: Date.now(),
         timer: setInterval(() => {}, 60000),
+        receiptAt: Date.now(),
       };
+      store.job('mcp-client', clientId, {
+        ...client.payload,
+        runId: state.runId,
+        pairedAt: now(),
+        lastSeen: now(),
+      });
+      store.finish(client, 'complete');
       clearInterval(active.timer);
       const idleMs = this.dependencies.idleMs ?? this.config.classifier.timeoutMs;
       active.timer = setInterval(
         () => {
-          if (Date.now() - active.lastActivity >= idleMs) {
+          if (
+            Date.now() - active.lastActivity >=
+            (state.phase === 'collecting' ? (this.dependencies.connectionMs ?? 60000) : idleMs)
+          ) {
             state.reason = 'chat_idle';
             active.abort.abort(
               new Error('ChatGPT stopped requesting work; saved progress is paused.'),
             );
           }
         },
-        Math.min(30000, Math.max(10, idleMs / 2)),
+        Math.min(
+          10000,
+          Math.max(10, idleMs / 2),
+          Math.max(10, (this.dependencies.connectionMs ?? 60000) / 2),
+        ),
       );
       active.timer.unref();
       activeRuns.set(this.config.output, active);
@@ -177,6 +213,10 @@ export class Workflow {
   }
   private async execute(active: ActiveRun) {
     const { state } = active;
+    const external = this.dependencies.runOptions?.signal;
+    const cancel = () => active.abort.abort(external?.reason ?? new Error('Interrupted'));
+    external?.addEventListener('abort', cancel, { once: true });
+    if (external?.aborted) cancel();
     try {
       await this.waitForReview(active); // Drain saved reviews before collecting another page.
       const summary = await (this.dependencies.pipeline ?? runPipeline)(this.config, {
@@ -185,6 +225,17 @@ export class Workflow {
         retry: true,
         workflowId: state.runId,
         signal: active.abort.signal,
+        assertClassifierActive: () => {
+          if (
+            activeRuns.get(this.config.output) !== active ||
+            active.abort.signal.aborted ||
+            Date.now() - active.lastActivity >= (this.dependencies.connectionMs ?? 60000)
+          ) {
+            active.state.reason = 'classifier_disconnected';
+            active.abort.abort(new Error('Paired classifier disconnected; collection paused.'));
+            active.abort.signal.throwIfAborted();
+          }
+        },
         log: this.dependencies.runOptions?.log ?? ((message) => console.error(message)),
         onCaptureReady: (captureId) => this.waitForReview(active, captureId),
       });
@@ -217,6 +268,7 @@ export class Workflow {
       state.reason ??= errorMessage(error);
       this.persist(state, state.phase === 'paused' ? 'incomplete' : 'failed');
     } finally {
+      external?.removeEventListener('abort', cancel);
       clearInterval(active.timer);
       if (activeRuns.get(this.config.output) === active) activeRuns.delete(this.config.output);
     }
@@ -252,7 +304,7 @@ export class Workflow {
       return this.bridge.next(contextId);
     }
     if (!runId || !clientId) throw new Error('Supply runId and clientId from start_run.');
-    const deadline = Date.now() + (this.dependencies.waitMs ?? 20000);
+    const deadline = Date.now() + (this.dependencies.waitMs ?? 3000);
     for (;;) {
       const active = activeRuns.get(this.config.output);
       if (!active) {
