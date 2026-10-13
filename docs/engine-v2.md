@@ -2,7 +2,7 @@
 
 The accepted implementation plan supersedes the earlier manual-approval-first proposal in `classification-plan.md`. Automatic selection is the normal workflow; all quality judgments remain explicitly experimental until independently evaluated.
 
-Here, automatic selection means local candidate qualification. The creator reviews admission to the future published library. The [engine principles](engine-principles.md) and [selected I.1 source snapshot](aesthetics/selection-i1/README.md) record the current direction; I.1 is not yet installed in the runtime taxonomy.
+Here, automatic selection means local candidate qualification. The creator reviews admission to the future published library. The [engine principles](engine-principles.md) and [selected I.1 source snapshot](aesthetics/selection-i1/README.md) record the current direction. Runtime taxonomy `3.0.0-I.1` installs that selection with exact-scope relationships, provisional substyles, captured-context requirements and versioned cache invalidation. Semantic accuracy still requires independent calibration.
 
 ## Contracts
 
