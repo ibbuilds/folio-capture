@@ -7,6 +7,7 @@ import sharp from 'sharp';
 import type { CaptureOptions, Rect, Region, ViewportCapture } from './types.ts';
 import { documentToViewport, intersectRect, mergeCoverage, uncoveredRanges } from './geometry.ts';
 import { sweepCleanup } from './cleanup.ts';
+import { guardNuisances } from './nuisance.ts';
 import { captureRegionImage } from './image-capture.ts';
 
 type DomRegion = { title: string; selector: string; y: number; end: number; semantic: boolean; sticky: boolean; value: Record<string, unknown> };
@@ -269,6 +270,7 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
         : devices['Pixel 7'].userAgent } : {}),
       locale: 'en-US', timezoneId: 'UTC', colorScheme: 'light', reducedMotion: 'no-preference', permissions: [] });
     check();
+    await guardNuisances(context,result.interventions,false);
     page = await context.newPage();
     result.environment.userAgent = await page.evaluate(() => navigator.userAgent);
     context.on('page', popup => {

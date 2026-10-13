@@ -1,5 +1,9 @@
 import type { Browser, BrowserContext, Page, Request } from 'playwright';
 import type { DiscoveredEntry, DiscoveryEvent, DiscoveryOptions, DiscoverySettings, ResolvedReference } from './types.ts';
+import { guardNuisances } from './nuisance.ts';
+import { sweepCleanup } from './cleanup.ts';
+import { parseConfig } from './config.ts';
+import type { Intervention } from './types.ts';
 
 export type ReferoDiscoveryOptions = DiscoveryOptions & {
   /** Persist the entire newly observed batch synchronously, before any entry is yielded. */
@@ -157,6 +161,7 @@ export async function* discoverRefero(options: ReferoDiscoveryOptions): AsyncGen
   let allExplicit = true;
   let steps = 0;
   let lastListing = seed.url;
+  const interventions:Intervention[]=[];
   const remaining = () => settings.maxDurationMs - activeMs - (Date.now() - activeStarted);
   const budget = (configured: number) => {
     checkAbort(signal);
@@ -164,6 +169,7 @@ export async function* discoverRefero(options: ReferoDiscoveryOptions): AsyncGen
     return Math.max(1, Math.min(configured, remaining()));
   };
   try {
+    await guardNuisances(context,interventions);
     const page = await context.newPage();
     page.setDefaultTimeout(settings.settleTimeoutMs);
     for (let collectionIndex = 0; collectionIndex < collections.length; collectionIndex++) {
@@ -209,6 +215,8 @@ export async function* discoverRefero(options: ReferoDiscoveryOptions): AsyncGen
         let plateau = 0;
         let previousHeight = -1;
         while (true) {
+          const cleaned=await sweepCleanup(page,{...(options.cleanupSettings??parseConfig({sources:[seed.url]}).capture),cleanupTimeoutMs:budget(settings.settleTimeoutMs)},interventions);
+          if(cleaned.unresolved.length)throw new Error(`Unresolved discovery obstruction: ${cleaned.unresolved.join('; ')}`);
           const snapshot = await settleListing(page, settings, pending, failures, budget(settings.settleTimeoutMs), signal);
           const batch: DiscoveredEntry[] = [];
           const batchIdentities = new Set<string>();
@@ -273,7 +281,7 @@ export async function* discoverRefero(options: ReferoDiscoveryOptions): AsyncGen
       }
     }
     yield { type: 'end', reason: collectionErrors.length ? 'incomplete' : allExplicit ? 'explicit_end' : 'observed_plateau',
-      ...(collectionErrors.length ? { error: collectionErrors.join('; ') } : {}), collections, discovered: seen.size };
+      ...(collectionErrors.length ? { error: collectionErrors.join('; ') } : {}), collections, discovered: seen.size, interventions };
   } catch (error) {
     yield { type: 'end', reason: 'incomplete', error: `${lastListing}: ${signal?.aborted ? 'Discovery aborted' : error instanceof Error ? error.message : String(error)}`, collections, discovered: seen.size };
   } finally {
@@ -342,7 +350,7 @@ function chooseOriginal(snapshot: DetailSnapshot): { url: string; method: string
 }
 
 export async function resolveReferoEntry(options: {
-  browser: Browser; entryUrl: string; settings: DiscoverySettings; signal?: AbortSignal;
+  browser: Browser; entryUrl: string; settings: DiscoverySettings; signal?: AbortSignal; cleanupSettings?: DiscoveryOptions['cleanupSettings'];
 }): Promise<ResolvedReference> {
   const { browser, entryUrl, settings, signal } = options;
   const safe = httpUrl(entryUrl);
@@ -351,11 +359,15 @@ export async function resolveReferoEntry(options: {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'en-US' });
   const unbind = bindAbort(context, signal);
   try {
+    const interventions:Intervention[]=[];
+    await guardNuisances(context,interventions);
     const page = await context.newPage();
     const response = await page.goto(safe, { waitUntil: 'domcontentloaded', timeout: settings.navigationTimeoutMs });
     if (response && response.status() >= 400) throw new Error(`Reference returned HTTP ${response.status()}`);
     if (new URL(page.url()).hostname !== HOST || !/^\/style\/[^/]+\/?$/.test(new URL(page.url()).pathname)) throw new Error('Reference redirected outside its supported detail scope');
     const started = Date.now();
+    const cleaned=await sweepCleanup(page,{...(options.cleanupSettings??parseConfig({sources:[entryUrl]}).capture),cleanupTimeoutMs:settings.settleTimeoutMs},interventions);
+    if(cleaned.unresolved.length)throw new Error(`Unresolved reference obstruction: ${cleaned.unresolved.join('; ')}`);
     let previous = '';
     while (Date.now() - started < settings.settleTimeoutMs) {
       checkAbort(signal);
@@ -369,7 +381,7 @@ export async function resolveReferoEntry(options: {
             originalUrl: source.url, title: snapshot.title, sourceLabels: [...new Set(snapshot.labels)],
             previewUrl: preview ? httpUrl(preview.src, page.url()) : undefined,
             metadata: { provider: 'refero-styles', detailUrl: page.url(), requestedDetailUrl: entryUrl,
-              resolvedAt: new Date().toISOString(), resolutionMethod: source.method, linkText: source.text },
+              resolvedAt: new Date().toISOString(), resolutionMethod: source.method, linkText: source.text, followed:[entryUrl], interventions },
           };
         }
         previous = key;

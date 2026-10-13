@@ -1,5 +1,6 @@
 import type { Frame, Page } from 'playwright';
 import type { CaptureSettings, Intervention } from './types.ts';
+import { AD_CONTAINERS, AD_HOSTS, GALLERY_AD_HOSTS } from './nuisance.ts';
 
 type Candidate = { id: string; label: string; nuisance: string; confidence: 'known' | 'high'; button?: string; modal: boolean; stableSelector?: string; floating?: boolean };
 export type CleanupResult = { removed: number; unresolved: string[]; warnings: string[]; snapshots: unknown[] };
@@ -11,7 +12,7 @@ async function activeFrame(frame: Frame, page: Page, preserve: string[]): Promis
     const element = await frame.frameElement();
     const box = await element.boundingBox(), viewport = page.viewportSize();
     const protectedFrame = await element.evaluate((el, selectors) => selectors.some(selector => {
-      try { return el instanceof Element && (el.matches(selector) || !!el.closest(selector)); } catch { return false; }
+      try { if(!(el instanceof Element))return false;for(let ancestor:Element|null=el;ancestor;ancestor=ancestor.parentElement??(ancestor.getRootNode() instanceof ShadowRoot?(ancestor.getRootNode() as ShadowRoot).host:null))if(ancestor.matches(selector))return true;return false; } catch { return false; }
     }), preserve);
     await element.dispose();
     return !protectedFrame && !!box && box.width > 0 && box.height > 0 && box.x + box.width > 0 && box.y + box.height > 0 && (!viewport || box.y < viewport.height && box.x < viewport.width);
@@ -41,7 +42,7 @@ export async function sweepCleanup(page: Page, settings: CaptureSettings, log: I
     for (const frame of page.frames()) {
       if (Date.now() >= deadline) break;
       if (!await activeFrame(frame, page, settings.preserveSelectors)) continue;
-      const candidates = await frame.evaluate(({ preserve, dismiss, token }) => {
+      const candidates = await frame.evaluate(({ preserve, dismiss, token, adContainers, adHosts, galleryHosts }) => {
         const all: Element[] = [];
         const visit = (root: Document | ShadowRoot) => {
           for (const element of root.querySelectorAll('*')) {
@@ -70,6 +71,15 @@ export async function sweepCleanup(page: Page, settings: CaptureSettings, log: I
             return false;
           });
         };
+        if(galleryHosts.includes(location.hostname.replace(/^www\./,'')))for(const label of all){
+          if(label.childElementCount || !/^(?:advertisement|sponsored(?: by(?: .{1,60})?)?|ad)$/i.test(((label as HTMLElement).innerText??'').trim()))continue;
+          let owner=label.parentElement;
+          for(let depth=0;owner&&depth<5;depth++,owner=owner.parentElement){
+            if(/^(HTML|BODY|MAIN|HEADER|NAV|FOOTER)$/.test(owner.tagName)||protectedElement(owner))break;
+            const links=[...owner.querySelectorAll<HTMLAnchorElement>('a[href]')].filter(link=>{try{return ['http:','https:'].includes(new URL(link.href).protocol)&&new URL(link.href).origin!==location.origin;}catch{return false;}});
+            if(links.length===1&&owner.querySelector('img,video')&&(owner.innerText||'').length<800){owner.setAttribute('data-folio-advertisement','true');break;}
+          }
+        }
         const visible = (el: Element) => {
           const rect = el.getBoundingClientRect(), style = getComputedStyle(el);
           return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < innerHeight && style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) !== 0;
@@ -94,12 +104,14 @@ export async function sweepCleanup(page: Page, settings: CaptureSettings, log: I
           const knownFloating = elevenHost && element.matches('div[data-floating-agent]') && style.position === 'fixed' &&
             Array.from(element.querySelectorAll('button')).some(button => (button.innerText ?? '').trim().replace(/\s+/g, ' ') === 'Voice chat');
           const explicit = matches(element, dismiss);
+          const adFrame = element instanceof HTMLIFrameElement && (() => {try {const host=new URL(element.src,location.href).hostname;return adHosts.some(domain=>host===domain||host.endsWith(`.${domain}`));}catch{return false;}})();
+          const knownAd = element.matches(adContainers) || adFrame;
           const isModal = element.matches('dialog[open], [role="dialog"], [aria-modal="true"]');
           const overlay = (style.position === 'fixed' || isModal) && rect.width * rect.height > 2000;
-          if (!(knownCookie || knownChat || knownLocale || knownFloating || explicit || overlay) || gate.test(text)) continue;
+          if (!(knownCookie || knownChat || knownLocale || knownFloating || knownAd || explicit || overlay) || gate.test(text)) continue;
           // A fixed page shell containing ordinary content is not a nuisance overlay.
           if (!explicit && !knownCookie && !knownChat && !knownLocale && !knownFloating && element.querySelector('main')) continue;
-          const nuisance = explicit ? 'configured' : knownLocale ? 'locale' : knownCookie || cookie.test(text) ? 'cookie' : knownChat || knownFloating || chat.test(text) ? 'chat' : promotion.test(text) ? 'promotion' : '';
+          const nuisance = explicit ? 'configured' : knownAd ? 'advertisement' : knownLocale ? 'locale' : knownCookie || cookie.test(text) ? 'cookie' : knownChat || knownFloating || chat.test(text) ? 'chat' : promotion.test(text) ? 'promotion' : '';
           if (!nuisance) continue;
           const id = `${token}-${index++}`;
           element.setAttribute('data-folio-cleanup-id', id);
@@ -119,16 +131,16 @@ export async function sweepCleanup(page: Page, settings: CaptureSettings, log: I
           let buttonId: string | undefined;
           if (control) { buttonId = `${id}-button`; control.setAttribute('data-folio-cleanup-id', buttonId); }
           results.push({ id, label: `${element.tagName.toLowerCase()}${element.id ? `#${element.id}` : ''}: ${text.slice(0, 100)}`, nuisance,
-            confidence: knownCookie || knownChat || knownLocale || knownFloating || explicit ? 'known' : 'high', button: buttonId,
+            confidence: knownCookie || knownChat || knownLocale || knownFloating || knownAd || explicit ? 'known' : 'high', button: buttonId,
             modal: isModal || rect.width * rect.height > innerWidth * innerHeight * 0.4,
-            stableSelector: knownFloating ? 'div[data-floating-agent]' : element.id ? `#${CSS.escape(element.id)}` : undefined, floating: knownFloating });
+            stableSelector: knownFloating ? 'div[data-floating-agent]' : knownAd && element.hasAttribute('data-ad-slot') ? `[data-ad-slot="${CSS.escape(element.getAttribute('data-ad-slot')??'')}"]` : element.id ? `#${CSS.escape(element.id)}` : knownAd ? element.matches('ins.adsbygoogle') ? 'ins.adsbygoogle' : element.hasAttribute('data-advertisement') ? '[data-advertisement]' : element.hasAttribute('data-folio-advertisement') ? '[data-folio-advertisement]' : undefined : undefined, floating: knownFloating });
         }
         // Keep outer nuisance roots; avoid acting twice on nested containers.
         return results.filter(candidate => {
           const element = all.find(el => el.getAttribute('data-folio-cleanup-id') === candidate.id);
           return !results.some(other => other.id !== candidate.id && all.find(el => el.getAttribute('data-folio-cleanup-id') === other.id)?.contains(element ?? null));
         }).slice(0, 8);
-      }, { preserve: settings.preserveSelectors, dismiss: settings.dismissSelectors, token: `fc-${Date.now()}-${pass}` }).catch(() => [] as Candidate[]);
+      }, { preserve: settings.preserveSelectors, dismiss: settings.dismissSelectors, token: `fc-${Date.now()}-${pass}`, adContainers: AD_CONTAINERS, adHosts: AD_HOSTS, galleryHosts: GALLERY_AD_HOSTS }).catch(() => [] as Candidate[]);
 
       for (const candidate of candidates) {
         if (Date.now() >= deadline) break;
@@ -217,7 +229,9 @@ export async function sweepCleanup(page: Page, settings: CaptureSettings, log: I
                 const roots: Array<Document | ShadowRoot> = [document];
                 for (let i = 0; i < roots.length; i++) for (const el of roots[i].querySelectorAll('*')) if (el.shadowRoot) roots.push(el.shadowRoot);
                 for (const rule of state.rules) for (const root of roots) for (const el of root.querySelectorAll<HTMLElement>(rule.selector)) {
-                  if (preserve.some(saved => { try { return el.matches(saved) || !!el.closest(saved) || !!el.querySelector(saved); } catch { return false; } })) continue;
+                  const parent=(node:Element):Element|null=>node.parentElement??(node.getRootNode() instanceof ShadowRoot?(node.getRootNode() as ShadowRoot).host:null);
+                  const contains=(outer:Element,inner:Element)=>{for(let node:Element|null=inner;node;node=parent(node))if(node===outer)return true;return false;};
+                  if(preserve.some(saved=>{try{return roots.some(root=>[...root.querySelectorAll(saved)].some(protectedNode=>contains(protectedNode,el)||contains(el,protectedNode)));}catch{return false;}}))continue;
                   if (/(?:captcha|verify (?:that )?you are human|security check|access denied|paywall|sign in to continue|log in to continue|subscribe to (?:continue|read|unlock))/i.test(el.innerText ?? '')) continue;
                   if (rule.floating && (getComputedStyle(el).position !== 'fixed' || !Array.from(el.querySelectorAll('button')).some(button => (button.innerText ?? '').trim().replace(/\s+/g, ' ') === 'Voice chat'))) continue;
                   if (getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().height > 0) {

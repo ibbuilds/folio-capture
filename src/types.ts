@@ -44,19 +44,19 @@ export type CaptureOptions = {
   browser: Browser; url: string; profile: CaptureProfile; settings: CaptureSettings;
   outputDir: string; onProgress?: (message: string) => void; signal?: AbortSignal;
 };
-export type Provenance = { seedUrl: string; listingUrl?: string; detailUrl?: string; discoveredAt: string; sourceLabels: string[]; previewUrl?: string };
+export type Provenance = { seedUrl: string; listingUrl?: string; detailUrl?: string; discoveredAt: string; sourceLabels: string[]; previewUrl?: string; resolutionPath?: string[] };
 export type PageManifest = {
   schemaVersion: 1; pageId: string; captureId: string; captureSignature: string;
   requestedUrl: string; title: string; capturedAt: string; status: CaptureStatus;
   reviewStatus: 'unreviewed' | 'needs-review' | 'approved'; provenance: Provenance[];
   variants: ViewportCapture[];
 };
-export type DiscoveredEntry = { id: string; seedUrl: string; listingUrl: string; detailUrl: string; title: string; discoveredAt: string };
+export type DiscoveredEntry = { id: string; seedUrl: string; listingUrl: string; detailUrl: string; title: string; discoveredAt: string; originalUrl?: string; previewUrl?: string; sourceLabels?: string[] };
 export type DiscoveryEvent =
   | { type: 'entry'; entry: DiscoveredEntry }
-  | { type: 'end'; reason: 'explicit_end' | 'observed_plateau' | 'incomplete'; error?: string; collections: string[]; discovered: number };
+  | { type: 'end'; reason: 'explicit_end' | 'observed_plateau' | 'incomplete'; error?: string; collections: string[]; discovered: number; interventions?: Intervention[]; warnings?: string[] };
 export type ResolvedReference = { originalUrl: string; title: string; sourceLabels: string[]; previewUrl?: string; metadata: Record<string, unknown> };
-export type DiscoveryOptions = { browser: Browser; seed: Source; settings: DiscoverySettings; onProgress?: (message: string) => void; signal?: AbortSignal };
+export type DiscoveryOptions = { browser: Browser; seed: Source; settings: DiscoverySettings; cleanupSettings?: CaptureSettings; onProgress?: (message: string) => void; signal?: AbortSignal };
 export type TaxonomyAxis = 'experience' | 'page_purpose' | 'section_purpose' | 'composition' | 'visual_style' | 'appearance' | 'typography' | 'color_palette' | 'density' | 'imagery' | 'surface_treatment' | 'industry' | 'audience' | 'interaction_pattern' | 'aesthetic_substyle' | 'cross_collection' | 'visual_anchor' | 'experience_mode' | 'platform_provenance' | 'contextual_influence' | 'behavior';
 export type Label = {
   axis: TaxonomyAxis; label: string; regionId: string | null; evidenceIds: string[];

@@ -32,7 +32,7 @@ test('adapter registry recognizes supported scopes and flags known unsupported l
   assert.equal(recentListing('https://godly.website/'),'https://recent.design/websites');
   assert.equal(isRecentLibrary('https://recent.design/app-icons'),false);
   assert.equal(isKnownLibrary('https://recent.design/app-icons'),true);
-  assert.equal(libraryAdapter('https://awwwards.com/'),undefined);
+  assert.equal(libraryAdapter('https://awwwards.com/academy/'),undefined);
 });
 test('Recent accumulates replaced cards, preserves entries, and records plateau rather than exhaustion',async()=>{
   const events=await recent(routed(async route=>route.fulfill({contentType:'text/html',body:html(`<div id="cards"><a href="/i/first" style="display:block;height:1000px">First</a></div><script>let done=false;addEventListener('scroll',()=>{if(done||scrollY<1)return;done=true;setTimeout(()=>document.querySelector('#cards').innerHTML='<a href="/i/second">Second</a>',35);});</script>`)})));

@@ -40,7 +40,7 @@ sources:
   - https://recent.design/websites
 ```
 
-A direct URL captures that page and its sections. `site` traverses same-origin navigation within the configured limits. Supported library collections resolve explicit original-site links, preserve the discovery path, and also capture the supplied library page itself. Its quality does not control traversal. The registry supports Refero Styles and Recent website collections; Godly's homepage maps discovery to Recent. Unknown structures remain exceptions. These adapters have deterministic traversal tests; Recent still needs a practical live trial.
+A direct URL captures that page and its sections. `site` traverses same-origin navigation within the configured limits. Library adapters resolve explicit original-site links, preserve the discovery path (including section/app parents and template previews), and also capture the supplied library page itself. Its quality does not control traversal. `sources.yaml` lists the selected website, section and app-reference collections supported by the registry; Godly's homepage maps to Recent. Access gates, unknown structures and missing originals remain exceptions. App and motion libraries resolve public original URLs; screenshots of native applications and replaying recorded interactions are separate capabilities.
 
 Six profiles cover desktop (1920×1080, 1440×1000), tablet (1024×768, 768×1024), and mobile (390×844, 360×800). PNG originals use DPR 2 with separate WebP thumbnails. Custom `profiles` support DPR 3 without upscaling. Captures use fresh contexts, light preference, normal motion, progressive scrolling and scoped nuisance cleanup. Intentional modals and sticky design elements are preserved.
 
@@ -48,6 +48,7 @@ Six profiles cover desktop (1920×1080, 1440×1000), tablet (1024×768, 768×102
 
 ```sh
 npm run capture -- --capture-only --limit 3
+npm run capture -- --discover-only
 npm run folio -- status
 npm run folio -- coverage
 npm run folio -- retry
@@ -62,6 +63,8 @@ npm run folio -- evaluate --benchmark reviewed.json
 `capture-only` and `classifier.runner: none` collect without a model. They **do not** approve references. `reassess` evaluates saved images without opening websites; `classify` enriches only accepted saved references. Authentication errors, usage limits, timeouts and invalid model output leave jobs pending. Interrupted work resumes from SQLite, including a completed assessment whose critique failed. Model action tools are disabled.
 
 Each page variant and section variant is assessed independently against hierarchy, typography/readability, spacing/consistency, aesthetic coherence, imagery/content fit and execution at the captured viewport. Both assessment and critique must support 9–10 with no material weakness. Disagreement is uncertain; broken captures require repair. An excellent section can qualify inside a rejected page. Page acceptance requires complete recorded coverage and all its frames. Subjects above `quality.maxImages` stay uncertain instead of granting unsampled frames a judgment.
+
+`discover-only` traverses sources, resolves original URLs and persists capture jobs without screenshots or model calls. A subsequent normal run processes that saved work. Identified ads are blocked or hidden during discovery and capture; consent, promotional overlays, browser dialogs and unrequested windows are handled with scoped interventions. Intentional interface elements stay intact; unknown blockers and loading failures remain exceptions.
 
 **Quality results are experimental.** Passing contract tests or two agreeing judgments does not establish aesthetic accuracy. No independent benchmark result or 98% precision is claimed. Publication date, awards and minimalism are not quality shortcuts; basic readability matters without requiring an exhaustive accessibility audit.
 

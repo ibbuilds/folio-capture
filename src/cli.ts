@@ -15,7 +15,7 @@ export async function main(args=process.argv.slice(2)) {
   const command=args[0] && !args[0].startsWith('-') ? args.shift()! : 'run';
   const flags=new Map<string,string|boolean>();
   const valued=new Set(['--config','--output','--source','--limit','--port','--older-than-days','--benchmark']);
-  const booleans=new Set(['--capture-only','--refresh','--help']);
+  const booleans=new Set(['--capture-only','--discover-only','--refresh','--help']);
   for(let i=0;i<args.length;i++){
     const arg=args[i];
     if(valued.has(arg)){const value=args[++i];if(!value || value.startsWith('--'))throw new Error(`${arg} needs a value.`);flags.set(arg,value);}
@@ -23,7 +23,7 @@ export async function main(args=process.argv.slice(2)) {
     else throw new Error(`Unknown option: ${arg}`);
   }
   if(flags.has('--help') || command==='help'){
-    console.log(`Folio Capture\n\n  npm run capture                       Discover, capture, assess, classify, export\n  npm run capture -- --capture-only      No model required\n  npm run capture -- --limit 3           Process at most 3 pages this run\n  npm run folio -- status                Inspect the job ledger\n  npm run folio -- coverage              Inspect aesthetic and viewport gaps; offline\n  npm run folio -- retry                 Retry recorded failures\n  npm run folio -- refresh               Force new captures\n  npm run folio -- classify              Classify accepted saved references only\n  npm run folio -- classify --refresh    Reclassify saved captures\n  npm run folio -- reassess              Reassess saved pixels; no browser\n  npm run folio -- export                Regenerate accepted catalog\n  npm run folio -- evaluate --benchmark reviewed.json  Evaluate saved decisions\n  npm run folio -- prune                 Prune rejected assets after retention\n  npm run folio -- report                Regenerate local indexes/report\n  npm run folio -- serve                 View report at http://127.0.0.1:4173\n\nOptions: --config sources.yaml, --output folder, --source URL, --port 4173`);
+    console.log(`Folio Capture\n\n  npm run capture                       Discover, capture, assess, classify, export\n  npm run capture -- --capture-only      No model required\n  npm run capture -- --discover-only     Resolve sources and queue captures\n  npm run capture -- --limit 3           Process at most 3 pages this run\n  npm run folio -- status                Inspect the job ledger\n  npm run folio -- coverage              Inspect aesthetic and viewport gaps; offline\n  npm run folio -- retry                 Retry recorded failures\n  npm run folio -- refresh               Force new captures\n  npm run folio -- classify              Classify accepted saved references only\n  npm run folio -- classify --refresh    Reclassify saved captures\n  npm run folio -- reassess              Reassess saved pixels; no browser\n  npm run folio -- export                Regenerate accepted catalog\n  npm run folio -- evaluate --benchmark reviewed.json  Evaluate saved decisions\n  npm run folio -- prune                 Prune rejected assets after retention\n  npm run folio -- report                Regenerate local indexes/report\n  npm run folio -- serve                 View report at http://127.0.0.1:4173\n\nOptions: --config sources.yaml, --output folder, --source URL, --port 4173`);
     return;
   }
   if(!['run','status','coverage','retry','refresh','classify','reassess','export','evaluate','prune','report','serve'].includes(command))throw new Error(`Unknown command: ${command}. Use --help.`);
@@ -68,7 +68,7 @@ export async function main(args=process.argv.slice(2)) {
   const interrupt=()=>controller.abort(new Error('Interrupted by user'));
   process.once('SIGINT',interrupt);process.once('SIGTERM',interrupt);
   try{
-    const summary=await runPipeline(config,{captureOnly:flags.has('--capture-only'),refresh:command==='refresh'||flags.has('--refresh'),retry:command==='retry',classifyOnly:command==='classify'||command==='reassess',reassess:command==='reassess',source:flags.has('--source')?String(flags.get('--source')):undefined,limit,signal:controller.signal});
+    const summary=await runPipeline(config,{captureOnly:flags.has('--capture-only'),discoverOnly:flags.has('--discover-only'),refresh:command==='refresh'||flags.has('--refresh'),retry:command==='retry',classifyOnly:command==='classify'||command==='reassess',reassess:command==='reassess',source:flags.has('--source')?String(flags.get('--source')):undefined,limit,signal:controller.signal});
     console.log(JSON.stringify(summary,null,2));console.log(`Catalog: ${join(config.output,'catalog.json')}`);
     if(summary.interrupted)process.exitCode=130;
   }finally{process.removeListener('SIGINT',interrupt);process.removeListener('SIGTERM',interrupt);}
