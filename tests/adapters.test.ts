@@ -96,17 +96,21 @@ test('site mode deduplicates same-origin links and persists bounded breadth-firs
 test('normal pipeline captures the supplied library independently and queues its original references',async t=>{
   const root=await mkdtemp(join(tmpdir(),'folio-library-pipeline-'));
   t.after(async()=>{await rm(root,{recursive:true,force:true,maxRetries:3});});
-  const config=parseConfig({output:root,sources:['https://recent.design/websites'],classifier:{runner:'none'},
+  const config=parseConfig({output:root,sources:['https://recent.design/websites'],classifier:{runner:'mcp'},
     profiles:[{id:'desktop',width:800,height:600,dpr:2,isMobile:false,hasTouch:false}],
     discovery:settings,capture:{maxAttempts:1,settleTimeoutMs:400,mediaTimeoutMs:400,cleanupTimeoutMs:500,explorationTimeoutMs:4000,attemptTimeoutMs:15000}});
-  const summary=await runPipeline(config,{captureOnly:true,log:()=>{},launchBrowser:async()=>{
+  const summary=await runPipeline(config,{log:()=>{},launchBrowser:async()=>{
     const owned=await chromium.launch({headless:true,channel:'chromium',executablePath:process.env.FOLIO_TEST_BROWSER_PATH});
     return routed(async route=>{const url=new URL(route.request().url());await route.fulfill({contentType:'text/html',body:html(
-      url.hostname==='original.test'?'<main><section><h1>Original product</h1><p>Readable content</p></section></main>':url.pathname.startsWith('/i/')?'<a href="https://original.test/">Visit website</a>':'<main><section><h1>Website library</h1><a href="/i/test">Test design</a></section></main><p>No more websites</p>')});},owned);
+      url.hostname==='original.test'?`<main><section><h1>Original product</h1><p>Readable content</p><a href="/pricing">Pricing</a></section></main>`:url.pathname.startsWith('/i/')?'<a href="https://original.test/">Visit website</a>':'<main><section><h1>Website library</h1><a href="/i/test">Test design</a></section></main><p>No more websites</p>')});},owned);
   }});
-  assert.equal(summary.captured,2);assert.equal(summary.discovered,1);
+  assert.equal(summary.captured,3);assert.equal(summary.discovered,1);
   const store=new Store(root);try {
-    assert.deepEqual(store.pages().map(p=>p.url).sort(),['https://original.test/','https://recent.design/websites']);
+    assert.deepEqual(store.pages().map(p=>p.url).sort(),['https://original.test/','https://original.test/pricing','https://recent.design/websites']);
+    const pricing=store.pages().find(p=>p.url.endsWith('/pricing'))!;
+    assert.equal(pricing.provenance[0].detailUrl,'https://recent.design/i/test');
+    assert.deepEqual(pricing.provenance[0].navigationPath,['https://original.test/','https://original.test/pricing']);
+    assert.equal(store.captures().filter(c=>c.manifest).at(-1)!.manifest!.requestedUrl,'https://recent.design/websites','Library shell is captured after original references');
     assert.equal(store.jobs('resolve')[0].status,'complete');
     assert.ok(store.references().every(r=>r.quality.verdict!=='accepted'));
   }finally{store.close();}

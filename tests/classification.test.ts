@@ -156,10 +156,10 @@ test('cache hashes evidence, screenshot hashes, model and taxonomy rather than r
   assert.notEqual(key, classificationCacheKey(manifest, [...evidence, { id: 'extra', kind: 'text', value: 'new evidence' }], settings));
 });
 
-test('disabled enrichment performs no subprocess work', async () => {
+test('legacy MCP metadata delegates visual enrichment to the scoped bridge without a subprocess', async () => {
   const { manifest, evidence } = fixture();
   const base = heuristicClassification(manifest, evidence);
-  const result = await enrichClassification({ manifest, evidence, base, settings: { ...settings, runner: 'none' }, outputDir: 'does-not-exist',
+  const result = await enrichClassification({ manifest, evidence, base, settings: { ...settings, runner: 'mcp' }, outputDir: 'does-not-exist',
     runProcess: async () => { throw new Error('must not run'); } });
   assert.equal(result, base);
 });

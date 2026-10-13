@@ -18,9 +18,11 @@
     "build": "tsc --noEmit",
     "test": "node --test --test-concurrency=1 tests/*.test.ts",
     "test:live": "node scripts/live-smoke.ts",
-    "benchmark": "node --expose-gc scripts/benchmark-performance.ts"
+    "benchmark": "node --expose-gc scripts/benchmark-performance.ts",
+    "bridge": "node src/mcp.ts"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
     "playwright": "1.62.1",
     "sharp": "0.34.5",
     "yaml": "2.8.2",

@@ -16,11 +16,12 @@ export type DiscoverySettings = {
   navigationTimeoutMs: number; settleTimeoutMs: number; plateauChecks: number;
   maxScrollSteps: number; maxDurationMs: number; minDelayMs: number; maxEntries?: number;
 };
-export type ClassifierSettings = { runner: 'codex' | 'none'; command: string; model?: string; reasoning?: 'low' | 'medium' | 'high' | 'xhigh'; timeoutMs: number; maxAttempts: number };
+export type ClassifierSettings = { runner: 'mcp' | 'codex'; command: string; model?: string; reasoning?: 'low' | 'medium' | 'high' | 'xhigh'; timeoutMs: number; maxAttempts: number };
 export type Config = {
   output: string; freshnessDays: number; sources: Source[]; profiles: CaptureProfile[];
   capture: CaptureSettings; discovery: DiscoverySettings; classifier: ClassifierSettings;
   quality?: { maxImages: number; quarantineDays: number };
+  collection?: { originalMode: 'page' | 'site'; maxPages: number; maxDepth: number };
 };
 export type Intervention = { at: string; frameUrl: string; action: string; target: string; method: string; verified: boolean; note?: string };
 export type EvidenceItem = { id: string; regionId?: string; kind: string; value: unknown };
@@ -44,7 +45,7 @@ export type CaptureOptions = {
   browser: Browser; url: string; profile: CaptureProfile; settings: CaptureSettings;
   outputDir: string; onProgress?: (message: string) => void; signal?: AbortSignal;
 };
-export type Provenance = { seedUrl: string; listingUrl?: string; detailUrl?: string; discoveredAt: string; sourceLabels: string[]; previewUrl?: string; resolutionPath?: string[] };
+export type Provenance = { seedUrl: string; listingUrl?: string; detailUrl?: string; discoveredAt: string; sourceLabels: string[]; previewUrl?: string; resolutionPath?: string[]; navigationPath?: string[] };
 export type PageManifest = {
   schemaVersion: 1; pageId: string; captureId: string; captureSignature: string;
   requestedUrl: string; title: string; capturedAt: string; status: CaptureStatus;

@@ -6,9 +6,9 @@ The [creator philosophy and crawler scope](docs/engine-principles.md) prioritize
 
 ## Setup and use
 
-Requires Node **24.15–24.x**, the pinned Playwright Chromium build, and an authenticated Codex CLI for visual judgments.
+Requires Node **24.15–24.x**, the pinned Playwright Chromium build, and either a connected ChatGPT MCP classifier or an authenticated Codex CLI for visual judgments.
 
-See the [Phase 1 runbook](docs/phase-one.md) for model-free collection, saved-image analysis, upgrades and the current supported scope.
+See the [Phase 1 runbook](docs/phase-one.md) for classifier setup, saved-image analysis, upgrades and the current supported scope.
 
 ```sh
 corepack pnpm install --frozen-lockfile
@@ -24,7 +24,7 @@ Edit `sources.yaml`:
 output: ./output
 freshnessDays: 730
 classifier:
-  runner: codex
+  runner: mcp # Or codex; these are the only providers.
   model: gpt-6.1-sol
   reasoning: high
 quality:
@@ -40,15 +40,24 @@ sources:
   - https://recent.design/websites
 ```
 
-A direct URL captures that page and its sections. `site` traverses same-origin navigation within the configured limits. Library adapters resolve explicit original-site links, preserve the discovery path (including section/app parents and template previews), and also capture the supplied library page itself. Its quality does not control traversal. `sources.yaml` lists the selected website, section and app-reference collections supported by the registry; Godly's homepage maps to Recent. Access gates, unknown structures and missing originals remain exceptions. App and motion libraries resolve public original URLs; screenshots of native applications and replaying recorded interactions are separate capabilities.
+A direct URL captures that page and its sections. `site` traverses same-origin navigation within the configured limits. Library adapters follow original sites by default (25 pages, depth two), preserve the discovery path (including section/app parents and template previews), and also capture the supplied library page itself after its original references. Set `collection.originalMode: page` to restrict each resolved original to its addressed page. Library quality does not control traversal. `sources.yaml` lists the selected website, section and app-reference collections supported by the registry; Godly's homepage maps to Recent. Access gates, unknown structures and missing originals remain exceptions. App and motion libraries resolve public original URLs; screenshots of native applications and replaying recorded interactions are separate capabilities.
 
 Six profiles cover desktop (1920×1080, 1440×1000), tablet (1024×768, 768×1024), and mobile (390×844, 360×800). PNG originals use DPR 2 with separate WebP thumbnails. Custom `profiles` support DPR 3 without upscaling. Captures use fresh contexts, light preference, normal motion, progressive scrolling and scoped nuisance cleanup. Intentional modals and sticky design elements are preserved.
+
+## ChatGPT classifier connection
+
+The repository includes a local MCP plugin package (`plugin.json` and `mcp.json`). Install its dependencies first. A local MCP client launches `node src/mcp.ts --config sources.yaml` in this checkout; the portable manifest supplies that command. Use the same config/output for collection and the bridge. For an HTTP-capable client, `npm run bridge -- --http` serves `http://127.0.0.1:4317/mcp`. A remote client needs a supported secure relay/tunnel; localhost is not a cloud endpoint. No public tunnel is started automatically. Optional `FOLIO_MCP_TOKEN` enables bearer authentication.
+
+Once connected, ask: **“Process Folio's saved queue: get_context once, then get_packet, inspect every image, and submit_result. Continue until no eligible tasks remain. Keep replies brief.”** ChatGPT retrieves full-resolution images and matching evidence, performs assessment and critique, then classifies qualifying subjects. Folio validates JSON, taxonomy, evidence scope, image hashes and full delivery before committing decisions. Responses are cached; an interrupted conversation can resume. Forced reassessment/reclassification requests fresh judgments.
+
+MCP is driven by the connected conversation; the engine cannot independently open a ChatGPT conversation or send chat messages. [OpenAI's plugin guide](https://help.openai.com/en/articles/20001256-plugins-in-chatgpt) describes local MCP plugins on Desktop, subject to client/account capabilities. The source package and STDIO/HTTP protocol are tested, but **ordinary Chat-mode operation on the user's Desktop has not been verified**. Installing in Work/Codex is not evidence of ordinary Chat support. ChatGPT still has its plan's usage limits; MCP does not guarantee free or unlimited inference. Codex mode uses Codex allowances.
 
 ## Saved work and commands
 
 ```sh
-npm run capture -- --capture-only --limit 3
-npm run capture -- --discover-only
+npm run capture -- --classifier mcp --limit 3
+npm run bridge -- --http
+# Alternatively: npm run capture -- --classifier codex --limit 3
 npm run folio -- status
 npm run folio -- coverage
 npm run folio -- retry
@@ -60,11 +69,11 @@ npm run folio -- prune --older-than-days 30
 npm run folio -- evaluate --benchmark reviewed.json
 ```
 
-`capture-only` and `classifier.runner: none` collect without a model. They **do not** approve references. `reassess` evaluates saved images without opening websites; `classify` enriches only accepted saved references. Authentication errors, usage limits, timeouts and invalid model output leave jobs pending. Interrupted work resumes from SQLite, including a completed assessment whose critique failed. Model action tools are disabled.
+Every collection workflow requires MCP or Codex classification. MCP collection saves a pending review queue; the workflow is incomplete until the connected ChatGPT conversation supplies its quality and classification results. The bridge never starts Codex or calls a model API. `reassess` evaluates saved images without opening websites; `classify` enriches only accepted saved references. Authentication errors, usage limits, timeouts and invalid model output leave jobs pending. Interrupted work resumes from SQLite, including a completed assessment whose critique failed. Model action tools are disabled.
 
 Each page variant and section variant is assessed independently against hierarchy, typography/readability, spacing/consistency, aesthetic coherence, imagery/content fit and execution at the captured viewport. Both assessment and critique must support 9–10 with no material weakness. Disagreement is uncertain; broken captures require repair. An excellent section can qualify inside a rejected page. Page acceptance requires complete recorded coverage and all its frames. Subjects above `quality.maxImages` stay uncertain instead of granting unsampled frames a judgment.
 
-`discover-only` traverses sources, resolves original URLs and persists capture jobs without screenshots or model calls. A subsequent normal run processes that saved work. Identified ads are blocked or hidden during discovery and capture; consent, promotional overlays, browser dialogs and unrequested windows are handled with scoped interventions. Intentional interface elements stay intact; unknown blockers and loading failures remain exceptions.
+Identified ads are blocked or hidden during discovery and capture; consent, promotional overlays, browser dialogs and unrequested windows are handled with scoped interventions. Intentional interface elements stay intact; unknown blockers and loading failures remain exceptions.
 
 **Quality results are experimental.** Passing contract tests or two agreeing judgments does not establish aesthetic accuracy. No independent benchmark result or 98% precision is claimed. Publication date, awards and minimalism are not quality shortcuts; basic readability matters without requiring an exhaustive accessibility audit.
 
@@ -79,6 +88,11 @@ output/
   catalog.json                       # accepted, classified references only
   coverage.json                      # aesthetics, substyles, viewports and traversal gaps
   quarantine.json                    # rejected/uncertain/pending/repair inventory
+  categories/aesthetic/clean/<domain--section--profile--id>/part-001.png
+  categories/section/testimonials/...
+  categories/viewport/tablet/...
+  review/pending/...                  # unassessed images; not accepted designs
+  file-views.json                     # managed hard-link views and exceptions
   exports/<generation>/
     catalog.json
     coverage.json
@@ -94,7 +108,7 @@ output/
     desktop/ ... mobile/ thumbnails/ diagnostics/
 ```
 
-`catalog.json` is published atomically after its immutable category-index generation is ready. Paths to images and indexes are relative to the **output root**. Each reference has stable IDs, parent links, viewport, image dimensions/hashes, exact-scope labels, evidence, provenance and quality decisions. Category indexes reference IDs; they never copy images. Site/page/section context nodes carry no invented inherited labels. Page-wide judgments live on their assessed page/viewport references. Site-wide quality remains unassessed: collecting some pages does not establish the quality of an entire site.
+`catalog.json` is published atomically after its immutable category-index generation is ready. Paths to images and indexes are relative to the **output root**. Each reference has stable IDs, parent links, viewport, image dimensions/hashes, exact-scope labels, evidence, provenance and quality decisions. Category indexes reference IDs; readable category folders contain hard links to original PNGs, sharing the same bytes across classifications. Pending, uncertain, rejected and repair references appear separately under `review/`. Missing classification never becomes an invented aesthetic folder. Filesystems without hard-link support report a view exception, without copying or upscaling pixels. Do not edit a linked PNG in place: it is the original asset. Site/page/section context nodes carry no invented inherited labels. Page-wide judgments live on their assessed page/viewport references. Site-wide quality remains unassessed: collecting some pages does not establish the quality of an entire site.
 
 Aesthetics and appearance are separate: minimal/minimalist/minimalistic normalize to `minimalism`; clean appearance remains independently searchable across aesthetics. Mixed references have one primary aesthetic and explicitly supported secondary aesthetics. Candidate substyles need their own inspected evidence and a supported parent aesthetic in the same subject. Broad terms such as retro/futuristic are not silently mapped to a particular child aesthetic. Contextual collections, cultural influences and platform attribution need captured context; static screenshots do not establish motion. Sections never inherit parent aesthetics. Library terminology stays source provenance.
 

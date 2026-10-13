@@ -5,8 +5,12 @@
 # The output folder is resolved relative to this file; an absolute path also works.
 output: ./output
 freshnessDays: 730
+collection:
+  originalMode: site # Follow original sites' public navigation after resolving library references.
+  maxPages: 25
+  maxDepth: 2
 classifier:
-  runner: codex # Use none for a completely model-free run.
+  runner: mcp # ChatGPT analyzes saved captures through the local bridge. Codex is opt-in.
   model: gpt-6.1-sol
   reasoning: high
 quality:

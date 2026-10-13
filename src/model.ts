@@ -4,13 +4,21 @@ import { randomUUID } from 'node:crypto';
 import { runClassifierProcess, type ClassifierProcessRunner } from './classification.ts';
 import type { ClassifierSettings } from './types.ts';
 
+export type VisionRequest = { prompt:string; schema:unknown; images:Array<{path:string}> };
+export type VisionResponse = { value:unknown; reportedModel?:string };
+export type VisionRunner = (request:VisionRequest)=>Promise<VisionResponse>;
+
 /** Same isolated, no-action runner used for quality assessment and scoped classification. */
 export async function visionJson(options: {
   settings: ClassifierSettings; directory: string; prompt: string; schema: unknown;
-  images: Array<{path: string}>; signal?: AbortSignal; runProcess?: ClassifierProcessRunner;
+  images: Array<{path: string}>; signal?: AbortSignal; runProcess?: ClassifierProcessRunner; runVision?:VisionRunner;
 }): Promise<{value: unknown; reportedModel?: string}> {
   const {settings, images, signal} = options;
   signal?.throwIfAborted();
+  if(settings.runner==='mcp') {
+    if(!options.runVision)throw new Error('Awaiting the connected ChatGPT MCP client; no model process was started.');
+    return options.runVision({prompt:options.prompt,schema:options.schema,images});
+  }
   if (settings.runner !== 'codex') throw new Error('Codex unavailable; visual work remains pending.');
   if (!settings.command.trim() || /[\r\n\0]/.test(settings.command)) throw new Error('Invalid executable');
   if (settings.model && !/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$/.test(settings.model)) throw new Error('Invalid model');

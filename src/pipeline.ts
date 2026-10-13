@@ -15,7 +15,7 @@ import { exportCatalog } from './report.ts';
 import { atomicJson, canonicalUrl, delay, errorMessage, hash, inside, isRelatedDestination, jsonFile, now } from './utils.ts';
 import type { Config, EvidenceItem, PageManifest, Source, ViewportCapture, Provenance, Classification, DiscoveredEntry } from './types.ts';
 
-export type RunOptions = { launchBrowser?: () => Promise<Browser>; captureOnly?: boolean; discoverOnly?: boolean; refresh?: boolean; retry?: boolean; classifyOnly?: boolean; reassess?: boolean; source?: string; limit?: number; signal?: AbortSignal; log?: (message:string)=>void };
+export type RunOptions = { launchBrowser?: () => Promise<Browser>; refresh?: boolean; retry?: boolean; classifyOnly?: boolean; reassess?: boolean; source?: string; limit?: number; signal?: AbortSignal; log?: (message:string)=>void };
 export type RunSummary = { discovered:number; queued:number; captured:number; reused:number; unresolved:number; incomplete:number; unsupported:number; blocked:number; failed:number; classified:number; pendingClassification:number; interrupted:boolean };
 
 export async function validateCaptureFiles(root: string, manifest: PageManifest): Promise<boolean> {
@@ -88,9 +88,17 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
   const analysisState={unavailable:false};
   const captureSignature = (source:Source) => hash({ version:2,playwright:'1.62.1',profiles:config.profiles,capture:{...config.capture,preserveSelectors:[...config.capture.preserveSelectors,...source.preserveSelectors??[]],dismissSelectors:[...config.capture.dismissSelectors,...source.dismissSelectors??[]]} });
   const checkInterrupted=()=>options.signal?.throwIfAborted();
+  async function ensureBrowser(){
+    checkInterrupted();
+    if(!browser?.isConnected()){
+      if(browser)log('Chromium disconnected; restarting before the next attempt.');
+      browser=await (options.launchBrowser?.() ?? chromium.launch({channel:'chromium',headless:true}));
+    }
+    return browser;
+  }
 
   async function classify(capture:CaptureRecord, force=false) {
-    await curateCapture(store,capture.id,config,{runtime:analysisState,captureOnly:options.captureOnly,classifyOnly:options.classifyOnly&&!options.reassess,reassess:options.reassess,reclassify:force,signal:options.signal,log});
+    await curateCapture(store,capture.id,config,{runtime:analysisState,classifyOnly:options.classifyOnly&&!options.reassess,reassess:options.reassess,reclassify:force,signal:options.signal,log});
     const references=store.references(capture.id);
     summary.classified+=references.filter(r=>r.classification).length;
     summary.pendingClassification+=references.filter(r=>r.quality.verdict==='pending' || r.quality.verdict==='accepted'&&!r.classification).length;
@@ -100,7 +108,6 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
 
   async function processPage(url:string,provenance:Provenance,source:Source){
     checkInterrupted();const page=store.page(url,provenance);const signature=captureSignature(source);const key=`${page.id}:${signature}`;
-    if(options.discoverOnly){if(!visited.has(key)){const job=store.job('capture',key,{pageId:page.id,url:page.url,source});if(job.status==='pending')summary.queued++;visited.add(key);}return;}
     if(visited.has(key)){
       const prior=page.latestCaptureId?store.capture(page.latestCaptureId):undefined;
       if(prior?.manifest){
@@ -161,7 +168,7 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
         const timeout=AbortSignal.timeout(config.capture.attemptTimeoutMs);
         const signal=options.signal ? AbortSignal.any([timeout,options.signal]) : timeout;
         try {
-          result=await captureViewport({browser:browser!,url:page.url,profile,settings:{...config.capture,preserveSelectors:[...config.capture.preserveSelectors,...source.preserveSelectors??[]],dismissSelectors:[...config.capture.dismissSelectors,...source.dismissSelectors??[]]},outputDir:root,onProgress:message=>log(`  ${profile.id}: ${message}`),signal});
+          result=await captureViewport({browser:await ensureBrowser(),url:page.url,profile,settings:{...config.capture,preserveSelectors:[...config.capture.preserveSelectors,...source.preserveSelectors??[]],dismissSelectors:[...config.capture.dismissSelectors,...source.dismissSelectors??[]]},outputDir:root,onProgress:message=>log(`  ${profile.id}: ${message}`),signal});
           if(!isRelatedDestination(page.url,result.finalUrl)){result.status='blocked';result.warnings.push(`Unrelated destination: ${result.finalUrl}`);result.stoppingReason='unrelated_redirect';}
         }catch(error){
           if(options.signal?.aborted)throw error;
@@ -198,25 +205,30 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
       const previousResolution=resolved;
       for(let attempt=0;attempt<2;attempt++){
         checkInterrupted();store.start(job);
-        try{resolved=await libraryAdapter(source.url)!.resolve({browser:browser!,entryUrl:entry.detailUrl,entry,settings:config.discovery,cleanupSettings:{...config.capture,preserveSelectors:[...config.capture.preserveSelectors,...source.preserveSelectors??[]],dismissSelectors:[...config.capture.dismissSelectors,...source.dismissSelectors??[]]},signal:options.signal});store.finish(job,'complete',resolved);break;}
+        try{resolved=await libraryAdapter(source.url)!.resolve({browser:await ensureBrowser(),entryUrl:entry.detailUrl,entry,settings:config.discovery,cleanupSettings:{...config.capture,preserveSelectors:[...config.capture.preserveSelectors,...source.preserveSelectors??[]],dismissSelectors:[...config.capture.dismissSelectors,...source.dismissSelectors??[]]},signal:options.signal});store.finish(job,'complete',resolved);break;}
         catch(error){const message=errorMessage(error);const blocked=/login|paywall|captcha|access|forbidden|403|401|missing original|no original/i.test(message);store.finish(job,blocked?'blocked':'failed',previousResolution ?? undefined,message);if(blocked || attempt===1){summary.unresolved++;log(`Unresolved reference: ${entry.detailUrl} — ${message}`);return;}await delay(1000,options.signal);}
       }
     }
     if(!resolved?.originalUrl){summary.unresolved++;return;}
-    await processPage(resolved.originalUrl,{seedUrl:entry.seedUrl,listingUrl:entry.listingUrl,detailUrl:entry.detailUrl,discoveredAt:entry.discoveredAt,sourceLabels:resolved.sourceLabels ?? [],previewUrl:resolved.previewUrl,resolutionPath:resolved.metadata?.followed},source);
+    const provenance:Provenance={seedUrl:entry.seedUrl,listingUrl:entry.listingUrl,detailUrl:entry.detailUrl,discoveredAt:entry.discoveredAt,sourceLabels:resolved.sourceLabels ?? [],previewUrl:resolved.previewUrl,resolutionPath:resolved.metadata?.followed};
+    if((config.collection?.originalMode??'site')==='site'){
+      await discoverSite(store,ensureBrowser,{...source,url:resolved.originalUrl,kind:'site',maxPages:source.maxPages??config.collection?.maxPages,maxDepth:source.maxDepth??config.collection?.maxDepth},config.discovery,
+        async(url,path)=>processPage(url,{...provenance,navigationPath:path.navigationPath},source),options.signal,()=>!options.limit || summary.captured+summary.reused<options.limit,config.capture);
+    }else await processPage(resolved.originalUrl,provenance,source);
   }
 
   try {
     store.acquireLock();locked=true;store.recoverRunning();await recoverPublished(store,log);
     if(options.retry)store.retryFailures();
     if(options.classifyOnly){for(const capture of store.latestCaptures().filter(c=>c.manifest && (!options.source || c.manifest.provenance.some(p=>canonicalUrl(p.seedUrl)===canonicalUrl(options.source!)) || canonicalUrl(c.manifest.requestedUrl)===canonicalUrl(options.source!)) && c.manifest.variants.some(v=>v.regions.some(r=>r.frames.length)))){checkInterrupted();await classify(capture,Boolean(options.refresh));if(options.limit && summary.classified>=options.limit)break;}return summary;}
-    browser=await (options.launchBrowser?.() ?? chromium.launch({channel:'chromium',headless:true}));
+    await ensureBrowser();
     const sources=options.source ? config.sources.filter(s=>canonicalUrl(s.url)===canonicalUrl(options.source!)) : config.sources;
     if(!sources.length)throw new Error('The selected source is not in sources.yaml.');
     for(const source of sources){
       checkInterrupted();
       if(options.limit && summary.captured+summary.reused>=options.limit)break;
       for(const pendingCapture of store.jobs('capture',['pending']).filter(j=>j.payload.source?.url===source.url)){
+        if(pendingCapture.payload.libraryPage || source.kind!=='page' && libraryAdapter(source.url) && canonicalUrl(pendingCapture.payload.url)===canonicalUrl(source.url))continue;
         const pendingPage=store.page(pendingCapture.payload.url);
         const origin=pendingPage.provenance.find(p=>p.seedUrl===source.url);
         if(origin)await processPage(pendingPage.url,origin,source);
@@ -226,18 +238,21 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
       const adapter=libraryAdapter(source.url);
       const library=source.kind==='library' || (source.kind==='auto' && (Boolean(adapter)||isKnownLibrary(source.url)));
       if(source.kind==='site'){
-        await discoverSite(store,browser,source,config.discovery,async (url,provenance)=>{await processPage(url,provenance,source);},options.signal,()=>!options.limit || summary.captured+summary.reused<options.limit);continue;
+        await discoverSite(store,ensureBrowser,source,config.discovery,async (url,provenance)=>{await processPage(url,provenance,source);},options.signal,()=>!options.limit || summary.captured+summary.reused<options.limit,config.capture);continue;
       }
       if(!library){
         await processPage(source.url,{seedUrl:source.url,discoveredAt:now(),sourceLabels:[]},source);continue;
       }
       const discoveryJob=store.job('discovery',source.url,{source});
       if(!adapter){store.finish(discoveryJob,'unsupported',undefined,'This library needs a dedicated adapter. The selected URL does not match a supported collection adapter.');summary.unsupported++;continue;}
-      await processPage(source.url,{seedUrl:source.url,discoveredAt:now(),sourceLabels:[]},source);
+      const ownPage=store.page(source.url,{seedUrl:source.url,discoveredAt:now(),sourceLabels:[]});
+      store.job('capture',`${ownPage.id}:${captureSignature(source)}`,{pageId:ownPage.id,url:ownPage.url,source,libraryPage:true});
       for(const pending of store.jobs('resolve',['pending']).filter(j=>j.payload.entry?.seedUrl===source.url)){await resolveAndCapture(pending.payload.entry,source);if(options.limit && summary.captured+summary.reused>=options.limit)break;}
       if(options.limit && summary.captured+summary.reused>=options.limit){store.finish(discoveryJob,'incomplete',undefined,'Capture limit reached','capture_limit');break;}
       store.start(discoveryJob);log(`Discover ${source.url}`);
-      for await(const event of adapter.discover({browser,seed:source,settings:config.discovery,cleanupSettings:{...config.capture,preserveSelectors:[...config.capture.preserveSelectors,...source.preserveSelectors??[]],dismissSelectors:[...config.capture.dismissSelectors,...source.dismissSelectors??[]]},onProgress:log,signal:options.signal,onDiscovered:entries=>{
+      for(let replay=0;replay<2;replay++){
+      const listingBrowser=await ensureBrowser();let disconnected=false;
+      for await(const event of adapter.discover({browser:listingBrowser,seed:source,settings:config.discovery,cleanupSettings:{...config.capture,preserveSelectors:[...config.capture.preserveSelectors,...source.preserveSelectors??[]],dismissSelectors:[...config.capture.dismissSelectors,...source.dismissSelectors??[]]},onProgress:log,signal:options.signal,onDiscovered:entries=>{
         checkInterrupted();
         store.queueJobs('resolve',entries.map(entry=>({key:`${entry.seedUrl}:${entry.id}`,payload:{entry,source}})));
         summary.discovered+=entries.length;
@@ -246,14 +261,19 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
         if(event.type==='entry'){
           await resolveAndCapture(event.entry,source);
           if(options.limit && summary.captured+summary.reused>=options.limit){store.finish(discoveryJob,'incomplete',undefined,'Capture limit reached','capture_limit');break;}
-        }else {const unsupported=/(?:^|: )Unsupported\b/.test(event.error??'');const blocked=event.reason==='incomplete'&&/access gate|HTTP (?:401|403|429)|captcha|paywall|forbidden/i.test(event.error??'');if(unsupported)summary.unsupported++;else if(blocked)summary.blocked++;else if(event.reason==='incomplete')summary.incomplete++;store.finish(discoveryJob,unsupported?'unsupported':blocked?'blocked':event.reason==='incomplete'?'incomplete':'complete',event,event.error,event.reason);}
+        }else {disconnected=!listingBrowser.isConnected();const unsupported=/(?:^|: )Unsupported\b/.test(event.error??'');const blocked=event.reason==='incomplete'&&/access gate|HTTP (?:401|403|429)|captcha|paywall|forbidden/i.test(event.error??'');if(unsupported)summary.unsupported++;else if(blocked)summary.blocked++;else if(event.reason==='incomplete')summary.incomplete++;store.finish(discoveryJob,unsupported?'unsupported':blocked?'blocked':event.reason==='incomplete'?'incomplete':'complete',event,event.error,event.reason);}
       }
+      if(!disconnected || replay===1 || options.limit && summary.captured+summary.reused>=options.limit)break;
+      store.start(discoveryJob);log('Replaying interrupted listing; saved entries are deduplicated.');
+      }
+      if(!options.limit || summary.captured+summary.reused<options.limit)await processPage(source.url,ownPage.provenance[0],source);
     }
     return summary;
   }catch(error){
     if(options.signal?.aborted){summary.interrupted=true;log('Interrupted. Saved jobs will resume on the next run.');return summary;}
     throw error;
   }finally{
+    summary.queued=store.jobs('capture',['pending','running']).length;
     try{await browser?.close();}finally{try{if(locked)await publishIndexes();}finally{store.close();}}
   }
 }

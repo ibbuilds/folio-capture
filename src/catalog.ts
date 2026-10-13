@@ -8,6 +8,7 @@ import type { ReferenceRecord } from './references.ts';
 import type { CaptureProfile } from './types.ts';
 import { hasCurrentClassification, buildCoverage } from './coverage.ts';
 import { taxonomyDocument, TAXONOMY_VERSION } from './taxonomy.ts';
+import { exportFileViews } from './views.ts';
 
 /** Immutable export generations: catalog.json is the single atomic publication point. */
 export async function exportAccepted(store:Store,profiles?:CaptureProfile[]) {
@@ -65,6 +66,7 @@ export async function exportAccepted(store:Store,profiles?:CaptureProfile[]) {
       if(label.axis==='appearance' && label.label==='clean')add('aesthetic/clean',reference.id);
     }
   }
+  const fileViews=await exportFileViews(store.output,references,indexes,records);
   const generation=`exports/${Date.now()}-${randomUUID().slice(0,8)}`;
   const staging=inside(store.output,`${generation}.staging`);
   await mkdir(staging,{recursive:true});
@@ -75,7 +77,7 @@ export async function exportAccepted(store:Store,profiles?:CaptureProfile[]) {
   const catalog={schemaVersion:2,generatedAt:now(),experimental:true,qualityValidation:'unvalidated',editorialApproval:'unreviewed-candidates',taxonomyVersion:TAXONOMY_VERSION,
     taxonomy:`${generation}/taxonomy.json`,coverage:`${generation}/coverage.json`,assetBase:'.',generation,
     indexSemantics:{'aesthetic/clean':'Combined retrieval of supported Clean aesthetic and clean appearance; exact axes remain in reference labels. Primary/secondary aesthetic indexes contain only aesthetic claims.'},
-    sites,pages,sections,references,indexes:Object.fromEntries(Object.keys(indexes).map(key=>[key,`${generation}/indexes/${key}.json`])),
+    sites,pages,sections,references,fileViews,indexes:Object.fromEntries(Object.keys(indexes).map(key=>[key,`${generation}/indexes/${key}.json`])),
     counts:{accepted:references.length,classificationPending:records.filter(r=>r.quality.verdict==='accepted'&&!r.pruned&&!hasCurrentClassification(r)).length,
       rejected:records.filter(r=>r.quality.verdict==='rejected').length,uncertain:records.filter(r=>r.quality.verdict==='uncertain').length,
       pending:records.filter(r=>r.quality.verdict==='pending').length,repair:records.filter(r=>r.quality.verdict==='repair').length},exceptions};

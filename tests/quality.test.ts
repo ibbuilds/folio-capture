@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, writeFile, rm, access } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile, rm, access, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -38,7 +38,7 @@ async function setup(t:any) {
   }
   const manifest:PageManifest={schemaVersion:1,pageId:page.id,captureId:'fixture',captureSignature:'sig',requestedUrl:page.url,title:'Whole page',capturedAt:new Date().toISOString(),status:'complete',reviewStatus:'unreviewed',provenance:[],variants};
   store.createCapture(page,'sig',directory,'staging','fixture');store.publishCapture(manifest,directory);
-  const config=parseConfig({output:root,sources:[page.url]});
+  const config=parseConfig({output:root,sources:[page.url],classifier:{runner:'codex'}});
   return {root,store,manifest,config,directory};
 }
 function pass(id:string,score=9,verdict: 'accept'|'reject'|'uncertain'|'repair'=score>=9?'accept':'reject') {
@@ -87,6 +87,30 @@ test('scopes, mixed labels and viewport acceptance preserve images once and reje
   assert.ok(store.references().some(r=>r.pruned && r.quality.reasons.length && r.subject.frames[0].sha256));
 });
 
+test('readable category views use hard links and safely preserve user files during updates and pruning',async t=>{
+  const {store,config,root}=await setup(t);
+  await curateCapture(store,'fixture',config,{runProcess:mockRunner()});
+  const catalog=await exportAccepted(store);
+  assert.equal(catalog.fileViews.exceptions.length,0);
+  const inventory=JSON.parse(await readFile(join(root,'file-views.json'),'utf8'));
+  const image=inventory.files.find((f:any)=>f.path.startsWith('categories/aesthetic/clean/')&&f.source)!;
+  const section=inventory.files.find((f:any)=>f.path.startsWith('categories/section/testimonials/')&&f.source)!;
+  assert.ok(image && section);
+  const canonical=await stat(join(root,image.source)),linked=await stat(join(root,image.path));
+  assert.equal(linked.ino,canonical.ino);assert.equal(linked.dev,canonical.dev);
+  assert.equal((await stat(join(root,section.path))).ino,canonical.ino,'One image participates in multiple folders without copying bytes');
+  const notePath=image.path.replace(/part-\d+\.png$/,'my-notes.txt');await writeFile(join(root,notePath),'User notes');
+  const metadata=image.path.replace(/part-\d+\.png$/,'reference.json');await writeFile(join(root,metadata),'User replacement');
+  assert.ok((await exportAccepted(store)).fileViews.exceptions.some(e=>e.path===metadata));
+  const selected=store.references().find(r=>r.quality.verdict==='accepted')!;
+  selected.quality.verdict='rejected';store.saveReference(selected);
+  await pruneQuarantine(store,0);
+  await assert.rejects(access(join(root,image.path)));
+  await assert.rejects(access(join(root,section.path)));
+  assert.equal(await readFile(join(root,notePath),'utf8'),'User notes');
+  assert.equal(await readFile(join(root,metadata),'utf8'),'User replacement');
+});
+
 test('interrupted critique resumes the saved first pass; model errors never accept',async t=>{
   const {store,config}=await setup(t);let calls=0;
   await curateCapture(store,'fixture',config,{runProcess:mockRunner({failure:()=>++calls===2})});
@@ -104,7 +128,7 @@ test('capture problems and unsampled frames cannot become negative design judgme
   manifest.variants[0].warnings.push('Broken image detected');
   manifest.variants[1].regions[0].frames.push(...manifest.variants[1].regions[0].frames);
   store.publishCapture(manifest,directory);config.quality!.maxImages=1;
-  await curateCapture(store,'fixture',config,{captureOnly:true});
+  config.classifier.runner='mcp';await curateCapture(store,'fixture',config);
   assert.equal(store.references().filter(r=>r.quality.verdict==='repair').length,3);
   assert.ok(store.references().some(r=>r.quality.verdict==='uncertain'));
   assert.equal((await exportAccepted(store)).references.length,0);

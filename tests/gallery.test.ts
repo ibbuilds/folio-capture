@@ -534,8 +534,8 @@ test('a document HEAD probe is optional while a failing document data fetch rema
   }
 });
 
-test('discovery-only queues recoverable captures without loading original websites or invoking a model', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'folio-discovery-only-'));
+test('normal MCP collection preserves resolved entries and pending classification across limited runs', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'folio-mcp-collection-'));
   const visited: string[] = [];
   const model = routed(async (route) => {
     const url = route.request().url();
@@ -543,7 +543,7 @@ test('discovery-only queues recoverable captures without loading original websit
     await route.fulfill({
       contentType: 'text/html',
       body: html(
-        url.endsWith('/projects/first')
+        url.includes('original.test')?'<main><section><h1>Original design</h1><p>Product for teams</p></section></main>':url.endsWith('/projects/first')
           ? '<h1>First</h1><a href="https://original.test/">Visit Website</a>'
           : '<a href="/projects/first">First</a><p>No more results</p>',
       ),
@@ -560,33 +560,36 @@ test('discovery-only queues recoverable captures without loading original websit
     const config = parseConfig({
       output: root,
       sources: [{ url: 'https://refs.gallery/', kind: 'library' }],
-      classifier: { runner: 'none' },
+      classifier: { runner: 'mcp' },
       discovery: settings,
+      profiles:[{id:'desktop',width:800,height:600,dpr:2,isMobile:false,hasTouch:false}],
+      capture:{maxAttempts:1,settleTimeoutMs:500,mediaTimeoutMs:400,cleanupTimeoutMs:400,explorationTimeoutMs:4000,attemptTimeoutMs:15000},
     });
     const result = await runPipeline(config, {
-      discoverOnly: true,
+      limit: 1,
       launchBrowser: async () => wrapper,
       log: () => {},
     });
-    assert.equal(result.captured, 0);
-    assert.equal(result.queued, 2);
-    assert.ok(visited.every((url) => !url.includes('original.test')));
+    assert.equal(result.captured, 1);
+    assert.ok(result.pendingClassification>0);
+    assert.ok(visited.some((url) => url.includes('original.test')));
     const store = new Store(root);
     try {
-      assert.equal(store.jobs('capture', ['pending']).length, 2);
+      assert.equal(store.jobs('capture', ['pending']).length, 1);
       assert.equal(store.jobs('resolve', ['complete']).length, 1);
-      assert.equal(store.captures().length, 0);
+      assert.equal(store.captures().length, 1);
+      assert.ok(store.references().every(r=>r.quality.verdict==='pending'));
     } finally {
       store.close();
     }
     await runPipeline(config, {
-      discoverOnly: true,
+      limit: 1,
       launchBrowser: async () => wrapper,
       log: () => {},
     });
     const recovered = new Store(root);
     try {
-      assert.equal(recovered.jobs('capture', ['pending']).length, 2);
+      assert.equal(recovered.jobs('capture', ['pending']).length, 1);
       assert.equal(recovered.jobs('resolve', ['complete']).length, 1);
     } finally {
       recovered.close();
