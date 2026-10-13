@@ -141,8 +141,8 @@ export function heuristicClassification(manifest: PageManifest, evidence: Eviden
     if (!labels.some(label => label.axis === axis && label.regionId === region.id)) addLabel(labels, axis, 'unknown', region.id, [], 'heuristic', 'low', 'No sufficiently supported captured evidence.');
   }
   return { schemaVersion: 1, taxonomyVersion: TAXONOMY_VERSION, promptVersion: CLASSIFIER_PROMPT_VERSION,
-    captureId: manifest.captureId, status: 'heuristic', runner: 'none', model: 'none', createdAt: new Date().toISOString(),
-    cacheKey: classificationCacheKey(manifest, evidence, { runner: 'none', command: '', timeoutMs: 0, maxAttempts: 0 }),
+    captureId: manifest.captureId, status: 'heuristic', runner: 'structural', model: 'unassessed', createdAt: new Date().toISOString(),
+    cacheKey: classificationCacheKey(manifest, evidence, { runner: 'mcp', command: '', timeoutMs: 0, maxAttempts: 0 }),
     labels, sourceLabels: sourceItems.map(item => ({ label: text(item.value, 200), evidenceId: item.id })),
     observedFlows: [], warnings: ['Style and interaction-flow judgments require observed visual or interaction evidence.'] };
 }
@@ -307,7 +307,7 @@ type EnrichmentOptions = { manifest: PageManifest; evidence: EvidenceItem[]; bas
 
 export async function enrichClassification({ manifest, evidence, base, settings, outputDir, runProcess = runClassifierProcess, signal }: EnrichmentOptions): Promise<Classification> {
   checkAbort(signal);
-  if (settings.runner === 'none') return base;
+  if (settings.runner !== 'codex') return base;
   if (settings.runner !== 'codex') throw new ClassifierError('Only the existing Codex CLI runner is supported.', 'validation');
   if (!settings.command.trim() || /[\r\n\0]/.test(settings.command)) throw new ClassifierError('Classifier command must be a trusted executable path or name.', 'validation');
   if (settings.model && !/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$/.test(settings.model.trim())) throw new ClassifierError('Invalid configured model name.', 'validation');

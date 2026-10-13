@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { parseConfig } from '../src/config.ts';
 import { runPipeline, validateCaptureFiles } from '../src/pipeline.ts';
 import { Store } from '../src/store.ts';
+import { chromium } from 'playwright';
 import type { PageManifest } from '../src/types.ts';
 
 test('end-to-end capture resumes, publishes atomically, reuses pixels, and reports all viewport families',async()=>{
@@ -19,13 +20,13 @@ test('end-to-end capture resumes, publishes atomically, reuses pixels, and repor
   });
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
   const address=server.address() as {port:number};const url=`http://127.0.0.1:${address.port}/`;
-  const config=parseConfig({output:root,sources:[url,{url:'https://unsupported.example/catalog',kind:'library'}],classifier:{runner:'none'},capture:{maxAttempts:1,mediaTimeoutMs:500,settleTimeoutMs:1000,cleanupTimeoutMs:800,explorationTimeoutMs:8000,attemptTimeoutMs:20000}},root);
+  const config=parseConfig({output:root,sources:[url,{url:'https://unsupported.example/catalog',kind:'library'}],classifier:{runner:'mcp'},capture:{maxAttempts:1,mediaTimeoutMs:500,settleTimeoutMs:1000,cleanupTimeoutMs:800,explorationTimeoutMs:8000,attemptTimeoutMs:20000}},root);
   const abort=new AbortController();
   let inspectedStore:Store|undefined;
   try{
-    const interrupted=await runPipeline(config,{captureOnly:true,signal:abort.signal,log:message=>{if(message.includes('loading'))abort.abort();}});
+    const interrupted=await runPipeline(config,{signal:abort.signal,log:message=>{if(message.includes('loading'))abort.abort();}});
     assert.equal(interrupted.interrupted,true);
-    const first=await runPipeline(config,{captureOnly:true,log:()=>{}});
+    const first=await runPipeline(config,{log:()=>{}});
     assert.equal(first.captured,1);
     assert.equal(first.incomplete,0);
     assert.equal(first.unsupported,1);
@@ -46,10 +47,30 @@ test('end-to-end capture resumes, publishes atomically, reuses pixels, and repor
     assert.equal((JSON.parse(manifestBefore) as PageManifest).captureId,saved.id);
     store.close();inspectedStore=undefined;
     const requestsBefore=requests;
-    const second=await runPipeline(config,{captureOnly:true,log:()=>{}});
+    const second=await runPipeline(config,{log:()=>{}});
     assert.equal(second.reused,1);assert.equal(second.captured,0);assert.equal(requests,requestsBefore);
     const index=JSON.parse(await readFile(join(root,'index.json'),'utf8'));assert.equal(index.pages.length,1);
     assert.equal(index.pages[0].variants.length,6);assert.equal(JSON.parse(await readFile(join(root,'catalog.json'),'utf8')).references.length,0);
     await assert.rejects(readFile(join(root,'report.html'),'utf8')); // Report is explicitly opt-in.
   }finally{inspectedStore?.close();await new Promise<void>(resolve=>server.close(()=>resolve()));await rm(root,{recursive:true,force:true,maxRetries:3,retryDelay:100});}
+});
+
+test('a disconnected Chromium is relaunched instead of poisoning later viewport attempts',async t=>{
+  const root=await mkdtemp(join(tmpdir(),'folio-browser-recovery-'));
+  t.after(()=>rm(root,{recursive:true,force:true,maxRetries:3}));
+  const config=parseConfig({output:root,sources:['https://fixture.test/'],profiles:[{id:'desktop',width:1440,height:1000,dpr:2,isMobile:false,hasTouch:false},{id:'mobile',width:390,height:844,dpr:2,isMobile:true,hasTouch:true}],capture:{maxAttempts:2,mediaTimeoutMs:400,settleTimeoutMs:500,cleanupTimeoutMs:400,explorationTimeoutMs:4000,attemptTimeoutMs:15000}});
+  let launches=0;
+  const summary=await runPipeline(config,{log:()=>{},launchBrowser:async()=>{
+    const owned=await chromium.launch({headless:true,channel:'chromium',executablePath:process.env.FOLIO_TEST_BROWSER_PATH});
+    if(++launches===1)await owned.close();
+    const original=owned.newContext.bind(owned);
+    owned.newContext=async options=>{const context=await original(options);await context.route('**/*',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><main><section><h1>Reliable recovery</h1><p>Saved fixture</p></section></main>'}));return context;};
+    return owned;
+  }});
+  assert.equal(launches,2);assert.equal(summary.captured,1);assert.equal(summary.failed,0);assert.ok(summary.pendingClassification>0,'MCP workflow stays explicitly pending');
+  const store=new Store(root);try{
+    assert.ok(store.captures()[0].manifest!.variants.every(v=>v.status==='complete'));
+    assert.equal(store.jobs('viewport').find(j=>j.payload.profile==='desktop')!.attempts,2);
+    assert.equal(store.jobs('viewport').find(j=>j.payload.profile==='mobile')!.attempts,1);
+  }finally{store.close();}
 });

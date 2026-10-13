@@ -104,9 +104,9 @@ if(mode==='capture') {
   await new Promise<void>(done=>server.listen(0,'127.0.0.1',done));
   try {
     const url=`http://127.0.0.1:${(server.address() as {port:number}).port}/`;
-    const config=parseConfig({output:root,sources:[url],classifier:{runner:'none'}});
+    const config=parseConfig({output:root,sources:[url],classifier:{runner:'mcp'}});
     let contexts=0,screenshots=0;
-    const result=await measure('six-profile-capture',()=>runPipeline(config,{captureOnly:true,log:()=>{},launchBrowser:async()=>{
+    const result=await measure('six-profile-capture',()=>runPipeline(config,{log:()=>{},launchBrowser:async()=>{
       const browser=await chromium.launch({headless:true,channel:'chromium'});
       return new Proxy(browser,{get(target,key){if(key==='newContext')return async(...args:any[])=>{
         contexts++;const context=await target.newContext(...args);

@@ -33,7 +33,7 @@ test('observed discovery batches are durably queued together and roll back parti
 
 test('config defaults cover desktop, tablet, mobile and enforce bounded settings',()=>{
   const config=parseConfig({sources:['https://example.com/']});
-  assert.equal(config.freshnessDays,730);assert.equal(config.profiles.length,6);assert.equal(config.classifier.runner,'codex');
+  assert.equal(config.freshnessDays,730);assert.equal(config.profiles.length,6);assert.equal(config.classifier.runner,'mcp');
   assert.ok(config.profiles.some(p=>p.id==='tablet'));assert.ok(config.profiles.some(p=>p.id==='tablet-landscape'));
   assert.throws(()=>parseConfig({sources:['https://example.com/'],capture:{frameOverlap:1}}));
   assert.throws(()=>parseConfig({sources:['https://example.com/'],profiles:[config.profiles[0],config.profiles[0]]}));

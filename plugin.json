@@ -1,0 +1,7 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "folio-capture",
+  "version": "0.2.0",
+  "description": "Read local Folio screenshots and submit scoped quality and taxonomy judgments through the connected chat model. No Codex or API inference calls.",
+  "author": {"name": "ibbuilds"}
+}

@@ -18,6 +18,7 @@ export type QualityRecord = {
   assessedAt: string; experimental: true; reasons: string[];
   model: string; reasoning: string; reportedModels: string[];
   inspectedImages: string[]; assessment?: QualityPass; critique?: QualityPass;
+  reviewRevision?: number;
 };
 export type ScopedClassification = {
   taxonomyVersion: string; promptVersion: string; cacheKey: string; model: string;
@@ -29,6 +30,7 @@ export type ReferenceRecord = {
   quality: QualityRecord; classification?: ScopedClassification;
   classificationHistory?: ScopedClassification[];
   qualityHistory?: QualityRecord[];
+  classificationRevision?: number;
   pruned?: { at: string; paths: string[] };
 };
 

@@ -27,7 +27,8 @@ const configSchema = z.object({
   }).strict().prefault({}),
   discovery: z.object({ navigationTimeoutMs: positive.default(45000), settleTimeoutMs: positive.default(10000), plateauChecks: positive.default(3), maxScrollSteps: positive.default(500), maxDurationMs: positive.default(1800000), minDelayMs: positive.default(1000), maxEntries: positive.optional() }).strict().prefault({}),
   quality: z.object({ maxImages: positive.max(100).default(24), quarantineDays: positive.default(30) }).strict().prefault({}),
-  classifier: z.object({ runner: z.enum(['codex','none']).default('codex'), command: z.string().default('codex'), model: z.string().default('gpt-6.1-sol'), reasoning: z.enum(['low','medium','high','xhigh']).default('high'), timeoutMs: positive.default(900000), maxAttempts: positive.max(3).default(2) }).strict().prefault({}),
+  collection: z.object({ originalMode:z.enum(['page','site']).default('site'),maxPages:positive.max(1000).default(25),maxDepth:z.number().int().min(0).max(10).default(2) }).strict().prefault({}),
+  classifier: z.object({ runner: z.enum(['mcp','codex']).default('mcp'), command: z.string().default('codex'), model: z.string().default('gpt-6.1-sol'), reasoning: z.enum(['low','medium','high','xhigh']).default('high'), timeoutMs: positive.default(900000), maxAttempts: positive.max(3).default(2) }).strict().prefault({}),
 }).strict();
 
 export function parseConfig(raw: unknown, base = process.cwd()): Config {

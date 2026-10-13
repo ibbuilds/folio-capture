@@ -4,7 +4,7 @@ import { runPipeline } from '../src/pipeline.ts';
 
 const config=await loadConfig();
 config.output=resolve('validation-output/live');
-config.classifier.runner='none';
+config.classifier.runner='mcp';
 config.capture.maxAttempts=1;
 config.capture.mediaTimeoutMs=5000;
 config.capture.settleTimeoutMs=4000;
@@ -19,4 +19,4 @@ config.sources=[
 ];
 const controller=new AbortController();
 process.once('SIGINT',()=>controller.abort(new Error('Interrupted live validation')));
-console.log(await runPipeline(config,{captureOnly:true,retry:process.argv.includes('--retry'),source:process.argv.find(a=>a.startsWith('--source='))?.slice(9),signal:controller.signal}));
+console.log(await runPipeline(config,{retry:process.argv.includes('--retry'),source:process.argv.find(a=>a.startsWith('--source='))?.slice(9),signal:controller.signal}));
