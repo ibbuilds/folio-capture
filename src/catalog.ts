@@ -9,6 +9,7 @@ import type { CaptureProfile } from './types.ts';
 import { hasCurrentClassification, buildCoverage } from './coverage.ts';
 import { taxonomyDocument, TAXONOMY_VERSION } from './taxonomy.ts';
 import { exportFileViews } from './views.ts';
+import { exportCatalog } from './report.ts';
 
 /** Immutable export generations: catalog.json is the single atomic publication point. */
 export async function exportAccepted(store:Store,profiles?:CaptureProfile[]) {
@@ -92,6 +93,7 @@ export async function exportAccepted(store:Store,profiles?:CaptureProfile[]) {
   await atomicJson(join(store.output,'coverage.json'),coverage);
   await atomicJson(join(store.output,'quarantine.json'),{schemaVersion:2,policy:'Logical quarantine: assets stored once at their original capture paths.',
     references:store.quarantineInventory()});
+  await exportCatalog(store,false);
   return catalog;
 }
 

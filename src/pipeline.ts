@@ -15,7 +15,6 @@ import type { ClassifierProcessRunner } from './classification.ts';
 import { TAXONOMY_VERSION } from './taxonomy.ts';
 import { libraryAdapter, isKnownLibrary } from './adapters.ts';
 import { discoverSite } from './site.ts';
-import { exportCatalog } from './report.ts';
 import { atomicJson, canonicalUrl, delay, errorMessage, hash, inside, isRelatedDestination, jsonFile, now, ResolvedDuplicate, ClassifierUnavailable } from './utils.ts';
 import type { Config, EvidenceItem, PageManifest, Source, ViewportCapture, Provenance, Classification, DiscoveredEntry } from './types.ts';
 
@@ -92,7 +91,7 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
   let locked=false;
   const visited=new Set<string>();
   const analysisState={unavailable:false};
-  const captureSignature = (source:Source,expectedHttpStatus?:404) => hash({ version:2,playwright:'1.62.1',profiles:config.profiles,...(expectedHttpStatus?{expectedHttpStatus}:{}),capture:{...config.capture,preserveSelectors:[...config.capture.preserveSelectors,...source.preserveSelectors??[]],dismissSelectors:[...config.capture.dismissSelectors,...source.dismissSelectors??[]]} });
+  const captureSignature = (source:Source,expectedHttpStatus?:404) => hash({ version:3,playwright:'1.62.1',profiles:config.profiles,...(expectedHttpStatus?{expectedHttpStatus}:{}),capture:{...config.capture,preserveSelectors:[...config.capture.preserveSelectors,...source.preserveSelectors??[]],dismissSelectors:[...config.capture.dismissSelectors,...source.dismissSelectors??[]]} });
   const checkInterrupted=()=>{options.signal?.throwIfAborted();options.assertClassifierActive?.();};
   async function ensureBrowser(){
     checkInterrupted();
@@ -121,7 +120,7 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
     }
   }
 
-  async function publishIndexes() { await exportCatalog(store,false); await exportAccepted(store,config.profiles); }
+  async function publishIndexes() { await exportAccepted(store,config.profiles); }
 
   async function processPage(url:string,provenance:Provenance,source:Source){
     checkInterrupted();const page=store.page(url,provenance);const expectedHttpStatus=provenance.expectedHttpStatus??(canonicalUrl(url)===canonicalUrl(source.url)?source.expectedHttpStatus:undefined);const signature=captureSignature(source,expectedHttpStatus);const key=`${page.id}:${signature}`;

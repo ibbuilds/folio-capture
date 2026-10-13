@@ -116,7 +116,7 @@ async function describe(page: Page): Promise<{ title: string; description: strin
       const r = el.getBoundingClientRect(), s = getComputedStyle(el);
       return r.width > 0 && r.height > 40 && s.display !== 'none' && s.visibility !== 'hidden';
     };
-    const heading = (element: Element) => Array.from(element.querySelectorAll('h1,h2,h3,h4,h5,h6')).slice(0, 30).map(h => ({ level: Number(h.tagName[1]), text: (h.textContent ?? '').trim().slice(0, 300) }));
+    const heading = (element: Element) => Array.from(element.querySelectorAll('h1,h2,h3,h4,h5,h6')).slice(0, 30).map(h => ({ level: Number(h.tagName[1]), text: ((h as HTMLElement).innerText ?? h.textContent ?? '').replace(/\s+/g,' ').trim().slice(0, 300) }));
     const selector = (element: Element) => {
       if (element.id) return `#${CSS.escape(element.id)}`;
       const parts: string[] = [];
@@ -190,21 +190,46 @@ function makeRegions(snapshot: Awaited<ReturnType<typeof describe>>, profile: Ca
     const captureBounds = { x: 0, y: Math.max(0, band.y - contextPixels), width: profile.width,
       height: Math.min(snapshot.height, band.end + contextPixels) - Math.max(0, band.y - contextPixels) };
     const id = `${profile.id}-region-${String(index + 1).padStart(3, '0')}`;
-    return { id, order: index, title: band.title, selector: band.selector || undefined, roleHint: band.sticky ? 'scroll-dependent' : undefined,
+    const opaqueSequence=band.sticky&&!band.semantic&&band.title==='Untitled section'&&bounds.height>profile.height*2;
+    return { id, order: index, title: opaqueSequence?'Scroll sequence':band.title, selector: band.selector || undefined, roleHint: band.sticky ? 'scroll-dependent' : undefined,
       bounds, captureBounds, method: band.semantic ? 'semantic' : band.selector ? 'inferred' : 'viewport-fallback',
-      boundaryConfidence: band.semantic ? 'high' : band.selector ? 'medium' : 'low', frames: [], evidenceIds: [`${id}-dom`] };
+      boundaryConfidence: opaqueSequence?'low':band.semantic ? 'high' : band.selector ? 'medium' : 'low', frames: [], evidenceIds: [`${id}-dom`] };
   });
 }
 
 async function navigationOcclusion(page: Page, region: Region): Promise<number> {
   if (/navigation/i.test(region.title)) return 0;
-  return page.evaluate(() => {
+  return page.evaluate(atTop => {
+    // Keep the original top-of-page composition, including intentional floating nav.
+    if(atTop&&scrollY<=1)return 0;
     const main = document.querySelector('main, [role="main"]');
-    return Math.max(0, ...Array.from(document.querySelectorAll('header, [role="banner"], nav')).filter(el => !main?.contains(el)).flatMap(el => {
+    return Math.max(0, ...Array.from(document.querySelectorAll('header, [role="banner"], nav, [role="navigation"]')).filter(el => !main?.contains(el)).flatMap(el => {
       const r = el.getBoundingClientRect(), s = getComputedStyle(el);
-      return ['sticky', 'fixed'].includes(s.position) && r.top <= 1 && r.bottom > 0 && r.bottom < innerHeight * .4 && s.visibility !== 'hidden' && s.display !== 'none' ? [r.bottom] : [];
+      let positioned=false;
+      for(let ancestor:Element|null=el;ancestor&&ancestor!==document.body;ancestor=ancestor.parentElement)if(['sticky','fixed'].includes(getComputedStyle(ancestor).position)){positioned=true;break;}
+      return positioned && r.width>=innerWidth*.25 && r.top<=innerHeight*.15 && r.bottom>0 && r.bottom<innerHeight*.4 && s.visibility!=='hidden' && s.display!=='none' ? [r.bottom] : [];
     }));
-  });
+  },region.captureBounds.y<=1);
+}
+
+/** Evidence belongs to the rendered frame, including text revealed only after scrolling. */
+async function frameDom(page:Page,clip:Rect,selector?:string) {
+  return page.evaluate(({clip,selector})=>{
+    let root:Element=document.body;
+    try{root=(selector?document.querySelector(selector):null)??root;}catch{/* Shadow-root selectors can lack a document match. */}
+    const elements:Element[]=[];
+    const visit=(parent:Element|ShadowRoot)=>{for(const el of parent.querySelectorAll('*')){elements.push(el);if(el.shadowRoot)visit(el.shadowRoot);}};
+    elements.push(root);visit(root);
+    const visible=elements.filter(el=>el.matches('h1,h2,h3,h4,h5,h6,p,a,button,label,li,img,video,canvas,svg')).filter(el=>{
+      const r=el.getBoundingClientRect(),s=getComputedStyle(el);
+      return r.width>0&&r.height>0&&r.bottom>clip.y&&r.top<clip.y+clip.height&&r.right>clip.x&&r.left<clip.x+clip.width&&s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)>.01&&el.checkVisibility({checkOpacity:true,checkVisibilityCSS:true});
+    });
+    const text=(el:Element)=>((el as HTMLElement).innerText??el.textContent??'').replace(/\s+/g,' ').trim();
+    return {scope:'visible-frame',selector:selector??null,
+      headings:visible.filter(el=>el.matches('h1,h2,h3,h4,h5,h6')).slice(0,12).map(el=>({level:Number(el.tagName[1]),text:text(el).slice(0,240)})),
+      text:[...new Set(visible.filter(el=>el.matches('h1,h2,h3,h4,h5,h6,p,a,button,label,li')).map(text).filter(Boolean))].join('\n').slice(0,1600),
+      media:visible.filter(el=>el.matches('img,video,canvas,svg')).slice(0,12).map(el=>({tag:el.tagName.toLowerCase(),alt:el.getAttribute('alt')??'',src:el.getAttribute('src')??el.getAttribute('poster')??''}))};
+  },{clip,selector});
 }
 
 export async function captureViewport(options: CaptureOptions): Promise<ViewportCapture> {
@@ -364,8 +389,12 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
         const scroll = await page.evaluate(() => ({ x: scrollX, y: scrollY }));
         const nav = await navigationOcclusion(page, region);
         const viewport = { x: scroll.x, y: scroll.y + nav, width: profile.width, height: profile.height - nav };
-        const visible = intersectRect(region.captureBounds, viewport);
+        // At the page bottom scrollY clamps. Crop the remaining static part rather than
+        // repeating nearly the whole previous viewport. Pinned scenes keep real states.
+        const planned=region.roleHint==='scroll-dependent'?region.captureBounds:{...region.captureBounds,y:nextY,height:region.captureBounds.y+region.captureBounds.height-nextY};
+        const visible = intersectRect(planned, viewport);
         if (!visible || visible.y + visible.height <= previousEnd + 1) { warn(`Section ${region.id} could not advance within its rendered viewport.`); break; }
+        const stateDom=await frameDom(page,documentToViewport(visible,scroll.x,scroll.y),region.selector);
         const image=await captureRegionImage(page,documentToViewport(visible,scroll.x,scroll.y),profile,settings.screenshotTimeoutMs,verifyEncodedViewport);
         if (!image) { warn(`Invalid screenshot bounds for ${region.id}.`); break; }
         const {buffer:encoded,crop}=image;
@@ -380,7 +409,7 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
         frameCount++;
         const evidenceId = `${suffix}-state`;
         region.evidenceIds.push(evidenceId);
-        result.evidence.push({ id: evidenceId, regionId: region.id, kind: 'capture-state', value: { scroll, viewport: profile, bounds: visible, navigationOcclusion: nav } });
+        result.evidence.push({ id: evidenceId, regionId: region.id, kind: 'capture-state', value: { scroll, viewport: profile, bounds: visible, navigationOcclusion: nav,dom:stateDom } });
         result.coverage.push({ start: visible.y, end: visible.y + visible.height });
         previousEnd = visible.y + visible.height;
         if (previousEnd >= region.captureBounds.y + region.captureBounds.height - 1) break;

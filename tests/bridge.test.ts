@@ -26,6 +26,7 @@ import { registerCaptureAssets } from '../src/assets.ts';
 import { captureVersion } from '../src/naming.ts';
 import { doctor } from '../src/doctor.ts';
 import { ReviewValidationError } from '../src/review-validation.ts';
+import { createServer } from 'node:http';
 
 async function fixture(t: test.TestContext, parts = 1) {
   const root = await mkdtemp(join(tmpdir(), 'folio-mcp-'));
@@ -256,6 +257,16 @@ test('doctor distinguishes a reachable bridge from a paired classifier without s
   const disconnected=await doctor(config,port);assert.equal(disconnected.ready,false);assert.ok('engineReachable'in disconnected && disconnected.engineReachable);
   const workflow=new Workflow(config),context=bridge.context();const run=await workflow.start(context.contextId,context.clientId);
   assert.equal((await doctor(config,port)).ready,true);await workflow.stop(run.runId,run.clientId);assert.equal((await doctor(config,port)).ready,false);
+});
+
+test('doctor refuses old loaded code even when its public engine version matches',async t=>{
+  const {config}=await fixture(t);let requests=0;
+  const server=createServer((_request,response)=>{requests++;response.setHeader('Content-Type','application/json');response.end(JSON.stringify({name:'folio-capture-classifier',version:'0.5.0',output:config.output,protocolContextId:BRIDGE_CONTEXT_ID,runtimeFingerprint:'old-loaded-code'}));});
+  await new Promise<void>(accept=>server.listen(0,'127.0.0.1',accept));
+  t.after(()=>new Promise<void>(accept=>server.close(()=>accept())));
+  const result=await doctor(config,(server.address() as {port:number}).port);
+  assert('restartRequired'in result&&result.restartRequired);assert('engineReachable'in result&&result.engineReachable);
+  assert.equal(result.ready,false);assert.equal(requests,1,'Diagnosis must not pair or start a workflow');
 });
 
 test('installed Desktop package runs from a bare cache and returns screenshots and validated results', async (t) => {

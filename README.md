@@ -85,6 +85,7 @@ npm run capture -- --classifier mcp --limit 3
 npm run bridge -- --http
 # Alternatively: npm run capture -- --classifier codex --limit 3
 npm run folio -- status
+npm run folio -- audit
 npm run folio -- doctor --classifier mcp
 npm run folio -- organize
 npm run clean
@@ -140,6 +141,8 @@ output/
 ```
 
 `catalog.json` is published atomically after its immutable category-index generation is ready. Paths to images and indexes are relative to the **output root**. Each reference has stable IDs, parent links, viewport, image dimensions/hashes, exact-scope labels, evidence, provenance and quality decisions. Category indexes reference IDs; readable category folders contain hard links to original PNGs, sharing the same bytes across classifications. Pending, uncertain, rejected and repair references appear separately under `review/`. Missing classification never becomes an invented aesthetic folder. Filesystems without hard-link support report a view exception, without copying or upscaling pixels. Do not edit a linked PNG in place: it is the original asset. Site/page/section context nodes carry no invented inherited labels. Page-wide judgments live on their assessed page/viewport references. Site-wide quality remains unassessed: collecting some pages does not establish the quality of an entire site.
+
+Keep `captures/`: it owns the original pixels, capture context and evidence needed for recovery, reassessment and export. `categories/` and `review/` are disposable views that can be regenerated from those originals and the ledger. `npm run folio -- audit` reads a consistent SQLite snapshot, decodes saved images, verifies hashes/dimensions and hard links, checks accepted indexes, and reports incomplete reviews or uncertain segmentation without collecting, classifying or repairing anything. SQLite may create its normal WAL bookkeeping sidecars. Export now refreshes `index.json` from final scoped decisions; preliminary version-one labels never replace pending section/viewport judgments. Restart the engine after updates: `doctor` checks the loaded code fingerprint, not just the displayed version.
 
 New captures use readable domain/page folders and bounded ASCII names such as `example-com--pricing--s003-comparison--tablet--part-001.png`. Names include source/page identity, section order/title, profile and part or state number. Internal IDs remain in metadata. Unpublished work lives under `.staging/<domain>/<page>/`; it is not classified output. With the engine stopped, `npm run folio -- organize` safely moves old hash folders and checkpoints to readable paths and regenerates category views. It preserves IDs, original PNG names, image bytes and decisions; existing destinations and damaged assets remain explicit exceptions. URL identity removes known tracking while preserving content parameters and fragment states. Verified related redirects reuse compatible fresh captures. SQLite retains every referring entry, attempt and decision. Exact PNG/WebP matches share disk through hard links; `assetId` identifies those bytes. Matching pixels do not copy classifications between contexts.
 

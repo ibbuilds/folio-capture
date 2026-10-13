@@ -8,8 +8,9 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import type { Config } from './types.ts';
 import { loadConfig } from './config.ts';
-import { AnalysisBridge, type ImageDelivery } from './bridge.ts';
+import { AnalysisBridge, BRIDGE_CONTEXT_ID, type ImageDelivery } from './bridge.ts';
 import { ReviewValidationError } from './review-validation.ts';
+import { RUNTIME_FINGERPRINT } from './runtime.ts';
 import { Workflow, type WorkflowDependencies } from './workflow.ts';
 import { errorMessage } from './utils.ts';
 import { TAXONOMY } from './taxonomy.ts';
@@ -255,6 +256,8 @@ export async function serveBridgeHttp(
         JSON.stringify({
           name: 'folio-capture-classifier',
           version: '0.5.0',
+          protocolContextId: BRIDGE_CONTEXT_ID,
+          runtimeFingerprint: RUNTIME_FINGERPRINT,
           output: config.output,
           inference: false,
         }),

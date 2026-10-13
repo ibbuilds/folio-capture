@@ -16,6 +16,7 @@ import {
   classificationTemplate,
 } from './quality.ts';
 import { ReviewValidationError, type ReviewIssue } from './review-validation.ts';
+import { RUNTIME_FINGERPRINT } from './runtime.ts';
 import { referenceSubjects, subjectImageId, type ReferenceSubject } from './references.ts';
 import { TAXONOMY, TAXONOMY_VERSION, TAXONOMY_FINGERPRINT } from './taxonomy.ts';
 import { hasCurrentClassification } from './coverage.ts';
@@ -195,6 +196,8 @@ export class AnalysisBridge {
           } catch {}
           return {
             engineVersion: '0.5.0',
+            protocolContextId: BRIDGE_CONTEXT_ID,
+            runtimeFingerprint: RUNTIME_FINGERPRINT,
             paired:
               alive &&
               active?.status === 'running' &&
