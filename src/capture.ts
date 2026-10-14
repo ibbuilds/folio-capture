@@ -451,8 +451,10 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
             let root:Element|null=null;try{root=selector?document.querySelector(selector):null;}catch{/* Unsupported shadow selector. */}
             if(!root)return false;
             if(root.querySelector('canvas,video'))return false;
-            if(document.getAnimations().some(animation=>animation.effect instanceof KeyframeEffect&&animation.effect.target instanceof Element&&(animation.effect.target===root||root.contains(animation.effect.target))&&
-              (['ScrollTimeline','ViewTimeline'].includes(animation.timeline?.constructor.name??'')||animation.effect.getTiming().iterations===Infinity)))return false;
+            // Native offscreen capture can change intersection/paint state even after a
+            // finite reveal finishes. Retained fill-mode animations need real viewports.
+            if(document.getAnimations().some(animation=>animation.effect instanceof KeyframeEffect&&animation.effect.target instanceof Element&&
+              (animation.effect.target===root||root.contains(animation.effect.target))))return false;
             return Array.from(root.querySelectorAll('h1,h2,h3,p,img,li,button')).filter(el=>{const r=el.getBoundingClientRect();return r.width>0&&r.height>0&&r.bottom+scrollY>bounds.y&&r.top+scrollY<bounds.y+bounds.height;}).every(el=>el.checkVisibility({checkOpacity:true,checkVisibilityCSS:true,contentVisibilityAuto:true}));
           },{selector:region.selector,bounds:region.bounds});
           if(safe){

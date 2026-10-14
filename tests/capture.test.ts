@@ -378,6 +378,7 @@ test('browser capture fixtures preserve ordered evidence, remove nuisances and e
       const capture = await run('reveal', { settleTimeoutMs: 1500 });
       assert.equal(capture.status, 'complete', JSON.stringify(capture.warnings));
       const hero = capture.regions.find(region => region.selector === '#hero')!;
+      assert(capture.evidence.some(item=>item.regionId===hero.id&&item.kind==='section-capture-mode'&&(item.value as {mode:string}).mode==='ordered-viewport-states'),'Finished reveal animations use actual viewport captures');
       const dom=capture.evidence.find(item=>item.id===hero.evidenceIds[0])!.value as {layout:{bounds:{y:number}}};
       const probe=dom.layout.bounds.y+20;
       const frame = hero.frames.find(frame => frame.bounds.y <= probe && frame.bounds.y + frame.bounds.height > probe)!;
