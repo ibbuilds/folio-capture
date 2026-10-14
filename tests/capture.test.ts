@@ -10,12 +10,31 @@ import { sweepCleanup } from '../src/cleanup.ts';
 import { documentToViewport, intersectRect, mergeCoverage, pixelCrop, uncoveredRanges } from '../src/geometry.ts';
 import type { CaptureSettings, Intervention, ViewportCapture } from '../src/types.ts';
 import { captureFixture } from './fixtures-capture.ts';
+import { referenceSubjects } from '../src/references.ts';
 
 const settings: CaptureSettings = {
   navigationTimeoutMs: 5000, mediaTimeoutMs: 1000, settleTimeoutMs: 700, screenshotTimeoutMs: 5000,
   attemptTimeoutMs: 45000, maxAttempts: 2, maxScrollSteps: 40, explorationTimeoutMs: 15000,
   contextPixels: 24, frameOverlap: .15, cleanupPasses: 3, cleanupTimeoutMs: 2000, preserveSelectors: [], dismissSelectors: [],
 };
+
+test('named page sections survive full-page decoration and nested cards, with one complete PNG per viewport', {timeout:90000},async t=>{
+  const fixture=await captureFixture(),directory=await mkdtemp(path.join(os.tmpdir(),'folio-real-sections-'));
+  const browser=await chromium.launch({channel:'chromium'});
+  try{
+    for(const [id,width,height,mobile] of [['desktop',800,600,false],['tablet',768,1024,true],['mobile',390,844,true]] as const)await t.test(id,async()=>{
+      const capture=await captureViewport({browser,url:`${fixture.url}/real-sections`,settings:{...settings,contextPixels:64,maxScrollSteps:80,explorationTimeoutMs:30000},profile:{id,width,height,dpr:2,isMobile:mobile,hasTouch:mobile},outputDir:path.join(directory,id)});
+      assert.equal(capture.status,'complete',JSON.stringify(capture.warnings));
+      assert.deepEqual(capture.regions.map(r=>r.title),['Beyond Humanware','Overview','Company details','Invisible Approach','Our Progress','Scientific Evidence','Driven by People','Footer']);
+      assert(capture.regions.every(r=>r.referenceKind==='section'&&r.frames.length===1),'Each real section is one original PNG');
+      assert.equal(capture.regions[0].frames[0].height,height*2,'Context does not create an extra hero image');
+      assert(!capture.overview,'Successful hero is not saved twice');
+      assert.deepEqual(uncoveredRanges(capture.pageHeight,capture.coverage),[]);
+      const subjects=referenceSubjects({schemaVersion:1,pageId:'page',captureId:'capture',captureSignature:'fixture',requestedUrl:capture.requestedUrl,title:capture.title,capturedAt:capture.capturedAt,status:'complete',reviewStatus:'unreviewed',provenance:[],variants:[capture]});
+      assert.equal(subjects.filter(s=>s.scope==='section').length,8,'Cards and decoration never create separate classification jobs');
+    });
+  }finally{await browser.close();await fixture.close();const target=path.resolve(directory);assert(target.startsWith(path.resolve(os.tmpdir())+path.sep));await rm(target,{recursive:true,force:true});}
+});
 
 test('static page-bottom crops advance without repeating the prior viewport, and floating navigation is preserved outside section crops', {timeout:60000},async t=>{
   const fixture=await captureFixture(),directory=await mkdtemp(path.join(os.tmpdir(),'folio-tail-'));
@@ -25,8 +44,8 @@ test('static page-bottom crops advance without repeating the prior viewport, and
       const capture=await captureViewport({browser,url:`${fixture.url}/${route}`,settings:{...settings,contextPixels:0},profile:{id:'desktop',width:800,height:600,dpr:2,isMobile:false,hasTouch:false},outputDir:path.join(directory,route)});
       assert.equal(capture.status,'complete',JSON.stringify(capture.warnings));
       const tail=capture.regions.find(r=>r.selector==='#tail')!,frames=tail.frames;
-      assert.equal(frames.length,2);assert(frames[1].bounds.height<200,'Tail contains the configured overlap and remaining content only');
-      assert(frames[1].bounds.y>tail.bounds.y+400);assert.deepEqual(mergeCoverage(capture.coverage),[{start:0,end:route==='floating-navigation'?1205:605}]);
+      assert.equal(frames.length,1,'A static section is one complete image');assert.equal(frames[0].bounds.height,605);
+      assert.equal(frames[0].height,1210);assert.deepEqual(mergeCoverage(capture.coverage),[{start:0,end:route==='floating-navigation'?1205:605}]);
       if(route==='floating-navigation'){
         const navigation=capture.evidence.filter(e=>e.kind==='capture-state'&&e.regionId===tail.id).map(e=>(e.value as {navigationOcclusion:number}).navigationOcclusion);
         assert(navigation.every(v=>v===70),'Fixed parent of semantic navigation with a top gap is detected');
@@ -231,7 +250,7 @@ test('browser capture fixtures preserve ordered evidence, remove nuisances and e
       assert(capture.regions.flatMap(region => region.frames).some(frame => frame.bounds.y > 600));
       for (const region of capture.regions) for (const frame of region.frames) {
         assert.equal(frame.width, 1600);
-        assert(frame.height <= 1200);
+        assert.equal(frame.height,Math.round(frame.bounds.height*2));
         assert.match(frame.sha256, /^[a-f0-9]{64}$/);
         assert(capture.evidence.some(item => item.id === region.evidenceIds[0] && item.regionId === region.id));
       }
@@ -242,7 +261,7 @@ test('browser capture fixtures preserve ordered evidence, remove nuisances and e
         settings, outputDir: path.join(directory, 'mobile'), });
       assert.equal(capture.status, 'complete', JSON.stringify(capture.warnings));
       assert.deepEqual(uncoveredRanges(capture.pageHeight, capture.coverage), []);
-      assert(capture.regions.every(region => region.frames.length && region.frames.every(frame => frame.width === 720 && frame.height <= 1280)));
+      assert(capture.regions.every(region => region.frames.length && region.frames.every(frame => frame.width === 720 && frame.height === Math.round(frame.bounds.height*2))));
     });
     await t.test('tablet touch capture records an Android tablet user agent', async () => {
       const capture = await captureViewport({ browser: browser!, url: `${fixture.url}/`,
@@ -323,8 +342,10 @@ test('browser capture fixtures preserve ordered evidence, remove nuisances and e
       const capture = await run('reveal', { settleTimeoutMs: 1500 });
       assert.equal(capture.status, 'complete', JSON.stringify(capture.warnings));
       const hero = capture.regions.find(region => region.selector === '#hero')!;
-      const frame = hero.frames.find(frame => frame.bounds.y <= hero.bounds.y + 20 && frame.bounds.y + frame.bounds.height > hero.bounds.y + 20)!;
-      const y = Math.round((hero.bounds.y + 20 - frame.bounds.y) * 2);
+      const dom=capture.evidence.find(item=>item.id===hero.evidenceIds[0])!.value as {layout:{bounds:{y:number}}};
+      const probe=dom.layout.bounds.y+20;
+      const frame = hero.frames.find(frame => frame.bounds.y <= probe && frame.bounds.y + frame.bounds.height > probe)!;
+      const y = Math.round((probe - frame.bounds.y) * 2);
       const { data } = await sharp(await readFile(path.join(directory, 'reveal', frame.path))).extract({ left: 40, top: y, width: 1, height: 1 }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
       assert.deepEqual([...data], [255, 244, 222]);
     });
