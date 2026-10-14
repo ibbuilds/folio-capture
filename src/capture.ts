@@ -12,7 +12,7 @@ import { captureRegionImage, captureCompleteSection, prepareSectionCapture } fro
 import { imageName, NAMING_VERSION } from './naming.ts';
 import { ResolvedDuplicate } from './utils.ts';
 
-type DomRegion = { title: string; selector: string; y: number; end: number; semantic: boolean; sticky: boolean; value: Record<string, unknown> };
+type DomRegion = { title: string; selector: string; y: number; end: number; semantic: boolean; sticky: boolean; section?:boolean; value: Record<string, unknown> };
 class UnsupportedViewportError extends Error {}
 const pause = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 const pageHeight = (page: Page) => page.evaluate(() => Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0, innerHeight));
@@ -146,8 +146,26 @@ async function describe(page: Page): Promise<{ title: string; description: strin
       if(wrapper(el))return false;
       return !candidates.some(parent=>parent!==el&&parent.contains(el)&&!wrapper(parent));
     });
-    const inferred = Array.from(main.children).filter(el => visible(el) && substantive(el) && !['absolute','fixed'].includes(getComputedStyle(el).position) && el.getBoundingClientRect().width >= innerWidth * .45 &&
-      !leafBands.some(band => band === el || band.contains(el) || el.contains(band)));
+    // Div-based pages often put every chapter inside one page wrapper. A heading's
+    // widest single-heading ancestor supplies its complete chapter, including media
+    // and supporting cards. Narrow cards and heading-only text blocks are excluded.
+    const majorHeadings=all.filter(el=>{const r=el.getBoundingClientRect(),s=getComputedStyle(el);return main.contains(el)&&el.matches('h1,h2')&&r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'&&Boolean((el.textContent??'').trim());});
+    const majorIn=(el:Element)=>majorHeadings.filter(h=>el.contains(h));
+    const mainWidth=main.getBoundingClientRect().width||innerWidth;
+    const headingBands:Element[]=[];
+    for(const h of majorHeadings){
+      if(leafBands.some(band=>band.contains(h)))continue;
+      let best:Element|undefined;
+      for(let current=h.parentElement;current&&current!==main;current=current.parentElement){
+        if(majorIn(current).length>1)break;
+        const r=current.getBoundingClientRect();
+        if(visible(current)&&r.width>=mainWidth*.8&&r.height>=120&&!['absolute','fixed'].includes(getComputedStyle(current).position)&&current.getAttribute('aria-hidden')!=='true')best=current;
+      }
+      if(best&&!headingBands.includes(best))headingBands.push(best);
+    }
+    const directBands=Array.from(main.children).filter(el => visible(el) && substantive(el) && !['absolute','fixed'].includes(getComputedStyle(el).position) && el.getBoundingClientRect().width >= innerWidth * .45 &&
+      !leafBands.some(band => band === el || band.contains(el) || el.contains(band))&&headingBands.filter(band=>el!==band&&el.contains(band)).length<2);
+    const inferred=[...directBands,...headingBands.filter(band=>!directBands.some(parent=>parent===band||parent.contains(band)))];
     const chrome = all.filter(el => el.matches('header, footer, [role="banner"], [role="contentinfo"]') && visible(el) &&
       !main.contains(el) && !all.some(parent => parent !== el && parent.matches('header, footer') && parent.contains(el)));
     const chosen = [...new Set([...leafBands, ...inferred, ...chrome])];
@@ -166,7 +184,9 @@ async function describe(page: Page): Promise<{ title: string; description: strin
       if (style.display.includes('grid') && style.gridTemplateColumns !== 'none') columns = style.gridTemplateColumns.split(/\s+(?![^()]*\))/).filter(Boolean).length;
       else if (style.display.includes('flex') && style.flexDirection.startsWith('row')) columns = el.children.length;
       const y = Math.max(0, r.top + scrollY), end = Math.min(height, r.bottom + scrollY);
-      return { title: first || el.getAttribute('aria-label') || (el.tagName === 'HEADER' ? 'Navigation' : el.tagName === 'FOOTER' ? 'Footer' : text.slice(0, 80).split('\n')[0] || 'Untitled section'),
+      const unresolved=!leafBands.includes(el)&&!chrome.includes(el)&&directBands.includes(el)&&r.height>innerHeight*2&&majorIn(el).length>1;
+      return { title: unresolved?'Unresolved page region':first || el.getAttribute('aria-label') || (el.tagName === 'HEADER' ? 'Navigation' : el.tagName === 'FOOTER' ? 'Footer' : text.slice(0, 80).split('\n')[0] || 'Untitled section'),
+        section:!unresolved,
         selector: selector(el), y, end, semantic: leafBands.includes(el) || chrome.includes(el), sticky: stickyElements.length > 0,
         value: { title: first ?? '', headings, text, links, media, selector: selector(el),
           styles: { backgroundColor: style.backgroundColor, color: style.color, fontFamily: style.fontFamily,
@@ -205,7 +225,7 @@ function makeRegions(snapshot: Awaited<ReturnType<typeof describe>>, profile: Ca
     const opaqueSequence=band.sticky&&!band.semantic&&band.title==='Untitled section'&&bounds.height>profile.height*2;
     return { id, order: index, title: opaqueSequence?'Scroll sequence':band.title, selector: band.selector || undefined, roleHint: band.sticky ? 'scroll-dependent' : undefined,
       bounds, captureBounds, method: band.semantic ? 'semantic' : band.selector ? 'inferred' : 'viewport-fallback',
-      referenceKind:band.selector?'section':'page-context',
+      referenceKind:band.selector&&band.section!==false?'section':'page-context',
       boundaryConfidence: opaqueSequence?'low':band.semantic ? 'high' : band.selector ? 'medium' : 'low', frames: [], evidenceIds: [`${id}-dom`] };
   });
 }

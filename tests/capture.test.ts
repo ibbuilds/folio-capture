@@ -36,6 +36,19 @@ test('named page sections survive full-page decoration and nested cards, with on
   }finally{await browser.close();await fixture.close();const target=path.resolve(directory);assert(target.startsWith(path.resolve(os.tmpdir())+path.sep));await rm(target,{recursive:true,force:true});}
 });
 
+test('nested div-based chapters are inferred as complete sections without splitting their supporting cards', {timeout:45000},async()=>{
+  const fixture=await captureFixture(),directory=await mkdtemp(path.join(os.tmpdir(),'folio-wrapped-sections-'));
+  const browser=await chromium.launch({channel:'chromium'});
+  try{
+    const capture=await captureViewport({browser,url:`${fixture.url}/wrapped-sections`,settings:{...settings,contextPixels:64,maxScrollSteps:80,explorationTimeoutMs:30000},profile:{id:'desktop',width:800,height:600,dpr:2,isMobile:false,hasTouch:false},outputDir:directory});
+    assert.equal(capture.status,'complete',JSON.stringify(capture.warnings));
+    assert.deepEqual(capture.regions.map(r=>r.title),['Beyond Humanware','Overview','Company details','Invisible Approach','Our Progress','Scientific Evidence','Driven by People','Footer']);
+    assert(capture.regions.every(r=>r.referenceKind==='section'&&r.frames.length===1));
+    assert(capture.regions.filter(r=>r.selector?.includes('chapter-')).every(r=>r.method==='inferred'&&r.boundaryConfidence==='medium'),'Inferred boundaries remain distinct from semantic markup');
+    assert.deepEqual(uncoveredRanges(capture.pageHeight,capture.coverage),[]);
+  }finally{await browser.close();await fixture.close();const target=path.resolve(directory);assert(target.startsWith(path.resolve(os.tmpdir())+path.sep));await rm(target,{recursive:true,force:true});}
+});
+
 test('static page-bottom crops advance without repeating the prior viewport, and floating navigation is preserved outside section crops', {timeout:60000},async t=>{
   const fixture=await captureFixture(),directory=await mkdtemp(path.join(os.tmpdir(),'folio-tail-'));
   const browser=await chromium.launch({channel:'chromium',...(process.env.FOLIO_TEST_BROWSER?{executablePath:process.env.FOLIO_TEST_BROWSER}:{})});
