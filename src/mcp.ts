@@ -130,7 +130,7 @@ export function createBridgeServer(config: Config, dependencies: WorkflowDepende
     'get_packet',
     {
       description:
-        'Get the next review with full metadata, a classification resultTemplate and up to four original PNGs. Use short packet-local evidence IDs. Keep this metadata for get_images. Waiting means call again; done ends this run. Work only on this subject/viewport.',
+        'Get the next review with full metadata, a classification resultTemplate and up to four original PNGs. May wait up to 20 seconds while collecting. Use short packet-local evidence IDs. Keep this metadata for get_images. waiting:true means call get_packet again immediately with the same session; do not end the turn. Only done:true ends this run. Work only on this subject/viewport.',
       inputSchema: { contextId: identifier, ...session },
       annotations: write,
     },
