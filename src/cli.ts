@@ -49,7 +49,8 @@ export async function main(args=process.argv.slice(2)) {
   }
   if(command==='organize'){
     const store=new Store(config.output,{organizing:true});let result:Awaited<ReturnType<typeof organizeOutput>>;
-    try{await beginOrganization(store);result=await organizeOutput(store,config.profiles);store.db.exec('PRAGMA wal_checkpoint(TRUNCATE)');}
+    try{await beginOrganization(store);result=await organizeOutput(store,config.profiles);
+      if(store.db.prepare('PRAGMA wal_checkpoint(TRUNCATE)').get()?.busy!==0)throw new Error('Registry checkpoint is busy. Close other SQLite connections and retry organize; saved data remains preserved.');}
     finally{store.close();}
     if(!result.exceptions.length)await finishOrganization(config.output);
     console.log(JSON.stringify(result,null,2));if(result.exceptions.length)process.exitCode=1;return;

@@ -262,6 +262,15 @@ test('organization moves a legacy registry behind one durable stop gate and pres
   }finally{store.close();}
 });
 
+test('organization refuses to move an uncheckpointed legacy registry before archiving any file',async t=>{
+  const {root}=await fixture(t);await mkdir(join(root,'exports'));
+  await writeFile(join(root,'exports','keep.json'),'Keep');await writeFile(join(root,'.folio-organize.json'),JSON.stringify({output:root}));
+  await writeFile(join(root,'state.sqlite-wal'),'Uncheckpointed writes');
+  await assert.rejects(finishOrganization(root),/uncheckpointed writes/);
+  assert.equal(await readFile(join(root,'exports','keep.json'),'utf8'),'Keep');
+  assert.equal(await readFile(join(root,'state.sqlite-wal'),'utf8'),'Uncheckpointed writes');
+});
+
 test('organizing preserves pruning tombstones through interrupted rename recovery',async t=>{
   const {root,config,directory,manifest}=await fixture(t,2);const store=new Store(root);
   try{

@@ -1,4 +1,4 @@
-import { mkdir, rename, readFile, rmdir, writeFile, rm } from 'node:fs/promises';
+import { mkdir, rename, readFile, rmdir, writeFile, rm, stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { Store } from './store.ts';
 import type { CaptureProfile } from './types.ts';
@@ -204,6 +204,14 @@ export async function finishOrganization(output: string) {
   );
   if (marker.output !== output)
     throw new Error('Organization marker belongs to another output; preserved.');
+  try {
+    if ((await stat(await trustedAsset(output, 'state.sqlite-wal'))).size > 0)
+      throw new Error(
+        'Registry still has uncheckpointed writes. Close other SQLite connections and retry organize; files remain preserved.',
+      );
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
   for (const name of [
     'exports',
     'captures',
