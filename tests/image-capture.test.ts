@@ -60,6 +60,16 @@ for(const dpr of [1,2,3])test(`native clip at DPR ${dpr} preserves geometry and 
   }finally{await context.close();}
 });
 
+test('complete fractional section bounds record the exact enclosing native image rectangle',async()=>{
+  const {page,context,profile}=await fixture(2);
+  try{
+    const image=await captureCompleteSection(page,{x:10.25,y:900.3,width:300.5,height:899.6},profile);
+    assert(image);assert.deepEqual(image.bounds,{x:10,y:900,width:301,height:900});
+    assert.equal(image.crop.width,image.bounds.width*2);assert.equal(image.crop.height,image.bounds.height*2);
+    assert.equal(await page.evaluate(()=>devicePixelRatio),2);
+  }finally{await context.close();}
+});
+
 test('fractional CSS geometry keeps exact enclosing image pixels through the fallback',async()=>{
   const {page,context,profile}=await fixture(2);
   try {

@@ -424,13 +424,13 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
               const suffix=imageName(options.url,profile.id,{section:region,part:1});
               const imagePath=`${profile.id}/sections/${suffix}.png`,thumbnail=`thumbnails/${profile.id}/${suffix}.webp`;
               await relativeWrite(imagePath,complete.buffer);await relativeWrite(thumbnail,await sharp(complete.buffer).resize({width:480,withoutEnlargement:true}).webp({quality:85}).toBuffer());
-              region.frames.push({path:imagePath,thumbnail,width:complete.crop.width,height:complete.crop.height,sha256:createHash('sha256').update(complete.buffer).digest('hex'),bounds:completeBounds,scrollY:scroll.y,kind:'static'});
+              region.frames.push({path:imagePath,thumbnail,width:complete.crop.width,height:complete.crop.height,sha256:createHash('sha256').update(complete.buffer).digest('hex'),bounds:complete.bounds,scrollY:scroll.y,kind:'static'});
               const evidenceId=`${suffix}-state`;region.evidenceIds.push(evidenceId);
-              result.evidence.push({id:evidenceId,regionId:region.id,kind:'capture-state',value:{scroll,viewport:profile,bounds:completeBounds,navigationOcclusion:nav,method:'complete-section',dom:await frameDom(page,documentToViewport(completeBounds,scroll.x,scroll.y),region.selector)}});
-              result.coverage.push({start:completeBounds.y,end:completeBounds.y+completeBounds.height});frameCount++;break;
+              result.evidence.push({id:evidenceId,regionId:region.id,kind:'capture-state',value:{scroll,viewport:profile,bounds:complete.bounds,navigationOcclusion:nav,method:'complete-section',dom:await frameDom(page,documentToViewport(complete.bounds,scroll.x,scroll.y),region.selector)}});
+              result.coverage.push({start:complete.bounds.y,end:complete.bounds.y+complete.bounds.height});frameCount++;break;
             }
           }
-          result.evidence.push({id:`${region.id}-capture-mode`,regionId:region.id,kind:'section-capture-mode',value:{mode:'ordered-viewport-states',reason:safe?'Complete section exceeds the verified raster/bounds budget.':'Section has scroll-dependent, animated, or unrendered content; a single offscreen image would be unreliable.'}});
+          result.evidence.push({id:`${region.id}-capture-mode`,regionId:region.id,kind:'section-capture-mode',value:{mode:'ordered-viewport-states',reason:safe?'Complete section exceeds the verified raster, bounds, or image transport budget.':'Section has scroll-dependent, animated, or unrendered content; a single offscreen image would be unreliable.'}});
         }
         // At the page bottom scrollY clamps. Crop the remaining static part rather than
         // repeating nearly the whole previous viewport. Pinned scenes keep real states.

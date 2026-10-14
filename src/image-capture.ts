@@ -150,11 +150,22 @@ export async function captureCompleteSection(
         );
       }),
     ]);
-    const buffer = Buffer.from(result.data, 'base64'),
-      metadata = await sharp(buffer).metadata();
+    const buffer = Buffer.from(result.data, 'base64');
+    if (buffer.length > 12 * 1024 * 1024) return null;
+    const metadata = await sharp(buffer).metadata();
     if (metadata.format !== 'png' || metadata.width !== width || metadata.height !== height)
       return null;
-    return { buffer, crop: { x: 0, y: 0, width, height }, method: 'complete-section' as const };
+    return {
+      buffer,
+      crop: { x: 0, y: 0, width, height },
+      bounds: {
+        x: left / profile.dpr,
+        y: top / profile.dpr,
+        width: width / profile.dpr,
+        height: height / profile.dpr,
+      },
+      method: 'complete-section' as const,
+    };
   } finally {
     clearTimeout(timer);
   }
