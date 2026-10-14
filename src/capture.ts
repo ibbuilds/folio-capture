@@ -17,11 +17,11 @@ class UnsupportedViewportError extends Error {}
 const pause = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 const pageHeight = (page: Page) => page.evaluate(() => Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0, innerHeight));
 
-async function settle(page: Page, timeoutMs: number): Promise<boolean> {
+async function settle(page: Page, timeoutMs: number, sectionSelector?: string): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   let prior: number[] = [], stable = 0;
   while (Date.now() < deadline) {
-    const next = await page.evaluate(() => {
+    const next = await page.evaluate(selector => {
       const elements = Array.from(document.querySelectorAll('main > *, section, h1, h2, img')).filter(element => {
         const rect = element.getBoundingClientRect(); return rect.bottom > 0 && rect.top < innerHeight;
       }).slice(0, 60);
@@ -32,10 +32,14 @@ async function settle(page: Page, timeoutMs: number): Promise<boolean> {
         return rect.bottom > 0 && rect.top < innerHeight && Number.isFinite(timing.iterations) &&
           timeline !== 'ScrollTimeline' && timeline !== 'ViewTimeline' && (animation.playState === 'running' || animation.pending);
       }).length;
-      return [Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0), scrollY, finiteMotion,
+      let section:Element|null=null;try{section=selector?document.querySelector(selector):null;}catch{/* Unsupported shadow selector. */}
+      // A delayed reveal can be geometrically stable at opacity zero before its
+      // animation even starts. Only the addressed section must become rendered.
+      const unrenderedSection=section&&!section.checkVisibility({checkOpacity:true,checkVisibilityCSS:true,contentVisibilityAuto:true})?1:0;
+      return [Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0), scrollY, finiteMotion,unrenderedSection,
         ...elements.flatMap(element => { const r = element.getBoundingClientRect(); return [r.x, r.y, r.width, r.height, Number(getComputedStyle(element).opacity) * 100]; })];
-    });
-    if (next[2] === 0 && next.length === prior.length && next.every((value, i) => Math.abs(value - prior[i]) <= 1)) stable++;
+    },sectionSelector??null);
+    if (next[2] === 0 && next[3] === 0 && next.length === prior.length && next.every((value, i) => Math.abs(value - prior[i]) <= 1)) stable++;
     else stable = 0;
     if (stable >= 3) return true;
     prior = next;
@@ -316,11 +320,27 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
     if (cleaned.snapshots.length) result.evidence.push({ id: `${profile.id}-cleanup-state-${++cleanupSnapshotNumber}`, kind: 'cleanup-state', value: cleaned.snapshots });
     return cleaned;
   };
-  const readiness = async (recordWarnings = true) => {
+  const sectionVisibility = async (region:Region) => {
+    if(region.referenceKind!=='section'||!region.selector)return null;
+    return page!.evaluate(selector=>{
+      let root:Element|null=null;try{root=document.querySelector(selector);}catch{/* Unsupported shadow selector. */}
+      if(!root)return null;
+      const rect=root.getBoundingClientRect(),style=getComputedStyle(root);
+      return {visible:root.checkVisibility({checkOpacity:true,checkVisibilityCSS:true,contentVisibilityAuto:true}),opacity:style.opacity,visibility:style.visibility,display:style.display,
+        bounds:{x:rect.x+scrollX,y:rect.y+scrollY,width:rect.width,height:rect.height}};
+    },region.selector);
+  };
+  const readiness = async (recordWarnings = true,region?:Region) => {
     const observations = await readyMedia(page!, settings.mediaTimeoutMs);
-    if (!await settle(page!, settings.settleTimeoutMs)) observations.push('Layout did not settle within the configured budget.');
+    if (!await settle(page!, settings.settleTimeoutMs,region?.referenceKind==='section'?region.selector:undefined)) observations.push('Layout did not settle within the configured budget.');
+    const visibility=region?await sectionVisibility(region):null;
+    if(visibility&&!visibility.visible){
+      observations.push(`Section ${region!.id} remained hidden within the configured readiness budget.`);
+      if(recordWarnings)result.evidence.push({id:`${region!.id}-unrendered-${region!.frames.length}`,regionId:region!.id,kind:'unrendered-section',value:{...visibility,reason:'Section did not become rendered naturally before capture.',budgetMs:settings.settleTimeoutMs}});
+    }
     if (recordWarnings) for (const warning of observations) warn(warning);
     check();
+    return !visibility||visibility.visible;
   };
   try {
     check();
@@ -418,9 +438,10 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
         await page.evaluate(y => scrollTo({ top: Math.max(0, y), behavior: 'instant' }), nextY - expectedNav);
         const cleaned = await cleanup();
         if (cleaned.unresolved.length) { warn('A blocking overlay appeared during section capture.'); break; }
-        await readiness();
+        if(!await readiness(true,region))break;
         const beforeScreenshot = await cleanup();
         if (beforeScreenshot.unresolved.length) { warn('A blocking overlay appeared immediately before a screenshot.'); break; }
+        if((await sectionVisibility(region))?.visible===false&&!await readiness(true,region))break;
         await verifyViewport();
         const scroll = await page.evaluate(() => ({ x: scrollX, y: scrollY }));
         const nav = await navigationOcclusion(page, region);
@@ -430,8 +451,10 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
             let root:Element|null=null;try{root=selector?document.querySelector(selector):null;}catch{/* Unsupported shadow selector. */}
             if(!root)return false;
             if(root.querySelector('canvas,video'))return false;
-            if(document.getAnimations().some(animation=>animation.effect instanceof KeyframeEffect&&animation.effect.target instanceof Element&&(animation.effect.target===root||root.contains(animation.effect.target))&&
-              (['ScrollTimeline','ViewTimeline'].includes(animation.timeline?.constructor.name??'')||animation.effect.getTiming().iterations===Infinity)))return false;
+            // Native offscreen capture can change intersection/paint state even after a
+            // finite reveal finishes. Retained fill-mode animations need real viewports.
+            if(document.getAnimations().some(animation=>animation.effect instanceof KeyframeEffect&&animation.effect.target instanceof Element&&
+              (animation.effect.target===root||root.contains(animation.effect.target))))return false;
             return Array.from(root.querySelectorAll('h1,h2,h3,p,img,li,button')).filter(el=>{const r=el.getBoundingClientRect();return r.width>0&&r.height>0&&r.bottom+scrollY>bounds.y&&r.top+scrollY<bounds.y+bounds.height;}).every(el=>el.checkVisibility({checkOpacity:true,checkVisibilityCSS:true,contentVisibilityAuto:true}));
           },{selector:region.selector,bounds:region.bounds});
           if(safe){

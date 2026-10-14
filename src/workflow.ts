@@ -16,6 +16,8 @@ type RunState = {
   options: StartOptions;
   startedAt: string;
   updatedAt: string;
+  collectionTimeoutMs: number;
+  reviewTimeoutMs: number;
   captureId?: string;
   reason?: string;
   summary?: RunSummary;
@@ -67,7 +69,8 @@ export class Workflow {
     if (!active || active.state.runId !== runId || active.state.clientId !== clientId)
       throw new Error('This chat does not own an active run. Call start_run to resume saved work.');
     active.lastActivity = Date.now();
-    if (active.lastActivity - active.receiptAt >= 1000) {
+    const receiptMs = Math.min(1000, active.state.collectionTimeoutMs / 2, active.state.reviewTimeoutMs / 2);
+    if (active.lastActivity - active.receiptAt >= receiptMs) {
       const store = new Store(this.config.output);
       try {
         const client = store.getJob('mcp-client', clientId)!;
@@ -167,6 +170,8 @@ export class Workflow {
         options,
         startedAt: now(),
         updatedAt: now(),
+        collectionTimeoutMs: this.dependencies.connectionMs ?? this.config.classifier.timeoutMs,
+        reviewTimeoutMs: this.dependencies.idleMs ?? this.config.classifier.timeoutMs,
       };
       const active: ActiveRun = {
         state,
@@ -184,14 +189,15 @@ export class Workflow {
       });
       store.finish(client, 'complete');
       clearInterval(active.timer);
-      const idleMs = this.dependencies.idleMs ?? this.config.classifier.timeoutMs;
+      const idleMs = state.reviewTimeoutMs;
+      const connectionMs = state.collectionTimeoutMs;
       active.timer = setInterval(
         () => {
           if (
             Date.now() - active.lastActivity >=
-            (state.phase === 'collecting' ? (this.dependencies.connectionMs ?? 60000) : idleMs)
+            (state.phase === 'collecting' ? connectionMs : idleMs)
           ) {
-            state.reason = 'chat_idle';
+            state.reason = state.phase === 'collecting' ? 'classifier_idle' : 'chat_idle';
             active.abort.abort(
               new Error('ChatGPT stopped requesting work; saved progress is paused.'),
             );
@@ -200,7 +206,7 @@ export class Workflow {
         Math.min(
           10000,
           Math.max(10, idleMs / 2),
-          Math.max(10, (this.dependencies.connectionMs ?? 60000) / 2),
+          Math.max(10, connectionMs / 2),
         ),
       );
       active.timer.unref();
@@ -220,6 +226,7 @@ export class Workflow {
     try {
       await this.waitForReview(active); // Drain saved reviews before collecting another page.
       let batchPages=0;
+      let firstCapture=true;
       const summary = await (this.dependencies.pipeline ?? runPipeline)(this.config, {
         ...this.dependencies.runOptions,
         ...state.options,
@@ -230,17 +237,18 @@ export class Workflow {
           if (
             activeRuns.get(this.config.output) !== active ||
             active.abort.signal.aborted ||
-            Date.now() - active.lastActivity >= (this.dependencies.connectionMs ?? 60000)
+            Date.now() - active.lastActivity >= state.collectionTimeoutMs
           ) {
-            active.state.reason = 'classifier_disconnected';
-            active.abort.abort(new Error('Paired classifier disconnected; collection paused.'));
+            active.state.reason = 'classifier_idle';
+            active.abort.abort(new Error('Classifier idle timeout reached; saved collection is paused.'));
             active.abort.signal.throwIfAborted();
           }
         },
         log: this.dependencies.runOptions?.log ?? ((message) => console.error(message)),
         onCaptureReady: async (captureId) => {
-          if(++batchPages >= (this.config.collection?.reviewBatchPages??3)) {
-            batchPages=0;await this.waitForReview(active,captureId);
+          // Surface the first result promptly instead of empty polling through three slow pages.
+          if(firstCapture || ++batchPages >= (this.config.collection?.reviewBatchPages??3)) {
+            firstCapture=false;batchPages=0;await this.waitForReview(active,captureId);
           }
         },
       });
@@ -311,7 +319,8 @@ export class Workflow {
       return this.bridge.next(contextId);
     }
     if (!runId || !clientId) throw new Error('Supply runId and clientId from start_run.');
-    const deadline = Date.now() + (this.dependencies.waitMs ?? 3000);
+    // Stay below the 30-second launcher request budget; fewer empty calls for slow captures.
+    const deadline = Date.now() + (this.dependencies.waitMs ?? 20000);
     for (;;) {
       const active = activeRuns.get(this.config.output);
       if (!active) {
@@ -351,9 +360,9 @@ export class Workflow {
           runId,
           clientId,
           phase: active.state.phase,
-          next: 'Collection is in progress. Continue get_packet; do not stop or claim completion.',
+          next: 'No review is ready yet. Call get_packet again now with the same contextId, runId and clientId. Do not end this turn or treat waiting as completion.',
         };
-      await delay(50);
+      await delay(Math.min(50, Math.max(1, active.state.collectionTimeoutMs / 2), Math.max(1, active.state.reviewTimeoutMs / 2)));
     }
   }
   async stop(runId: string, clientId: string) {

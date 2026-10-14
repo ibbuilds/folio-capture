@@ -207,7 +207,12 @@ export class AnalysisBridge {
               client?.status === 'complete' &&
               client.payload.runId === active.payload.runId &&
               Date.now() - Date.parse(client.payload.lastSeen) <
-                (active.payload.phase === 'collecting' ? 60000 : this.config.classifier.timeoutMs),
+                (active.payload.phase === 'collecting'
+                  ? active.payload.collectionTimeoutMs ?? this.config.classifier.timeoutMs
+                  : active.payload.reviewTimeoutMs ?? this.config.classifier.timeoutMs),
+            classifierIdleTimeoutMs: active?.payload.phase === 'collecting'
+              ? active.payload.collectionTimeoutMs ?? this.config.classifier.timeoutMs
+              : active?.payload.reviewTimeoutMs ?? this.config.classifier.timeoutMs,
             lastClassifierRequestAt: client?.payload.lastSeen ?? null,
             desktopLauncherSeenAt:
               (

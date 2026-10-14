@@ -18,6 +18,29 @@ const settings: CaptureSettings = {
   contextPixels: 24, frameOverlap: .15, cleanupPasses: 3, cleanupTimeoutMs: 2000, preserveSelectors: [], dismissSelectors: [],
 };
 
+test('delayed section reveals become readable naturally and permanently hidden sections remain incomplete', {timeout:45000},async t=>{
+  const fixture=await captureFixture(),directory=await mkdtemp(path.join(os.tmpdir(),'folio-delayed-reveal-'));
+  const browser=await chromium.launch({channel:'chromium'});
+  try{
+    for(const route of ['delayed-reveal','hidden-section'])await t.test(route,async()=>{
+      const capture=await captureViewport({browser,url:`${fixture.url}/${route}`,settings:{...settings,settleTimeoutMs:1500},
+        profile:{id:'desktop',width:800,height:600,dpr:2,isMobile:false,hasTouch:false},outputDir:path.join(directory,route)});
+      const hero=capture.regions.find(region=>region.selector==='#hero')!;
+      if(route==='hidden-section'){
+        assert.equal(capture.status,'incomplete');assert.equal(hero.frames.length,0,'An invisible section is not published as a complete design');
+        assert(capture.evidence.some(item=>item.regionId===hero.id&&item.kind==='unrendered-section'));
+        assert(uncoveredRanges(capture.pageHeight,capture.coverage).length>0);
+      }else{
+        assert.equal(capture.status,'complete',JSON.stringify(capture.warnings));
+        const dom=capture.evidence.find(item=>item.id===hero.evidenceIds[0])!.value as {layout:{bounds:{y:number}}};
+        const probe=dom.layout.bounds.y+20,frame=hero.frames.find(frame=>frame.bounds.y<=probe&&frame.bounds.y+frame.bounds.height>probe)!;
+        const {data}=await sharp(await readFile(path.join(directory,route,frame.path))).extract({left:40,top:Math.round((probe-frame.bounds.y)*2),width:1,height:1}).removeAlpha().raw().toBuffer({resolveWithObject:true});
+        assert.deepEqual([...data],[255,244,222]);
+      }
+    });
+  }finally{await browser.close();await fixture.close();const target=path.resolve(directory);assert(target.startsWith(path.resolve(os.tmpdir())+path.sep));await rm(target,{recursive:true,force:true});}
+});
+
 test('named page sections survive full-page decoration and nested cards, with one complete PNG per viewport', {timeout:90000},async t=>{
   const fixture=await captureFixture(),directory=await mkdtemp(path.join(os.tmpdir(),'folio-real-sections-'));
   const browser=await chromium.launch({channel:'chromium'});
@@ -355,6 +378,7 @@ test('browser capture fixtures preserve ordered evidence, remove nuisances and e
       const capture = await run('reveal', { settleTimeoutMs: 1500 });
       assert.equal(capture.status, 'complete', JSON.stringify(capture.warnings));
       const hero = capture.regions.find(region => region.selector === '#hero')!;
+      assert(capture.evidence.some(item=>item.regionId===hero.id&&item.kind==='section-capture-mode'&&(item.value as {mode:string}).mode==='ordered-viewport-states'),'Finished reveal animations use actual viewport captures');
       const dom=capture.evidence.find(item=>item.id===hero.evidenceIds[0])!.value as {layout:{bounds:{y:number}}};
       const probe=dom.layout.bounds.y+20;
       const frame = hero.frames.find(frame => frame.bounds.y <= probe && frame.bounds.y + frame.bounds.height > probe)!;

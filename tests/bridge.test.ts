@@ -197,24 +197,86 @@ test('normal collection defers obsolete geometry to recapture while explicit sav
   assert(!('done'in await new AnalysisBridge(config).next(BRIDGE_CONTEXT_ID)),'Explicit review does not erase or hide legacy pixels');
 });
 
-test('paired collection waits at bounded three-page batches and cannot finish before its review gate',async t=>{
+test('paired collection reviews its first capture immediately, then bounded batches and the final partial batch',async t=>{
   const {root,config,bridge}=await fixture(t);
   for(;;){const packet=await bridge.next(BRIDGE_CONTEXT_ID);if('done'in packet)break;await bridge.submit(packet.packet.id,pass(packet.images[0].id,false));}
   const steps:string[]=[];
+  let releaseFirst!:()=>void,releaseFourth!:()=>void;
+  const firstReady=new Promise<void>(accept=>{releaseFirst=accept;}),fourthReady=new Promise<void>(accept=>{releaseFourth=accept;});
   const workflow=new Workflow(config,{waitMs:5,pipeline:async(_config,options={})=>{
-    for(const id of ['first','second','third']){await options.onCaptureReady!(id);steps.push(id);}
-    return {discovered:0,queued:0,captured:3,reused:0,unresolved:0,incomplete:0,unsupported:0,blocked:0,failed:0,classified:0,pendingClassification:0,interrupted:false};
+    for(const id of ['first','second','third','fourth','fifth']){
+      if(id==='first')await firstReady;
+      else if(id==='fourth')await fourthReady;
+      else await new Promise(done=>setTimeout(done,15));
+      await options.onCaptureReady!(id);steps.push(id);
+    }
+    return {discovered:0,queued:0,captured:5,reused:0,unresolved:0,incomplete:0,unsupported:0,blocked:0,failed:0,classified:0,pendingClassification:0,interrupted:false};
   }});
   const context=workflow.bridge.context(),started=await workflow.start(context.contextId,context.clientId);
   await workflow.next(context.contextId,started.runId,started.clientId);
+  releaseFirst();
   let state:{captureId?:string;phase:string}|undefined;
   for(let tries=0;tries<50;tries++){
     const snapshot=new Store(root);try{state=snapshot.getJob('workflow','active')!.payload;}finally{snapshot.close();}
-    if(state?.captureId==='third')break;await new Promise(done=>setTimeout(done,10));
+    if(state?.captureId==='first')break;await new Promise(done=>setTimeout(done,10));
   }
-  assert(state);assert.equal(state.captureId,'third');assert.equal(state.phase,'reviewing');assert.deepEqual(steps,['first','second']);
+  assert(state);assert.equal(state.captureId,'first');assert.equal(state.phase,'reviewing');assert.deepEqual(steps,[]);
+  await workflow.next(context.contextId,started.runId,started.clientId);
+  releaseFourth();
+  for(let tries=0;tries<50;tries++){
+    const snapshot=new Store(root);try{state=snapshot.getJob('workflow','active')!.payload;}finally{snapshot.close();}
+    if(state?.captureId==='fourth')break;await new Promise(done=>setTimeout(done,10));
+  }
+  assert(state);assert.equal(state.captureId,'fourth');assert.equal(state.phase,'reviewing');assert.deepEqual(steps,['first','second','third']);
   for(;;){const result=await workflow.next(context.contextId,started.runId,started.clientId);if('done'in result&&result.done){assert('phase'in result);assert.equal(result.phase,'completed');break;}}
-  assert.deepEqual(steps,['first','second','third']);
+  assert.deepEqual(steps,['first','second','third','fourth','fifth']);
+});
+
+test('configured classifier timeout keeps a slow collection paired beyond the former one-minute lease',async t=>{
+  const {config,bridge}=await fixture(t);
+  for(;;){const packet=await bridge.next(BRIDGE_CONTEXT_ID);if('done'in packet)break;await bridge.submit(packet.packet.id,pass(packet.images[0].id,false));}
+  let checkActive:(()=>void)|undefined;
+  const workflow=new Workflow(config,{waitMs:5,pipeline:async(_config,options={})=>{
+    options.signal!.throwIfAborted();
+    checkActive=options.assertClassifierActive;
+    await new Promise<void>(accept=>options.signal!.addEventListener('abort',()=>accept(),{once:true}));
+    options.signal!.throwIfAborted();
+    throw new Error('The synthetic collector must be stopped by the test');
+  }});
+  const context=workflow.bridge.context(),run=await workflow.start(context.contextId,context.clientId);
+  const originalNow=Date.now;
+  try {
+    const waiting=await workflow.next(context.contextId,run.runId,run.clientId);
+    assert('waiting'in waiting&&waiting.waiting);
+    for(let tries=0;!checkActive&&tries<20;tries++)await new Promise(done=>setTimeout(done,1));
+    assert(checkActive);
+    Date.now=()=>originalNow()+70000;
+    const status=await bridge.status();assert.equal(status.connection.paired,true,'Configured fifteen-minute lease covers a normal slow capture');
+    assert.doesNotThrow(checkActive,'Capture progress must not silently substitute the old sixty-second lease');
+  }finally{Date.now=originalNow;await workflow.shutdown();}
+});
+
+test('an authenticated long poll stays paired while collecting and status alone cannot renew its finite lease',async t=>{
+  const {config,bridge}=await fixture(t);
+  for(;;){const packet=await bridge.next(BRIDGE_CONTEXT_ID);if('done'in packet)break;await bridge.submit(packet.packet.id,pass(packet.images[0].id,false));}
+  config.classifier.timeoutMs=500;
+  const workflow=new Workflow(config,{waitMs:600,connectionMs:100,pipeline:async(_config,options={})=>{
+    options.signal!.throwIfAborted();
+    await new Promise<void>(accept=>options.signal!.addEventListener('abort',()=>accept(),{once:true}));
+    options.signal!.throwIfAborted();
+    throw new Error('The synthetic collector must stop when the classifier becomes idle');
+  }});
+  const context=workflow.bridge.context(),run=await workflow.start(context.contextId,context.clientId);
+  try {
+    const pending=workflow.next(context.contextId,run.runId,run.clientId);
+    await new Promise(done=>setTimeout(done,200));
+    const status=await bridge.status();assert.equal(status.workflow?.phase,'collecting');assert.equal(status.connection.paired,true,'An owned get_packet request in flight is active');
+    const waiting=await pending;assert('waiting'in waiting&&waiting.waiting);
+    for(let tries=0;tries<20;tries++){
+      await bridge.status();await new Promise(done=>setTimeout(done,15));
+    }
+    const paused=await bridge.status();assert.equal(paused.workflow?.phase,'paused');assert.equal(paused.workflow?.reason,'classifier_idle');assert.equal(paused.connection.paired,false);
+  }finally{await workflow.shutdown();}
 });
 
 test('organizing old captures recovers an interrupted rename without changing bytes, IDs or judgments',async t=>{
