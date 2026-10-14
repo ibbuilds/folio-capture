@@ -97,7 +97,7 @@ test('audit is read-only, checks encoded pixels and accounts hard-linked categor
     files: [{ path: category, source: `${directory}/section.png` }],
     exceptions: [],
   });
-  const before = await readFile(join(output, 'state.sqlite')),
+  const before = await readFile(join(output, '.folio/state.sqlite')),
     names = await readdir(output);
   const result = await auditOutput(output);
   assert(result.readOnly);
@@ -107,7 +107,7 @@ test('audit is read-only, checks encoded pixels and accounts hard-linked categor
   assert.equal(result.validation.imagePaths, 3);
   assert.equal(result.validation.uniqueImageFiles, 2);
   assert(result.storage.sharedBytes > 0);
-  assert.deepEqual(await readFile(join(output, 'state.sqlite')), before);
+  assert.deepEqual(await readFile(join(output, '.folio/state.sqlite')), before);
   // SQLite can create WAL bookkeeping sidecars even for a read-only connection.
   assert.deepEqual(
     (await readdir(output)).filter((n) => !['state.sqlite-shm', 'state.sqlite-wal'].includes(n)),

@@ -10,6 +10,7 @@ import { hasCurrentClassification } from './coverage.ts';
 import { trustedAsset } from './quality.ts';
 import { inside, canonicalUrl, errorMessage, now } from './utils.ts';
 import { BRIDGE_CONTEXT_ID } from './bridge.ts';
+import { databaseName, savedName } from './output-paths.ts';
 
 type Issue = {
   severity: 'error' | 'warning';
@@ -83,7 +84,7 @@ export async function auditOutput(output: string) {
     message: string,
     extra: Partial<Issue> = {},
   ) => issues.push({ severity, code, message, ...extra });
-  const db = new DatabaseSync(await trustedAsset(output, 'state.sqlite'), { readOnly: true });
+  const db = new DatabaseSync(await trustedAsset(output, databaseName(output)), { readOnly: true });
   let captures: Array<{ id: string; directory: string; manifest: PageManifest }>,
     records: ReferenceRecord[],
     jobs: Array<{
@@ -202,6 +203,7 @@ export async function auditOutput(output: string) {
     }
   };
   for (const name of [
+    '.folio',
     'captures',
     'categories',
     'review',
@@ -313,7 +315,7 @@ export async function auditOutput(output: string) {
       return undefined;
     }
   };
-  const inventory = await readJson<Inventory>('file-views.json', inventorySchema);
+  const inventory = await readJson<Inventory>(savedName(output,'file-views.json'), inventorySchema);
   let hardLinks = 0;
   for (const managed of inventory?.files ?? []) {
     const file = files.get(managed.path);
@@ -405,7 +407,7 @@ export async function auditOutput(output: string) {
   const index = await readJson<{
     schemaVersion: number;
     references?: Array<{ id: string; quality: string; classification: string }>;
-  }>('index.json', indexSchema);
+  }>(savedName(output,'index.json'), indexSchema);
   if (current.length && (!index || index.schemaVersion < 2 || !index.references))
     issue(
       'warning',
@@ -461,7 +463,7 @@ export async function auditOutput(output: string) {
       'Pending reviews use an older protocol. Restart the updated engine and pair the chat again; saved captures remain available.',
     );
   const generations = new Set(
-    [...files.keys()].filter((p) => p.startsWith('exports/')).map((p) => p.split('/')[1]),
+    [...files.keys()].filter((p) => /^(?:\.folio\/)?exports\//.test(p)).map((p) => p.replace(/^\.folio\//,'').split('/')[1]),
   );
   if (generations.size > 10)
     issue(

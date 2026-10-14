@@ -40,7 +40,7 @@ test('clean resets all collection history, assets and views while preserving sou
 });
 
 test('reset accepts legacy Folio registries before later metadata tables were introduced',async t=>{
-  const {output,config}=await fixture(t);const db=new DatabaseSync(join(output,'state.sqlite'));
+  const {output,config}=await fixture(t);const db=new DatabaseSync(join(output,'.folio/state.sqlite'));
   db.exec('DROP TABLE reference_records; DROP TABLE assets; DROP TABLE page_folders; DROP TABLE page_urls;');db.close();
   await resetOutput(output,config);const store=new Store(output);try{assert.equal(store.pages().length,0);assert.equal(store.jobs().length,0);}finally{store.close();}
 });

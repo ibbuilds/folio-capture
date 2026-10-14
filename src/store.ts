@@ -1,11 +1,12 @@
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import type { JobStatus, PageManifest, Provenance, Classification } from './types.ts';
 import { canonicalUrl, idFor, now } from './utils.ts';
 import type { ReferenceRecord } from './references.ts';
 import { pageFolder } from './naming.ts';
+import { databaseName } from './output-paths.ts';
 
 export type Job = { id: string; stage: string; key: string; status: JobStatus; attempts: number; payload: any; result: any; error: string | null; stoppingReason: string | null; createdAt: string; updatedAt: string };
 export type PageRecord = { id: string; url: string; provenance: Provenance[]; latestCaptureId: string | null };
@@ -15,11 +16,13 @@ export class Store {
   readonly db: DatabaseSync;
   readonly output: string;
   private lockToken: string | undefined;
-  constructor(output: string, options:{resetting?:boolean}={}) {
+  constructor(output: string, options:{resetting?:boolean;organizing?:boolean}={}) {
     this.output = output;
     if(!options.resetting && existsSync(join(output,'.folio-reset.json')))throw new Error('A collection reset was interrupted. Stop Folio and finish npm run clean before using this output.');
+    if(!options.organizing && existsSync(join(output,'.folio-organize.json')))throw new Error('Output organization was interrupted. Finish npm run folio -- organize before using this output.');
     mkdirSync(output, { recursive: true });
-    this.db = new DatabaseSync(join(output, 'state.sqlite'), { timeout: 5000 });
+    const filename=join(output,databaseName(output));mkdirSync(dirname(filename),{recursive:true});
+    this.db = new DatabaseSync(filename, { timeout: 5000 });
     this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
       CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, stage TEXT NOT NULL, job_key TEXT NOT NULL, status TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, payload TEXT NOT NULL, result TEXT, error TEXT, stopping_reason TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(stage,job_key));
@@ -105,9 +108,9 @@ export class Store {
   }
   folder(page:PageRecord):string {
     const known=this.db.prepare('SELECT directory FROM page_folders WHERE page_id=?').get(page.id) as {directory:string}|undefined;
-    if(known)return known.directory;
+    if(known){const directory=known.directory.replace(/^captures\//,'.folio/captures/');if(directory!==known.directory)this.db.prepare('UPDATE page_folders SET directory=? WHERE page_id=?').run(directory,page.id);return directory;}
     const base=pageFolder(page.url);let directory=base,ordinal=1;
-    while(this.db.prepare('SELECT page_id FROM page_folders WHERE directory=?').get(directory))directory=`${base}--${++ordinal}`;
+    while(this.db.prepare('SELECT page_id FROM page_folders WHERE directory=? OR directory=?').get(directory,directory.replace(/^\.folio\/captures\//,'captures/')))directory=`${base}--${++ordinal}`;
     this.db.prepare('INSERT INTO page_folders VALUES (?,?)').run(page.id,directory);return directory;
   }
   relocateCapture(captureId:string,from:string,to:string,stagingDirectory:string|null) {
@@ -171,6 +174,20 @@ export class Store {
   }
   retryFailures(stages?: string[]) {
     for (const job of this.jobs().filter(j => ['failed','incomplete','blocked'].includes(j.status) && (!stages || stages.includes(j.stage)))) this.finish(job,'pending',job.result);
+  }
+  supersedeCaptureJobs(pageId:string,sourceUrl:string,currentKey:string,captureId:string) {
+    this.db.exec('BEGIN IMMEDIATE');
+    try{
+      for(const job of this.jobs('capture',['pending','running']))if(job.payload.pageId===pageId&&job.payload.source?.url===sourceUrl&&job.key!==currentKey&&/^[a-f0-9]{64}$/.test(job.key.split(':').at(-1)!)){
+        const obsolete=this.db.prepare("SELECT id FROM captures WHERE page_id=? AND signature=? AND status='running'").all(pageId,job.key.split(':').at(-1)!);
+        for(const row of obsolete){
+          this.db.prepare("UPDATE captures SET status='superseded' WHERE id=?").run(row.id);
+          for(const viewport of this.jobs('viewport',['pending','running']))if(viewport.payload.captureId===row.id)this.finish(viewport,'complete',viewport.result,undefined,'capture_profile_superseded');
+        }
+        this.finish(job,'complete',{captureId,supersededBy:currentKey},undefined,'capture_profile_superseded');
+      }
+      this.db.exec('COMMIT');
+    }catch(error){this.db.exec('ROLLBACK');throw error;}
   }
   page(url: string, provenance?: Provenance): PageRecord {
     const canonical = canonicalUrl(url);

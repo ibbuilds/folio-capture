@@ -72,10 +72,10 @@ test('scopes, mixed labels and viewport acceptance preserve images once and reje
   assert.equal(selected.classification!.labels.find(l=>l.axis==='visual_style')!.label,'minimalism');
   assert.ok(records.filter(r=>r.subject.scope==='page').every(r=>r.quality.verdict==='rejected'));
   const catalog=await exportAccepted(store);assert.equal(catalog.references.length,1);
-  const clean=JSON.parse(await readFile(join(root,catalog.indexes['aesthetic/clean']),'utf8'));
+  const clean=JSON.parse(await readFile(join(root,catalog.indexes['appearance/clean']),'utf8'));
   const testimonials=JSON.parse(await readFile(join(root,catalog.indexes['section/testimonials']),'utf8'));
   assert.deepEqual(clean.referenceIds,testimonials.referenceIds);
-  assert.equal(catalog.references[0].images[0].path,`${directory}/desktop-0.png`);
+  assert.match(catalog.references[0].images[0].path,/^categories\/minimalism\//);
   assert.equal(JSON.stringify(store.capture('fixture')!.manifest),original,'Legacy manifest untouched');
   await curateCapture(store,'fixture',config,{runProcess:mockRunner({counter:()=>calls++})});
   assert.equal(calls,13,'Two quality passes per subject and one accepted enrichment, all cached');
@@ -92,13 +92,12 @@ test('readable category views use hard links and safely preserve user files duri
   await curateCapture(store,'fixture',config,{runProcess:mockRunner()});
   const catalog=await exportAccepted(store);
   assert.equal(catalog.fileViews.exceptions.length,0);
-  const inventory=JSON.parse(await readFile(join(root,'file-views.json'),'utf8'));
-  const image=inventory.files.find((f:any)=>f.path.startsWith('categories/aesthetic/clean/')&&f.source)!;
-  const section=inventory.files.find((f:any)=>f.path.startsWith('categories/section/testimonials/')&&f.source)!;
-  assert.ok(image && section);
+  const inventory=JSON.parse(await readFile(join(root,'.folio/file-views.json'),'utf8'));
+  const image=inventory.files.find((f:any)=>f.path.startsWith('categories/minimalism/')&&f.source)!;
+  assert.ok(image);
+  assert.equal(inventory.files.filter((f:any)=>f.source===image.source).length,1,'One visible image across all classifications and parent scopes');
   const canonical=await stat(join(root,image.source)),linked=await stat(join(root,image.path));
   assert.equal(linked.ino,canonical.ino);assert.equal(linked.dev,canonical.dev);
-  assert.equal((await stat(join(root,section.path))).ino,canonical.ino,'One image participates in multiple folders without copying bytes');
   const notePath=image.path.replace(/[^/]+$/,'my-notes.txt');await writeFile(join(root,notePath),'User notes');
   const metadata=image.path.replace(/[^/]+$/,'reference.json');
   const metadataBefore=await stat(join(root,metadata));
@@ -110,7 +109,6 @@ test('readable category views use hard links and safely preserve user files duri
   selected.quality.verdict='rejected';store.saveReference(selected);
   await pruneQuarantine(store,0);
   await assert.rejects(access(join(root,image.path)));
-  await assert.rejects(access(join(root,section.path)));
   assert.equal(await readFile(join(root,notePath),'utf8'),'User notes');
   assert.equal(await readFile(join(root,metadata),'utf8'),'User replacement');
 });
@@ -268,7 +266,7 @@ test('mixed aesthetics and numeric substyles share one asset and keep their retr
   await curateCapture(store,'fixture',config,{runProcess:mixed});
   const catalog=await exportAccepted(store);assert.equal(catalog.references.length,1);assert.equal(catalog.references[0].images.length,1);
   const id=catalog.references[0].id;
-  for(const category of ['aesthetic/pixel-arcade','aesthetic/y2k-futurism','aesthetic-primary/pixel-arcade','aesthetic-secondary/y2k-futurism','substyle/8-bit']) {
+  for(const category of ['aesthetic/pixel-arcade','aesthetic/y2k-futurism','substyle/8-bit']) {
     assert.deepEqual(JSON.parse(await readFile(join(root,catalog.indexes[category]),'utf8')).referenceIds,[id]);
   }
   const coverage=buildCoverage(store);
@@ -305,6 +303,6 @@ test('export projections preserve authoritative evidence/history when a shared a
   const repaired=store.reference(record.subject.id)!;
   assert.equal(repaired.quality.verdict,'repair');assert.ok(repaired.subject.evidence.length);
   assert.equal(repaired.qualityHistory!.length,1);assert.equal(repaired.classificationHistory!.length,2);
-  const quarantine=JSON.parse(await readFile(join(root,'quarantine.json'),'utf8'));
+  const quarantine=JSON.parse(await readFile(join(root,'.folio/quarantine.json'),'utf8'));
   assert.ok(quarantine.references.some((r:any)=>r.id===record.subject.id && r.verdict==='repair'));
 });

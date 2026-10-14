@@ -5,6 +5,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {Store} from './store.ts';
 import {inside} from './utils.ts';
 import {trustedAsset} from './quality.ts';
+import {databaseName,internalName} from './output-paths.ts';
 
 const directories=['captures','.staging','exports','categories','review','reports'];
 const files=['index.json','catalog.json','coverage.json','quarantine.json','file-views.json','quality-evaluation.json','report.html'];
@@ -23,15 +24,16 @@ export async function resetOutput(output:string,configPath:string,afterRemoval?:
   try{if((await lstat(root)).isSymbolicLink())throw new Error('Linked output folders cannot be reset. Nothing deleted.');}
   catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT')return {output:root,reset:true,removed:[],preserved:[]};throw error;}
   const entries=await readdir(root);
-  if(!entries.includes('state.sqlite')){
+  const registry=databaseName(root);
+  try{await trustedAsset(root,registry);}catch(error){
+    if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;
     if(entries.some(name=>directories.includes(name)||files.includes(name)))throw new Error('Output has artifacts but no Folio registry. Nothing deleted.');
     return {output:root,reset:true,removed:[],preserved:entries};
   }
-  await trustedAsset(root,'state.sqlite');
-  for(const name of ['state.sqlite-wal','state.sqlite-shm',marker]){
+  for(const name of [`${registry}-wal`,`${registry}-shm`,marker]){
     try{await trustedAsset(root,name);}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}
   }
-  const existing=new DatabaseSync(join(root,'state.sqlite'),{readOnly:true,timeout:1000});
+  const existing=new DatabaseSync(join(root,registry),{readOnly:true,timeout:1000});
   try{
     const tables=new Set(existing.prepare("SELECT name FROM sqlite_schema WHERE type='table'").all().map(row=>row.name));
     if(!['meta','jobs','pages','captures'].every(table=>tables.has(table)) || existing.prepare("SELECT value FROM meta WHERE key='schema_version'").get()?.value!=='1')throw new Error('This is not a supported Folio registry. Nothing deleted.');
@@ -39,12 +41,14 @@ export async function resetOutput(output:string,configPath:string,afterRemoval?:
   const store=new Store(root,{resetting:true});
   try{
     store.assertWorkflowAccess();store.acquireLock();store.assertNoEngines();
-    const names=entries.filter(name=>directories.includes(name)||files.includes(name)||files.some(file=>name.startsWith(`${file}.`)&&/\.[a-f0-9-]{36}\.tmp$/.test(name)));
+    const internalEntries=entries.includes('.folio')?await readdir(await trustedAsset(root,'.folio')):[];
+    const names=[...entries.filter(name=>directories.includes(name)||files.includes(name)||files.some(file=>name.startsWith(`${file}.`)&&/\.[a-f0-9-]{36}\.tmp$/.test(name))),
+      ...internalEntries.filter(name=>[...directories,'staging','legacy'].includes(name)||files.includes(name)).map(internalName)];
     // Validate every absolute deletion target before the first removal. Root links are refused.
     for(const name of names){const target=await trustedAsset(root,name);if(!contains(root,target)||target===root)throw new Error('Unsafe reset target. Nothing deleted.');}
     try{await writeFile(join(root,marker),JSON.stringify({output:root,startedAt:new Date().toISOString()}),{flag:'wx'});}
     catch(error){if((error as NodeJS.ErrnoException).code!=='EEXIST')throw error;await trustedAsset(root,marker);}
-    for(const name of names){await rm(inside(root,name),{recursive:directories.includes(name),force:true,maxRetries:3});await afterRemoval?.();}
+    for(const name of names){await rm(inside(root,name),{recursive:[...directories,'staging','legacy'].includes(name.split('/').at(-1)!),force:true,maxRetries:3});await afterRemoval?.();}
     store.resetRegistry();
     await rm(join(root,marker));
     return {output:root,reset:true,removed:names,registry:'empty',preserved:entries.filter(name=>!names.includes(name)&&!name.startsWith('state.sqlite')&&name!==marker)};

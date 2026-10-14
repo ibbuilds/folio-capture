@@ -21,7 +21,7 @@ import { Workflow } from '../src/workflow.ts';
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { organizeOutput } from '../src/organize.ts';
+import { organizeOutput,beginOrganization,finishOrganization } from '../src/organize.ts';
 import { registerCaptureAssets } from '../src/assets.ts';
 import { captureVersion } from '../src/naming.ts';
 import { doctor } from '../src/doctor.ts';
@@ -189,6 +189,34 @@ test('a forged pairing token cannot start collection and a disconnected classifi
   const status=await bridge.status();assert.equal(entered,1);assert.equal(advanced,0);assert.equal(status.workflow?.phase,'paused');assert.equal(status.connection.paired,false);
 });
 
+test('normal collection defers obsolete geometry to recapture while explicit saved-image review remains available',async t=>{
+  const {root,config,manifest}=await fixture(t);const store=new Store(root);
+  const obsolete='0'.repeat(64);manifest.captureSignature=obsolete;manifest.provenance=[{seedUrl:config.sources[0].url,discoveredAt:new Date().toISOString(),sourceLabels:[]}];
+  store.db.prepare('UPDATE captures SET signature=?,manifest=? WHERE id=?').run(obsolete,JSON.stringify(manifest),'fixture');store.close();
+  assert('done'in await new AnalysisBridge(config,true).next(BRIDGE_CONTEXT_ID));
+  assert(!('done'in await new AnalysisBridge(config).next(BRIDGE_CONTEXT_ID)),'Explicit review does not erase or hide legacy pixels');
+});
+
+test('paired collection waits at bounded three-page batches and cannot finish before its review gate',async t=>{
+  const {root,config,bridge}=await fixture(t);
+  for(;;){const packet=await bridge.next(BRIDGE_CONTEXT_ID);if('done'in packet)break;await bridge.submit(packet.packet.id,pass(packet.images[0].id,false));}
+  const steps:string[]=[];
+  const workflow=new Workflow(config,{waitMs:5,pipeline:async(_config,options={})=>{
+    for(const id of ['first','second','third']){await options.onCaptureReady!(id);steps.push(id);}
+    return {discovered:0,queued:0,captured:3,reused:0,unresolved:0,incomplete:0,unsupported:0,blocked:0,failed:0,classified:0,pendingClassification:0,interrupted:false};
+  }});
+  const context=workflow.bridge.context(),started=await workflow.start(context.contextId,context.clientId);
+  await workflow.next(context.contextId,started.runId,started.clientId);
+  let state:{captureId?:string;phase:string}|undefined;
+  for(let tries=0;tries<50;tries++){
+    const snapshot=new Store(root);try{state=snapshot.getJob('workflow','active')!.payload;}finally{snapshot.close();}
+    if(state?.captureId==='third')break;await new Promise(done=>setTimeout(done,10));
+  }
+  assert(state);assert.equal(state.captureId,'third');assert.equal(state.phase,'reviewing');assert.deepEqual(steps,['first','second']);
+  for(;;){const result=await workflow.next(context.contextId,started.runId,started.clientId);if('done'in result&&result.done){assert('phase'in result);assert.equal(result.phase,'completed');break;}}
+  assert.deepEqual(steps,['first','second','third']);
+});
+
 test('organizing old captures recovers an interrupted rename without changing bytes, IDs or judgments',async t=>{
   const {bridge,root,directory,manifest}=await fixture(t);
   for(;;){const packet=await bridge.next(BRIDGE_CONTEXT_ID);if('done'in packet)break;
@@ -200,13 +228,47 @@ test('organizing old captures recovers an interrupted rename without changing by
     const prior=store.references().find(r=>r.quality.verdict==='accepted')!;const classification=JSON.stringify(prior.classification);
     const failed=await organizeOutput(store,undefined,async()=>{throw new Error('Simulated crash after rename');});assert.equal(failed.exceptions.length,1);assert.equal(store.capture('fixture')!.directory,directory);
     const repaired=await organizeOutput(store);assert.equal(repaired.moved,1,JSON.stringify(repaired));assert.equal(repaired.exceptions.length,0);
-    const relocated=store.capture('fixture')!;assert.match(relocated.directory,/^captures\/product\.test\/home\//);
+    const relocated=store.capture('fixture')!;assert.match(relocated.directory,/^\.folio\/captures\/product\.test\/home\//);
     assert.equal(relocated.manifest!.captureId,manifest.captureId);assert.deepEqual(await readFile(join(root,relocated.directory,'0.png')),before);
     assert.equal(JSON.stringify(store.reference(prior.subject.id)!.classification),classification);
     assert.equal(store.reference(prior.subject.id)!.directory,relocated.directory);assert.equal(store.asset(manifest.variants[0].regions[0].frames[0].sha256),`${relocated.directory}/0.png`);
-    const catalog=JSON.parse(await readFile(join(root,'catalog.json'),'utf8'));assert.ok(catalog.references[0].images[0].path.startsWith('captures/product.test/home/'));
+    const catalog=JSON.parse(await readFile(join(root,'catalog.json'),'utf8'));assert.ok(catalog.references[0].images[0].path.startsWith('categories/minimalism/product.test/home/'));
     assert.equal((await organizeOutput(store)).moved,0);
   }finally{store.close();}
+});
+
+test('organization moves a legacy registry behind one durable stop gate and preserves decisions and user files',async t=>{
+  const {root,bridge,directory}=await fixture(t);
+  const modern=join(root,'.folio/state.sqlite'),legacy=join(root,'state.sqlite');
+  const {rename,access}=await import('node:fs/promises');await rename(modern,legacy);
+  const packet=await bridge.next(BRIDGE_CONTEXT_ID);assert(!('done'in packet));
+  await bridge.submit(packet.packet.id,pass(packet.images[0].id,false));
+  await writeFile(join(root,'my-notes.txt'),'Keep this');
+  let store=new Store(root);const before=store.references().map(r=>({id:r.subject.id,quality:r.quality}));
+  try{
+    await beginOrganization(store);
+    assert.throws(()=>new Store(root),/organization was interrupted/);
+    const result=await organizeOutput(store);assert.equal(result.exceptions.length,0);
+    store.db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+  }finally{store.close();}
+  await finishOrganization(root);await assert.rejects(access(legacy));
+  store=new Store(root);
+  try{
+    assert.deepEqual(store.references().filter(r=>before.some(b=>b.id===r.subject.id)).map(r=>({id:r.subject.id,quality:r.quality})),before);
+    assert(store.capture('fixture')!.directory.startsWith('.folio/captures/'));
+    assert.equal(await readFile(join(root,'my-notes.txt'),'utf8'),'Keep this');
+    await assert.rejects(access(join(root,directory)));
+    await access(modern);await access(join(root,'catalog.json'));
+  }finally{store.close();}
+});
+
+test('organization refuses to move an uncheckpointed legacy registry before archiving any file',async t=>{
+  const {root}=await fixture(t);await mkdir(join(root,'exports'));
+  await writeFile(join(root,'exports','keep.json'),'Keep');await writeFile(join(root,'.folio-organize.json'),JSON.stringify({output:root}));
+  await writeFile(join(root,'state.sqlite-wal'),'Uncheckpointed writes');
+  await assert.rejects(finishOrganization(root),/uncheckpointed writes/);
+  assert.equal(await readFile(join(root,'exports','keep.json'),'utf8'),'Keep');
+  assert.equal(await readFile(join(root,'state.sqlite-wal'),'utf8'),'Uncheckpointed writes');
 });
 
 test('organizing preserves pruning tombstones through interrupted rename recovery',async t=>{
@@ -245,9 +307,9 @@ test('organizing recovers staged and published-before-commit checkpoints after a
     await mkdir(join(root,'captures/old/.staging'),{recursive:true});await writeFile(join(root,'captures/old/.staging','partial.png'),'Untouched checkpoint');
     assert.equal((await organizeOutput(store,undefined,async()=>{throw new Error('Simulated stage crash');})).exceptions.length,1);
     assert.equal((await organizeOutput(store)).exceptions.length,0);const stage=store.capture('stage')!;
-    assert.ok(stage.stagingDirectory!.startsWith('.staging/stage.test/home/'));assert.equal(await readFile(join(root,stage.stagingDirectory!,'partial.png'),'utf8'),'Untouched checkpoint');
+    assert.ok(stage.stagingDirectory!.startsWith('.folio/staging/stage.test/home/'));assert.equal(await readFile(join(root,stage.stagingDirectory!,'partial.png'),'utf8'),'Untouched checkpoint');
     const empty=store.page('https://empty.test/');store.createCapture(empty,'sig','captures/old/empty','captures/old/.empty','empty');
-    assert.equal((await organizeOutput(store)).exceptions.length,0);assert.ok(store.capture('empty')!.directory.startsWith('captures/empty.test/home/'));
+    assert.equal((await organizeOutput(store)).exceptions.length,0);assert.ok(store.capture('empty')!.directory.startsWith('.folio/captures/empty.test/home/'));
   }finally{store.close();}
 });
 

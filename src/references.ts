@@ -54,6 +54,7 @@ export function referenceSubjects(manifest: PageManifest): ReferenceSubject[] {
     subjects.push({ ...common, id: pageVariantId, parentId: manifest.pageId, scope: 'page', title: variant.title,
       frames, evidence: variant.evidence, captureIssues: [...issues, ...(variant.status !== 'complete' || covered < variant.pageHeight - 2 ? ['Incomplete page coverage'] : [])] });
     for (const region of variant.regions) {
+      if(region.referenceKind==='page-context')continue;
       // Cross-viewport correspondence is explicitly inferred; never transfers labels or acceptance.
       const sectionId = idFor([manifest.pageId, region.selector || [region.title, region.order]]);
       const regionCovered = variant.coverage.some(r => r.start <= region.bounds.y + 2 && r.end >= region.bounds.y + region.bounds.height - 2);

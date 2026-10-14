@@ -7,6 +7,7 @@ import { SELECTED_AESTHETICS, SELECTED_SUBSTYLES, SELECTED_COLLECTIONS, SELECTED
 import { DEFAULT_PROFILES } from './config.ts';
 import { atomicJson, now } from './utils.ts';
 import type { CaptureProfile, TaxonomyAxis } from './types.ts';
+import { internalName } from './output-paths.ts';
 
 export function hasCurrentClassification(record:ReferenceRecord):boolean {
   const c=record.classification;
@@ -73,5 +74,5 @@ export function buildCoverage(store:Store, profiles:CaptureProfile[]=DEFAULT_PRO
 }
 
 export async function exportCoverage(store:Store,profiles:CaptureProfile[]=DEFAULT_PROFILES) {
-  const result=buildCoverage(store,profiles);await atomicJson(join(store.output,'coverage.json'),result);return result;
+  const result=buildCoverage(store,profiles);await atomicJson(join(store.output,internalName('coverage.json')),result);return result;
 }

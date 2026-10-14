@@ -2,7 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium, type Browser, type Page } from 'playwright';
 import sharp from 'sharp';
-import { captureRegionImage } from '../src/image-capture.ts';
+import { captureRegionImage, captureCompleteSection } from '../src/image-capture.ts';
 import { documentToViewport, pixelCrop } from '../src/geometry.ts';
 import type { CaptureProfile, Rect } from '../src/types.ts';
 
@@ -25,6 +25,21 @@ async function expected(page:Page,rect:Rect,dpr:number) {
 }
 const verify=(profile:CaptureProfile)=>(width:number|undefined,height:number|undefined)=>{assert.equal(width,profile.width*profile.dpr);assert.equal(height,profile.height*profile.dpr);};
 
+for(const dpr of [1,2,3])test(`complete section at DPR ${dpr} retains the viewport and captures every below-fold pixel`,async()=>{
+  const {page,context,profile}=await fixture(dpr);
+  try{
+    const viewport=await page.evaluate(()=>({width:innerWidth,height:innerHeight,scrollY,dpr:devicePixelRatio}));
+    const bounds={x:0,y:900,width:640,height:900};
+    const full=await captureCompleteSection(page,bounds,profile);
+    assert(full);assert.equal(full.crop.width,640*dpr);assert.equal(full.crop.height,900*dpr);
+    assert.deepEqual(await page.evaluate(()=>({width:innerWidth,height:innerHeight,scrollY,dpr:devicePixelRatio})),viewport);
+    const {data}=await sharp(full.buffer).extract({left:80*dpr,top:100*dpr,width:140*dpr,height:50*dpr}).raw().toBuffer({resolveWithObject:true});
+    const visible=await expected(page,{x:80,y:100,width:140,height:50},dpr);
+    assert.ok((await sharp(data,{raw:{width:140*dpr,height:50*dpr,channels:3}}).ensureAlpha().raw().toBuffer()).equals(visible),'Opaque marker and text remain pixel-identical');
+    assert.equal(await captureCompleteSection(page,{x:0,y:0,width:640,height:25000},profile),null,'Oversized regions use actual viewport parts');
+  }finally{await context.close();}
+});
+
 for(const dpr of [1,2,3])test(`native clip at DPR ${dpr} preserves geometry and opaque text with at most one RGB level of gradient variation`,async()=>{
   const {page,context,profile}=await fixture(dpr);
   try {
@@ -42,6 +57,16 @@ for(const dpr of [1,2,3])test(`native clip at DPR ${dpr} preserves geometry and 
     const actualText=await sharp(actual,{raw}).extract(marker).raw().toBuffer();
     const expectedText=await sharp(pixels,{raw}).extract(marker).raw().toBuffer();
     assert.ok(actualText.equals(expectedText),'Opaque content and text must match exactly');
+  }finally{await context.close();}
+});
+
+test('complete fractional section bounds record the exact enclosing native image rectangle',async()=>{
+  const {page,context,profile}=await fixture(2);
+  try{
+    const image=await captureCompleteSection(page,{x:10.25,y:900.3,width:300.5,height:899.6},profile);
+    assert(image);assert.deepEqual(image.bounds,{x:10,y:900,width:301,height:900});
+    assert.equal(image.crop.width,image.bounds.width*2);assert.equal(image.crop.height,image.bounds.height*2);
+    assert.equal(await page.evaluate(()=>devicePixelRatio),2);
   }finally{await context.close();}
 });
 
@@ -73,9 +98,11 @@ test('native clipping preserves layered glass, shadows, transforms and intention
 test('fractional DPR full viewport reuses the original PNG without re-encoding',async()=>{
   const {page,context,profile}=await fixture(1.5);
   try {
-    const image=await captureRegionImage(page,{x:0,y:0,width:640,height:480},profile,5000,verify(profile));
+    let original:Buffer|undefined;
+    const wrapped=new Proxy(page,{get(target,key){if(key==='screenshot')return async(options:any)=>{original=await target.screenshot(options);return original;};const value=Reflect.get(target,key,target);return typeof value==='function'?value.bind(target):value;}});
+    const image=await captureRegionImage(wrapped,{x:0,y:0,width:640,height:480},profile,5000,verify(profile));
     assert.equal(image?.method,'viewport-reuse');
-    assert.ok(image!.buffer.equals(await page.screenshot({type:'png',scale:'device',caret:'hide'})));
+    assert.equal(image!.buffer,original,'The exact browser PNG is reused; a second rasterization is not an encoding baseline');
   }finally{await context.close();}
 });
 

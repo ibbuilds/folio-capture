@@ -14,7 +14,7 @@ export function pageFolder(url: string) {
   for (const [key, value] of parsed.searchParams)
     page += `--${nameComponent(key, 16)}-${nameComponent(value, 24)}`;
   if (parsed.hash) page += `--${nameComponent(decodePath(parsed.hash.slice(1)), 24)}`;
-  return `captures/${domain}/${page.slice(0, 80).replace(/-+$/, '')}`;
+  return `.folio/captures/${domain}/${page.slice(0, 80).replace(/-+$/, '')}`;
 }
 export function captureVersion(at: string, ordinal: number) {
   return `${new Date(at).toISOString().replace('T', '_').replaceAll(':', '-').replace('.', '-')}--v${String(ordinal).padStart(3, '0')}`;

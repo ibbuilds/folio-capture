@@ -92,7 +92,7 @@ test('catalog indexes exact regions, separates page context, and excludes unknow
     assert.equal(index.facets.color_palette.includes('unknown'), false);
     assert.deepEqual(index.facets.viewport, ['desktop', 'mobile']);
     assert.equal(Object.keys(index.facets).length, 14);
-    const saved = JSON.parse(await readFile(join(output, 'index.json'), 'utf8'));
+    const saved = JSON.parse(await readFile(join(output, '.folio/index.json'), 'utf8'));
     assert.equal(saved.sectionIndex.length, 4);
   } finally { await rm(output, { recursive: true, force: true }); }
 });

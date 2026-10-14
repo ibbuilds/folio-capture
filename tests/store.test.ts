@@ -11,10 +11,10 @@ import { pageFolder } from '../src/naming.ts';
 test('public site folders are readable, Windows-safe and durable across collisions and restart',async t=>{
   const root=await mkdtemp(join(tmpdir(),'folio-folders-'));t.after(()=>rm(root,{recursive:true,force:true}));let store=new Store(root);
   try{
-    assert.equal(pageFolder('https://linear.app/'),'captures/linear.app/home');
-    assert.equal(pageFolder('https://example.com/con'),'captures/example.com/con-page');
+    assert.equal(pageFolder('https://linear.app/'),'.folio/captures/linear.app/home');
+    assert.equal(pageFolder('https://example.com/con'),'.folio/captures/example.com/con-page');
     const a=store.page('https://example.com/a-b'),b=store.page('https://example.com/a_b');
-    const first=store.folder(a),second=store.folder(b);assert.equal(first,'captures/example.com/a-b');assert.equal(second,`${first}--2`);
+    const first=store.folder(a),second=store.folder(b);assert.equal(first,'.folio/captures/example.com/a-b');assert.equal(second,`${first}--2`);
     store.close();store=new Store(root);assert.equal(store.folder(a),first);assert.equal(store.folder(b),second);
   }finally{store.close();}
 });
@@ -27,6 +27,15 @@ test('URLs strip tracking while preserving content state and reject credentials'
   assert.equal(canonicalUrl('https://example.com/?z=3&a=1&a=2&utm_medium=x'),'https://example.com/?a=1&a=2&z=3');
   assert.notEqual(canonicalUrl('https://example.com/?plan=pro'),canonicalUrl('https://example.com/?plan=free'));
   assert.notEqual(canonicalUrl('https://example.com/#/pricing'),canonicalUrl('https://example.com/#/home'));
+});
+
+test('legacy folder reservations remain unique before all old pages are migrated',async t=>{
+  const root=await mkdtemp(join(tmpdir(),'folio-legacy-folder-'));t.after(()=>rm(root,{recursive:true,force:true}));const store=new Store(root);
+  try{
+    const old=store.page('https://example.test/a_b');store.db.prepare('INSERT INTO page_folders VALUES (?,?)').run(old.id,'captures/example.test/a-b');
+    const fresh=store.page('https://example.test/a-b');assert.equal(store.folder(fresh),'.folio/captures/example.test/a-b--2');
+    assert.equal(store.folder(old),'.folio/captures/example.test/a-b');
+  }finally{store.close();}
 });
 
 test('verified destination aliases share page identity and keep all referring sources across restart',async()=>{

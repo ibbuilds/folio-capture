@@ -5,6 +5,8 @@ import { hasCurrentClassification } from './coverage.ts';
 import { trustedAsset } from './quality.ts';
 import { atomicJson, errorMessage, hash, inside } from './utils.ts';
 import { imageName, pageFolder, nameComponent } from './naming.ts';
+import { captureKey, internalName, savedName } from './output-paths.ts';
+import type { Label } from './types.ts';
 
 type ViewReference = {
   id: string;
@@ -13,6 +15,7 @@ type ViewReference = {
   profileId: string;
   order?: number;
   scope?: string;
+  labels?: Label[];
   images: Array<{ path: string; kind?: string }>;
 };
 type ManagedFile = { path: string; source?: string; ino?: string; dev?: string; sha256?: string };
@@ -39,7 +42,7 @@ function folder(reference: ViewReference) {
     reference.scope === 'page'
       ? 'whole-page'
       : `s${String((reference.order ?? 0) + 1).padStart(3, '0')}-${nameComponent(reference.title, 32)}`;
-  return `${pageFolder(reference.url).slice('captures/'.length)}/${section}/${nameComponent(reference.profileId, 32)}`;
+  return `${captureKey(pageFolder(reference.url))}/${section}/${nameComponent(reference.profileId, 32)}`;
 }
 
 /** Ordinary category folders share original image bytes through hard links, never copies. */
@@ -51,7 +54,9 @@ export async function exportFileViews(
 ) {
   let previous: Inventory = { schemaVersion: 1, files: [], exceptions: [] };
   try {
-    previous = JSON.parse(await readFile(await trustedAsset(output, 'file-views.json'), 'utf8'));
+    previous = JSON.parse(
+      await readFile(await trustedAsset(output, savedName(output, 'file-views.json')), 'utf8'),
+    );
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
   }
@@ -60,6 +65,7 @@ export async function exportFileViews(
     notes = new Map<string, unknown>();
   const assigned = new Map<string, string>(),
     claimed = new Set<string>();
+  const publishedImages: Record<string, string> = {};
   const readableFolder = (reference: ViewReference) => {
     const existing = assigned.get(reference.id);
     if (existing) return existing;
@@ -72,30 +78,48 @@ export async function exportFileViews(
     return directory;
   };
   const add = (directory: string, reference: ViewReference, note: unknown) => {
-    for (const [i, image] of reference.images.entries())
-      desired.push({
-        path: `${directory}/${imageName(reference.url, reference.profileId, { ...(reference.scope === 'page' ? {} : { section: { title: reference.title, order: reference.order ?? 0 } }), part: i + 1, ...(image.kind === 'scroll-state' ? { stateKey: 'scroll' } : {}) })}.png`,
-        source: image.path,
-      });
+    for (const [i, image] of reference.images.entries()) {
+      if (publishedImages[image.path]) continue;
+      const path = `${directory}/${imageName(reference.url, reference.profileId, { ...(reference.scope === 'page' ? {} : { section: { title: reference.title, order: reference.order ?? 0 } }), part: i + 1, ...(image.kind === 'scroll-state' ? { stateKey: 'scroll' } : {}) })}.png`;
+      publishedImages[image.path] = path;
+      desired.push({ path, source: image.path });
+    }
     const path = `${directory}/reference.json`;
     desired.push({ path });
-    notes.set(path, note);
+    notes.set(
+      path,
+      typeof note === 'object' && note !== null
+        ? {
+            ...note,
+            images: reference.images.map((image) => ({
+              ...image,
+              path: publishedImages[image.path] ?? image.path,
+            })),
+          }
+        : note,
+    );
   };
-  const byId = new Map(references.map((r) => [r.id, r]));
-  for (const [category, ids] of Object.entries(indexes)) {
-    if (!/^[a-z0-9_-]+\/[a-z0-9_-]+$/.test(category)) throw new Error('Invalid category path');
-    for (const id of ids) {
-      const reference = byId.get(id);
-      if (reference)
-        add(`categories/${category}/${readableFolder(reference)}`, reference, {
-          id,
-          url: reference.url,
-          category,
-          images: reference.images,
-        });
-    }
+  void indexes; // Other dimensions are metadata indexes, never additional image folders.
+  for (const reference of references.filter((r) => r.scope === 'section')) {
+    const primary = reference.labels?.find(
+      (l) =>
+        l.axis === 'visual_style' &&
+        l.role === 'primary' &&
+        l.label !== 'unknown' &&
+        ['model', 'human'].includes(l.provenance),
+    );
+    const category = primary ? nameComponent(primary.label, 80) : 'unassigned';
+    add(`categories/${category}/${readableFolder(reference)}`, reference, {
+      id: reference.id,
+      url: reference.url,
+      primaryAesthetic: primary?.label ?? null,
+      labels: reference.labels,
+      images: reference.images,
+    });
   }
-  for (const record of records) {
+  for (const record of [...records].sort(
+    (a, b) => (a.subject.scope === 'section' ? 0 : 1) - (b.subject.scope === 'section' ? 0 : 1),
+  )) {
     if (
       record.pruned ||
       (record.quality.verdict === 'accepted' && hasCurrentClassification(record))
@@ -113,9 +137,15 @@ export async function exportFileViews(
         kind: f.kind,
       })),
     };
+    // Whole-page decisions can expose otherwise unowned context frames, never duplicate section PNGs.
+    if (
+      record.subject.scope === 'page' &&
+      reference.images.every((image) => publishedImages[image.path])
+    )
+      continue;
     const status =
       record.quality.verdict === 'accepted' ? 'classification-pending' : record.quality.verdict;
-    add(`review/${status}/${readableFolder(reference)}`, reference, {
+    add(`review/${readableFolder(reference)}`, reference, {
       id: reference.id,
       url: reference.url,
       status,
@@ -171,7 +201,7 @@ export async function exportFileViews(
   });
   prepared.sort((a, b) => a.path.localeCompare(b.path));
   // Persist ownership before file creation. Restart can recover partially generated views.
-  await atomicJson(inside(output, 'file-views.json'), {
+  await atomicJson(inside(output, internalName('file-views.json')), {
     ...inventory,
     files: [...new Map([...previous.files, ...prepared].map((f) => [f.path, f])).values()],
   });
@@ -247,11 +277,16 @@ export async function exportFileViews(
     }
   inventory.files.sort((a, b) => a.path.localeCompare(b.path));
   inventory.exceptions.sort((a, b) => a.path.localeCompare(b.path));
-  await atomicJson(inside(output, 'file-views.json'), inventory);
+  await atomicJson(inside(output, internalName('file-views.json')), inventory);
   return {
     categories: 'categories',
     review: 'review',
     storage: 'Hard links to original PNGs; no image copies',
+    publishedImages: Object.fromEntries(
+      Object.entries(publishedImages).filter(([, path]) =>
+        inventory.files.some((f) => f.path === path),
+      ),
+    ),
     exceptions: inventory.exceptions,
   };
 }
