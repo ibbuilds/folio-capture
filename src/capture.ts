@@ -8,7 +8,7 @@ import type { CaptureOptions, Rect, Region, ViewportCapture } from './types.ts';
 import { documentToViewport, intersectRect, mergeCoverage, uncoveredRanges } from './geometry.ts';
 import { sweepCleanup } from './cleanup.ts';
 import { guardNuisances } from './nuisance.ts';
-import { captureRegionImage } from './image-capture.ts';
+import { captureRegionImage, captureCompleteSection, prepareSectionCapture } from './image-capture.ts';
 import { imageName, NAMING_VERSION } from './naming.ts';
 import { ResolvedDuplicate } from './utils.ts';
 
@@ -116,7 +116,7 @@ async function describe(page: Page): Promise<{ title: string; description: strin
       const r = el.getBoundingClientRect(), s = getComputedStyle(el);
       return r.width > 0 && r.height > 40 && s.display !== 'none' && s.visibility !== 'hidden';
     };
-    const heading = (element: Element) => Array.from(element.querySelectorAll('h1,h2,h3,h4,h5,h6')).slice(0, 30).map(h => ({ level: Number(h.tagName[1]), text: ((h as HTMLElement).innerText ?? h.textContent ?? '').replace(/\s+/g,' ').trim().slice(0, 300) }));
+    const heading = (element: Element) => Array.from(element.querySelectorAll('h1,h2,h3,h4,h5,h6')).slice(0, 30).map(h => ({ level: Number(h.tagName[1]), text: ((h as HTMLElement).innerText || h.textContent || '').replace(/\s+/g,' ').trim().slice(0, 300) }));
     const selector = (element: Element) => {
       if (element.id) return `#${CSS.escape(element.id)}`;
       const parts: string[] = [];
@@ -133,21 +133,27 @@ async function describe(page: Page): Promise<{ title: string; description: strin
       }
       return parts.join(' > ');
     };
-    const candidates = all.filter(el => el.matches('section, article, [role="region"]') && main.contains(el) && visible(el) && el.getBoundingClientRect().width >= innerWidth * .45);
+    const semantic='section, article, [role="region"]';
+    const ownHeading=(el:Element)=>Array.from(el.querySelectorAll('h1,h2,h3')).find(h=>(h.closest(semantic)===el||!h.closest(semantic))&&(h.textContent??'').trim());
+    const substantive=(el:Element)=>Boolean(ownHeading(el)||el.getAttribute('aria-label')||el.getAttribute('aria-labelledby')||
+      (el.textContent??'').trim().length>30||Array.from(el.querySelectorAll('img,video,canvas,iframe')).some(media=>{const r=media.getBoundingClientRect();return r.width>80&&r.height>80;})||
+      (el.getBoundingClientRect().height>innerHeight*2&&Array.from(el.querySelectorAll('*')).some(child=>{const r=child.getBoundingClientRect();return ['sticky','fixed'].includes(getComputedStyle(child).position)&&r.width>=innerWidth*.45&&r.height>100;})));
+    const candidates = all.filter(el => el.matches(semantic) && main.contains(el) && visible(el) && el.getBoundingClientRect().width >= innerWidth * .45 && substantive(el));
+    const independentChildren=(el:Element)=>candidates.filter(child=>child!==el&&el.contains(child)&&Boolean(ownHeading(child)||child.getAttribute('aria-label'))&&
+      !candidates.some(between=>between!==el&&between!==child&&el.contains(between)&&between.contains(child)));
+    const wrapper=(el:Element)=>!ownHeading(el)&&!el.getAttribute('aria-label')&&independentChildren(el).filter(child=>Boolean(child.querySelector('h1,h2'))||child.getAttribute('aria-label')).length>=2;
     const leafBands = candidates.filter(el => {
-      const rect = el.getBoundingClientRect();
-      const broadChildren = candidates.filter(child => child !== el && el.contains(child) && child.getBoundingClientRect().height >= innerHeight * .3);
-      if (rect.height > innerHeight * 3 && broadChildren.length >= 2) return false;
-      return !candidates.some(parent => parent !== el && parent.contains(el) && !(parent.getBoundingClientRect().height > innerHeight * 3 && candidates.filter(child => child !== parent && parent.contains(child) && child.getBoundingClientRect().height >= innerHeight * .3).length >= 2));
+      if(wrapper(el))return false;
+      return !candidates.some(parent=>parent!==el&&parent.contains(el)&&!wrapper(parent));
     });
-    const inferred = Array.from(main.children).filter(el => visible(el) && el.getBoundingClientRect().width >= innerWidth * .45 &&
+    const inferred = Array.from(main.children).filter(el => visible(el) && substantive(el) && !['absolute','fixed'].includes(getComputedStyle(el).position) && el.getBoundingClientRect().width >= innerWidth * .45 &&
       !leafBands.some(band => band === el || band.contains(el) || el.contains(band)));
     const chrome = all.filter(el => el.matches('header, footer, [role="banner"], [role="contentinfo"]') && visible(el) &&
       !main.contains(el) && !all.some(parent => parent !== el && parent.matches('header, footer') && parent.contains(el)));
     const chosen = [...new Set([...leafBands, ...inferred, ...chrome])];
     const regions = chosen.map(el => {
       const r = el.getBoundingClientRect(), style = getComputedStyle(el), descendants = all.filter(child => el === child || el.contains(child)).slice(0, 1500);
-      const headings = heading(el), first = headings[0]?.text;
+      const headings = heading(el), first = (ownHeading(el)?.textContent??headings[0]?.text??'').replace(/\s+/g,' ').trim();
       const stickyElements = descendants.filter(child => ['sticky', 'fixed'].includes(getComputedStyle(child).position)).map(child => ({ tag: child.tagName.toLowerCase(), text: (child.textContent ?? '').trim().slice(0, 100), position: getComputedStyle(child).position }));
       const text = ((el as HTMLElement).innerText ?? '').trim().slice(0, 6000);
       const media = descendants.filter(child => child.matches('img,video,iframe,canvas,svg')).slice(0, 40).map(child => {
@@ -185,14 +191,21 @@ function makeRegions(snapshot: Awaited<ReturnType<typeof describe>>, profile: Ca
   }
   if (cursor < snapshot.height - 1) bands.push(fallback(cursor, snapshot.height));
   if (!bands.length) bands.push(fallback(0, snapshot.height));
+  // A small site header belongs to the first composition, not an independent design section.
+  if(bands.length>1&&bands[0].title==='Navigation'&&bands[0].y===0&&bands[0].end<=profile.height*.25&&bands[1].selector) {
+    bands[1].y=0;bands.shift();
+  }
   return bands.map((band, index) => {
     const bounds: Rect = { x: 0, y: band.y, width: profile.width, height: band.end - band.y };
-    const captureBounds = { x: 0, y: Math.max(0, band.y - contextPixels), width: profile.width,
-      height: Math.min(snapshot.height, band.end + contextPixels) - Math.max(0, band.y - contextPixels) };
+    // Neighboring context never turns a section that fits into an extra screenshot.
+    const padding=bounds.height<=profile.height?Math.min(contextPixels,Math.max(0,(profile.height-bounds.height)/2)):contextPixels;
+    const captureBounds = { x: 0, y: Math.max(0, band.y - padding), width: profile.width,
+      height: Math.min(snapshot.height, band.end + padding) - Math.max(0, band.y - padding) };
     const id = `${profile.id}-region-${String(index + 1).padStart(3, '0')}`;
     const opaqueSequence=band.sticky&&!band.semantic&&band.title==='Untitled section'&&bounds.height>profile.height*2;
     return { id, order: index, title: opaqueSequence?'Scroll sequence':band.title, selector: band.selector || undefined, roleHint: band.sticky ? 'scroll-dependent' : undefined,
       bounds, captureBounds, method: band.semantic ? 'semantic' : band.selector ? 'inferred' : 'viewport-fallback',
+      referenceKind:band.selector?'section':'page-context',
       boundaryConfidence: opaqueSequence?'low':band.semantic ? 'high' : band.selector ? 'medium' : 'low', frames: [], evidenceIds: [`${id}-dom`] };
   });
 }
@@ -298,7 +311,7 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
       locale: 'en-US', timezoneId: 'UTC', colorScheme: 'light', reducedMotion: 'no-preference', permissions: [] });
     check();
     await guardNuisances(context,result.interventions,false);
-    page = await context.newPage();
+    page = await context.newPage();await prepareSectionCapture(page,profile);
     result.environment.userAgent = await page.evaluate(() => navigator.userAgent);
     context.on('page', popup => {
       if (popup === page) return;
@@ -336,17 +349,20 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
     const overview = await page.screenshot({ type: 'png', timeout: settings.screenshotTimeoutMs, scale: 'device', caret: 'hide' });
     const overviewDimensions = await sharp(overview).metadata();
     result.environment.encodedViewport = { width: overviewDimensions.width, height: overviewDimensions.height };
-    await relativeWrite(result.overview, overview);
     if (gate || initialCleanup.unresolved.length || finalInitialCleanup.unresolved.length) {
+      await relativeWrite(result.overview, overview);
       result.status = 'blocked'; result.stoppingReason = gate ? 'access_challenge' : 'unresolved_overlay';
       result.pageHeight = await pageHeight(page); return result;
     }
     if (!supportedViewport) {
+      await relativeWrite(result.overview, overview);
       result.status = 'incomplete'; result.stoppingReason = 'unsupported_layout_viewport'; result.pageHeight = await pageHeight(page);
       warn('Effective CSS viewport or visual scale differs from the requested profile; no region crops were produced.');
       return result;
     }
     verifyEncodedViewport(overviewDimensions.width, overviewDimensions.height);
+    // Successful captures do not need a second copy of the hero as an overview.
+    delete result.overview;
 
     // Warm assets in real viewports. The capture pass revisits each section because offscreen reveals can reset.
     const explorationEnd = Date.now() + settings.explorationTimeoutMs;
@@ -389,6 +405,33 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
         const scroll = await page.evaluate(() => ({ x: scrollX, y: scrollY }));
         const nav = await navigationOcclusion(page, region);
         const viewport = { x: scroll.x, y: scroll.y + nav, width: profile.width, height: profile.height - nav };
+        if(part===0&&region.referenceKind==='section'&&region.roleHint!=='scroll-dependent'){
+          const safe=await page.evaluate(({selector,bounds})=>{
+            let root:Element|null=null;try{root=selector?document.querySelector(selector):null;}catch{/* Unsupported shadow selector. */}
+            if(!root)return false;
+            if(root.querySelector('canvas,video'))return false;
+            if(document.getAnimations().some(animation=>animation.effect instanceof KeyframeEffect&&animation.effect.target instanceof Element&&(animation.effect.target===root||root.contains(animation.effect.target))&&
+              (['ScrollTimeline','ViewTimeline'].includes(animation.timeline?.constructor.name??'')||animation.effect.getTiming().iterations===Infinity)))return false;
+            return Array.from(root.querySelectorAll('h1,h2,h3,p,img,li,button')).filter(el=>{const r=el.getBoundingClientRect();return r.width>0&&r.height>0&&r.bottom+scrollY>bounds.y&&r.top+scrollY<bounds.y+bounds.height;}).every(el=>el.checkVisibility({checkOpacity:true,checkVisibilityCSS:true,contentVisibilityAuto:true}));
+          },{selector:region.selector,bounds:region.bounds});
+          if(safe){
+            const top=region.bounds.y>0?Math.max(region.captureBounds.y,scroll.y+nav):region.captureBounds.y;
+            const completeBounds={...region.captureBounds,y:top,height:region.captureBounds.y+region.captureBounds.height-top};
+            const complete=await captureCompleteSection(page,completeBounds,profile,settings.screenshotTimeoutMs);
+            if(complete){
+              result.environment.referenceImageMethods??={};
+              const methods=result.environment.referenceImageMethods as Record<string,number>;methods['complete-section']=(methods['complete-section']??0)+1;
+              const suffix=imageName(options.url,profile.id,{section:region,part:1});
+              const imagePath=`${profile.id}/sections/${suffix}.png`,thumbnail=`thumbnails/${profile.id}/${suffix}.webp`;
+              await relativeWrite(imagePath,complete.buffer);await relativeWrite(thumbnail,await sharp(complete.buffer).resize({width:480,withoutEnlargement:true}).webp({quality:85}).toBuffer());
+              region.frames.push({path:imagePath,thumbnail,width:complete.crop.width,height:complete.crop.height,sha256:createHash('sha256').update(complete.buffer).digest('hex'),bounds:completeBounds,scrollY:scroll.y,kind:'static'});
+              const evidenceId=`${suffix}-state`;region.evidenceIds.push(evidenceId);
+              result.evidence.push({id:evidenceId,regionId:region.id,kind:'capture-state',value:{scroll,viewport:profile,bounds:completeBounds,navigationOcclusion:nav,method:'complete-section',dom:await frameDom(page,documentToViewport(completeBounds,scroll.x,scroll.y),region.selector)}});
+              result.coverage.push({start:completeBounds.y,end:completeBounds.y+completeBounds.height});frameCount++;break;
+            }
+          }
+          result.evidence.push({id:`${region.id}-capture-mode`,regionId:region.id,kind:'section-capture-mode',value:{mode:'ordered-viewport-states',reason:safe?'Complete section exceeds the verified raster/bounds budget.':'Section has scroll-dependent, animated, or unrendered content; a single offscreen image would be unreliable.'}});
+        }
         // At the page bottom scrollY clamps. Crop the remaining static part rather than
         // repeating nearly the whole previous viewport. Pinned scenes keep real states.
         const planned=region.roleHint==='scroll-dependent'?region.captureBounds:{...region.captureBounds,y:nextY,height:region.captureBounds.y+region.captureBounds.height-nextY};

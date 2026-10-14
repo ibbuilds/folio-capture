@@ -1,4 +1,4 @@
-import { mkdir, rename, readFile, rmdir } from 'node:fs/promises';
+import { mkdir, rename, readFile, rmdir, writeFile, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { Store } from './store.ts';
 import type { CaptureProfile } from './types.ts';
@@ -8,6 +8,7 @@ import { trustedAsset } from './quality.ts';
 import { exportAccepted } from './catalog.ts';
 import { exportCatalog } from './report.ts';
 import { validateStoredCapture } from './pipeline.ts';
+import { captureKey, internalName } from './output-paths.ts';
 
 /** Move existing capture versions into readable site/page folders, with a durable rename ledger.
  * IDs, hashes, decisions and relative frame paths are preserved. No browser/model is started. */
@@ -16,6 +17,7 @@ export async function organizeOutput(
   profiles?: CaptureProfile[],
   afterMove?: () => Promise<void>,
 ) {
+  store.assertNoEngines();
   const pages = new Map(store.pages().map((page) => [page.id, page]));
   const ordinals = new Map<string, number>();
   let moved = 0;
@@ -29,11 +31,14 @@ export async function organizeOutput(
     const directory = capture.directory.startsWith(`${folder}/`)
       ? capture.directory
       : `${folder}/${captureVersion(capture.createdAt, ordinal)}`;
-    const staging = capture.stagingDirectory
-      ? `.staging/${directory.slice('captures/'.length)}`
-      : null;
+    const staging = capture.stagingDirectory ? `.folio/staging/${captureKey(directory)}` : null;
     const prior = store.getJob('organize', capture.id);
-    if (directory === capture.directory && staging === capture.stagingDirectory && (!prior || prior.status==='complete')) continue;
+    if (
+      directory === capture.directory &&
+      staging === capture.stagingDirectory &&
+      (!prior || prior.status === 'complete')
+    )
+      continue;
     const plan = prior?.payload ?? {
       from: capture.directory,
       to: directory,
@@ -43,19 +48,29 @@ export async function organizeOutput(
     const job = store.job('organize', capture.id, plan);
     store.start(job);
     try {
-      let published=Boolean(capture.manifest || plan.published);
+      let published = Boolean(capture.manifest || plan.published);
       let from = published ? plan.from : plan.stageFrom,
         to = published ? plan.to : plan.stageTo;
       // A crash can publish files before committing the SQLite manifest.
-      if(!published){
+      if (!published) {
         try {
-          const root=await trustedAsset(store.output,plan.from);
-          const manifest=JSON.parse(await readFile(join(root,'manifest.json'),'utf8'));
-          if(manifest.captureId!==capture.id || !await validateStoredCapture(store,{...capture,manifest}))throw new Error('Uncommitted publication requires repair; files were preserved.');
-          from=plan.from;to=plan.to;published=true;plan.published=true;store.job('organize',capture.id,plan);
-        }catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}
+          const root = await trustedAsset(store.output, plan.from);
+          const manifest = JSON.parse(await readFile(join(root, 'manifest.json'), 'utf8'));
+          if (
+            manifest.captureId !== capture.id ||
+            !(await validateStoredCapture(store, { ...capture, manifest }))
+          )
+            throw new Error('Uncommitted publication requires repair; files were preserved.');
+          from = plan.from;
+          to = plan.to;
+          published = true;
+          plan.published = true;
+          store.job('organize', capture.id, plan);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        }
       }
-      if (!from || !to || !/^(?:captures|\.staging)\//.test(from))
+      if (!from || !to || !/^(?:captures|\.staging|\.folio\/(?:captures|staging))\//.test(from))
         throw new Error('Missing or unsupported capture directory; kept for repair.');
       let source: string | undefined;
       try {
@@ -90,18 +105,37 @@ export async function organizeOutput(
         await rename(source, inside(store.output, to));
         await afterMove?.();
       } else {
-        let target:string|undefined;
-        try{target=await trustedAsset(store.output,to);}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}
-        if(!target && capture.status==='running'){
-          // Empty interrupted checkpoints have no assets to move; resume will recapture them.
-          store.relocateCapture(capture.id,plan.from,plan.to,plan.stageTo);
-          store.finish(job,'complete',{directory:plan.to},undefined,'empty_checkpoint_replanned');moved++;continue;
+        let target: string | undefined;
+        try {
+          target = await trustedAsset(store.output, to);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
         }
-        if(!target)throw new Error('Capture assets missing; kept for repair.');
-        const identity = JSON.parse(await readFile(join(target, published ? 'manifest.json' : '.folio-move.json'),'utf8'));
+        if (!target && capture.status === 'running') {
+          // Empty interrupted checkpoints have no assets to move; resume will recapture them.
+          store.relocateCapture(capture.id, plan.from, plan.to, plan.stageTo);
+          store.finish(
+            job,
+            'complete',
+            { directory: plan.to },
+            undefined,
+            'empty_checkpoint_replanned',
+          );
+          moved++;
+          continue;
+        }
+        if (!target) throw new Error('Capture assets missing; kept for repair.');
+        const identity = JSON.parse(
+          await readFile(join(target, published ? 'manifest.json' : '.folio-move.json'), 'utf8'),
+        );
         if (identity.captureId !== capture.id)
           throw new Error('Rename recovery identity does not match this capture.');
-        if(published && !capture.manifest && !await validateStoredCapture(store,{...capture,directory:to,manifest:identity}))throw new Error('Moved publication requires repair; files were preserved.');
+        if (
+          published &&
+          !capture.manifest &&
+          !(await validateStoredCapture(store, { ...capture, directory: to, manifest: identity }))
+        )
+          throw new Error('Moved publication requires repair; files were preserved.');
         if (
           capture.manifest &&
           !(await validateStoredCapture(store, { ...capture, directory: to }))
@@ -138,6 +172,77 @@ export async function organizeOutput(
   }
   // A failed rename still has an old ledger path. Export verification must not mislabel
   // temporarily relocated assets as broken design or erase their saved classification.
-  if(!exceptions.length){await exportCatalog(store, false);await exportAccepted(store, profiles);}
+  if (!exceptions.length) {
+    await exportCatalog(store, false);
+    await exportAccepted(store, profiles);
+  }
   return { moved, exceptions };
+}
+
+/** Stop-gated marker prevents another engine opening the old database during its move. */
+export async function beginOrganization(store: Store) {
+  store.assertWorkflowAccess();
+  store.acquireLock();
+  store.assertNoEngines();
+  const marker = inside(store.output, '.folio-organize.json');
+  try {
+    await writeFile(marker, JSON.stringify({ output: store.output }), { flag: 'wx' });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    const previous = JSON.parse(
+      await readFile(await trustedAsset(store.output, '.folio-organize.json'), 'utf8'),
+    );
+    if (previous.output !== store.output)
+      throw new Error('Organization marker belongs to another output; preserved.');
+  }
+}
+
+/** Called only after the writer connection closes. Legacy files are archived, never discarded. */
+export async function finishOrganization(output: string) {
+  const marker = JSON.parse(
+    await readFile(await trustedAsset(output, '.folio-organize.json'), 'utf8'),
+  );
+  if (marker.output !== output)
+    throw new Error('Organization marker belongs to another output; preserved.');
+  for (const name of [
+    'exports',
+    'captures',
+    '.staging',
+    'index.json',
+    'coverage.json',
+    'quarantine.json',
+    'file-views.json',
+    'quality-evaluation.json',
+    'state.sqlite-wal',
+    'state.sqlite-shm',
+    'state.sqlite',
+  ]) {
+    let source: string;
+    try {
+      source = await trustedAsset(output, name);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+      throw error;
+    }
+    const destination = name.startsWith('state.sqlite')
+      ? internalName(name)
+      : internalName(`legacy/${name}`);
+    const parent = dirname(inside(output, destination));
+    await trustedAsset(output, '.folio');
+    try {
+      await trustedAsset(output, dirname(destination));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+    await mkdir(parent, { recursive: true });
+    await trustedAsset(output, dirname(destination));
+    try {
+      await trustedAsset(output, destination);
+      throw new Error(`Organization target already exists: ${destination}; both preserved.`);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+    await rename(source, inside(output, destination));
+  }
+  await rm(await trustedAsset(output, '.folio-organize.json'));
 }

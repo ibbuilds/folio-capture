@@ -10,6 +10,7 @@ import { hasCurrentClassification, buildCoverage } from './coverage.ts';
 import { taxonomyDocument, TAXONOMY_VERSION } from './taxonomy.ts';
 import { exportFileViews } from './views.ts';
 import { exportCatalog } from './report.ts';
+import { internalName } from './output-paths.ts';
 
 /** Immutable export generations: catalog.json is the single atomic publication point. */
 export async function exportAccepted(store:Store,profiles?:CaptureProfile[]) {
@@ -65,15 +66,13 @@ export async function exportAccepted(store:Store,profiles?:CaptureProfile[]) {
       const axis=axes[label.axis]??label.axis;
       if(!/^[a-z0-9][a-z0-9_-]*$/.test(label.label))continue;
       add(`${axis}/${label.label}`,reference.id);
-      if(label.axis==='visual_style' && label.role)add(`aesthetic-${label.role}/${label.label}`,reference.id);
       const concept=taxonomy.axes[label.axis].find(c=>c.label===label.label);
       if(label.axis==='visual_style' && concept?.familyId)add(`family/${concept.familyId.toLowerCase()}`,reference.id);
-      // Clean is a discovery synonym across aesthetics; it remains an appearance label in metadata.
-      if(label.axis==='appearance' && label.label==='clean')add('aesthetic/clean',reference.id);
     }
   }
   const fileViews=await exportFileViews(store.output,references,indexes,records);
-  const generation=`exports/${Date.now()}-${randomUUID().slice(0,8)}`;
+  for(const reference of references)for(const image of reference.images)image.path=fileViews.publishedImages[image.path]??image.path;
+  const generation=internalName(`exports/${Date.now()}-${randomUUID().slice(0,8)}`);
   const staging=inside(store.output,`${generation}.staging`);
   await mkdir(staging,{recursive:true});
   const coverage=buildCoverage(store,profiles,acceptedIds,{captures,records});
@@ -82,7 +81,7 @@ export async function exportAccepted(store:Store,profiles?:CaptureProfile[]) {
   for(const [key,ids] of Object.entries(indexes))await atomicJson(join(staging,'indexes',`${key}.json`),{schemaVersion:2,category:key,referenceIds:[...ids]},false);
   const catalog={schemaVersion:2,generatedAt:now(),experimental:true,qualityValidation:'unvalidated',editorialApproval:'unreviewed-candidates',taxonomyVersion:TAXONOMY_VERSION,
     taxonomy:`${generation}/taxonomy.json`,coverage:`${generation}/coverage.json`,assetBase:'.',generation,
-    indexSemantics:{'aesthetic/clean':'Combined retrieval of supported Clean aesthetic and clean appearance; exact axes remain in reference labels. Primary/secondary aesthetic indexes contain only aesthetic claims.'},
+    indexSemantics:{placement:'One primary aesthetic folder per section. Other supported labels are metadata indexes; page context never creates additional copies of section images.'},
     sites,pages,sections,references,fileViews,indexes:Object.fromEntries(Object.keys(indexes).map(key=>[key,`${generation}/indexes/${key}.json`])),
     counts:{accepted:references.length,classificationPending:records.filter(r=>r.quality.verdict==='accepted'&&!r.pruned&&!hasCurrentClassification(r)).length,
       rejected:records.filter(r=>r.quality.verdict==='rejected').length,uncertain:records.filter(r=>r.quality.verdict==='uncertain').length,
@@ -90,8 +89,8 @@ export async function exportAccepted(store:Store,profiles?:CaptureProfile[]) {
   await atomicJson(join(staging,'catalog.json'),catalog,false);
   await rename(staging,inside(store.output,generation));
   await atomicJson(join(store.output,'catalog.json'),catalog,false);
-  await atomicJson(join(store.output,'coverage.json'),coverage);
-  await atomicJson(join(store.output,'quarantine.json'),{schemaVersion:2,policy:'Logical quarantine: assets stored once at their original capture paths.',
+  await atomicJson(join(store.output,internalName('coverage.json')),coverage);
+  await atomicJson(join(store.output,internalName('quarantine.json')),{schemaVersion:2,policy:'Logical quarantine: assets stored once at their original capture paths.',
     references:store.quarantineInventory()});
   await exportCatalog(store,false);
   return catalog;

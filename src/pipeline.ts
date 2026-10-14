@@ -15,6 +15,8 @@ import type { ClassifierProcessRunner } from './classification.ts';
 import { TAXONOMY_VERSION } from './taxonomy.ts';
 import { libraryAdapter, isKnownLibrary } from './adapters.ts';
 import { discoverSite } from './site.ts';
+import { captureKey } from './output-paths.ts';
+import { captureSignature as profileSignature } from './capture-policy.ts';
 import { atomicJson, canonicalUrl, delay, errorMessage, hash, inside, isRelatedDestination, jsonFile, now, ResolvedDuplicate, ClassifierUnavailable } from './utils.ts';
 import type { Config, EvidenceItem, PageManifest, Source, ViewportCapture, Provenance, Classification, DiscoveredEntry } from './types.ts';
 
@@ -91,7 +93,7 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
   let locked=false;
   const visited=new Set<string>();
   const analysisState={unavailable:false};
-  const captureSignature = (source:Source,expectedHttpStatus?:404) => hash({ version:3,playwright:'1.62.1',profiles:config.profiles,...(expectedHttpStatus?{expectedHttpStatus}:{}),capture:{...config.capture,preserveSelectors:[...config.capture.preserveSelectors,...source.preserveSelectors??[]],dismissSelectors:[...config.capture.dismissSelectors,...source.dismissSelectors??[]]} });
+  const captureSignature = (source:Source,expectedHttpStatus?:404) => profileSignature(config,source,expectedHttpStatus);
   const checkInterrupted=()=>{options.signal?.throwIfAborted();options.assertClassifierActive?.();};
   async function ensureBrowser(){
     checkInterrupted();
@@ -145,6 +147,7 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
       await atomicJson(join(inside(config.output,reusable.directory),'manifest.json'),reusable.manifest);
       await atomicJson(join(inside(config.output,reusable.directory),'evidence.json'),{schemaVersion:1,captureId:reusable.id,items:evidenceFor(reusable.manifest)});
       store.publishCapture(reusable.manifest,reusable.directory);
+      store.supersedeCaptureJobs(page.id,source.url,key,reusable.id);
       log(`Reuse ${page.url}`);summary.reused++;await classify(reusable);return;
     }
     const job=store.job('capture',key,{pageId:page.id,url:page.url,source});
@@ -160,7 +163,7 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
     const captureId=existing?.id ?? hash([page.id,startedAt,ordinal]).slice(0,24);
     const folder=store.folder(page),version=captureVersion(startedAt,ordinal);
     const directory=existing?.directory ?? `${folder}/${version}`;
-    const stagingDirectory=existing?.stagingDirectory ?? `.staging/${folder.slice('captures/'.length)}/${version}`;
+    const stagingDirectory=existing?.stagingDirectory ?? `.folio/staging/${captureKey(folder)}/${version}`;
     const root=inside(config.output,stagingDirectory);
     await mkdir(root,{recursive:true});
     if(!existing)store.createCapture(page,signature,directory,stagingDirectory,captureId);
@@ -225,6 +228,7 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
     const destinations=new Set(variants.map(v=>canonicalUrl(v.finalUrl)));
     if(status==='complete' && destinations.size===1 && isRelatedDestination(page.url,variants[0].finalUrl))store.rememberRedirect(page.id,variants[0].finalUrl);
     store.finish(job,status,{captureId},status==='complete'?undefined:variants.flatMap(v=>v.warnings).join('; '));
+    if(status==='complete')store.supersedeCaptureJobs(page.id,source.url,key,captureId);
     summary.captured++;if(status==='incomplete')summary.incomplete++;if(status==='blocked')summary.blocked++;if(status==='failed')summary.failed++;
     const saved=store.capture(captureId)!;
     if(variants.some(v=>v.regions.some(r=>r.frames.length)))await classify(saved);
@@ -277,8 +281,8 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
       if(options.limit && summary.captured>=options.limit)break;
       const adapter=libraryAdapter(source.url);
       const library=source.kind==='library' || (source.kind==='auto' && (Boolean(adapter)||isKnownLibrary(source.url)));
-      if(source.kind==='site'){
-        await discoverSite(store,ensureBrowser,source,config.discovery,async (url,provenance)=>{await processPage(url,provenance,source);},options.signal,()=>!options.limit || summary.captured<options.limit,config.capture);continue;
+      if(source.kind==='site'||!library&&source.kind==='auto'){
+        await discoverSite(store,ensureBrowser,{...source,maxPages:source.maxPages??config.collection?.maxPages,maxDepth:source.maxDepth??config.collection?.maxDepth},config.discovery,async (url,provenance)=>{await processPage(url,provenance,source);},options.signal,()=>!options.limit || summary.captured<options.limit,config.capture);continue;
       }
       if(!library){
         await processPage(source.url,{seedUrl:source.url,discoveredAt:now(),sourceLabels:[]},source);continue;

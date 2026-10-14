@@ -21,7 +21,7 @@ export type Config = {
   output: string; freshnessDays: number; sources: Source[]; profiles: CaptureProfile[];
   capture: CaptureSettings; discovery: DiscoverySettings; classifier: ClassifierSettings;
   quality?: { maxImages: number; quarantineDays: number };
-  collection?: { originalMode: 'page' | 'site'; maxPages: number; maxDepth: number };
+  collection?: { originalMode: 'page' | 'site'; maxPages: number; maxDepth: number; reviewBatchPages?: number };
 };
 export type Intervention = { at: string; frameUrl: string; action: string; target: string; method: string; verified: boolean; note?: string };
 export type EvidenceItem = { id: string; regionId?: string; kind: string; value: unknown };
@@ -33,6 +33,7 @@ export type Region = {
   id: string; order: number; title: string; selector?: string; roleHint?: string;
   bounds: Rect; captureBounds: Rect; method: 'semantic' | 'inferred' | 'viewport-fallback';
   boundaryConfidence: 'high' | 'medium' | 'low'; frames: ImageFrame[]; evidenceIds: string[];
+  referenceKind?: 'section' | 'page-context';
 };
 export type ViewportCapture = {
   profile: CaptureProfile; status: CaptureStatus; requestedUrl: string; finalUrl: string;

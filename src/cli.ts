@@ -10,7 +10,8 @@ import { Store } from './store.ts';
 import { runPipeline } from './pipeline.ts';
 import { serveBridgeHttp } from './mcp.ts';
 import { Workflow } from './workflow.ts';
-import { organizeOutput } from './organize.ts';
+import { organizeOutput, beginOrganization, finishOrganization } from './organize.ts';
+import { internalName } from './output-paths.ts';
 import { doctor } from './doctor.ts';
 import { resetOutput } from './reset.ts';
 import { auditOutput } from './audit.ts';
@@ -46,6 +47,13 @@ export async function main(args=process.argv.slice(2)) {
     const port=Number(flags.get('--port')??4317);if(!Number.isInteger(port)||port<1024||port>65535)throw new Error('Invalid port.');
     const result=await doctor(config,port);console.log(JSON.stringify(result,null,2));return;
   }
+  if(command==='organize'){
+    const store=new Store(config.output,{organizing:true});let result:Awaited<ReturnType<typeof organizeOutput>>;
+    try{await beginOrganization(store);result=await organizeOutput(store,config.profiles);store.db.exec('PRAGMA wal_checkpoint(TRUNCATE)');}
+    finally{store.close();}
+    if(!result.exceptions.length)await finishOrganization(config.output);
+    console.log(JSON.stringify(result,null,2));if(result.exceptions.length)process.exitCode=1;return;
+  }
   if(command==='serve'){
     const port=Number(flags.get('--port') ?? 4173);
     if(!Number.isInteger(port)||port<1024||port>65535)throw new Error('Port must be an integer from 1024 to 65535.');
@@ -67,14 +75,13 @@ export async function main(args=process.argv.slice(2)) {
   if(['status','organize','coverage','report','export','evaluate','prune'].includes(command)){
     const store=new Store(config.output);
     try{
-      if(command==='organize') {store.assertWorkflowAccess();store.acquireLock();const result=await organizeOutput(store,config.profiles);console.log(JSON.stringify(result,null,2));if(result.exceptions.length)process.exitCode=1;}
-      else if(command==='evaluate'){
+      if(command==='evaluate'){
         if(!flags.has('--benchmark'))throw new Error('evaluate requires --benchmark with a frozen, independently reviewed dataset.');
         const result=evaluateQuality(JSON.parse(await readFile(resolve(String(flags.get('--benchmark'))),'utf8')),store.references());
-        store.acquireLock();await atomicJson(join(config.output,'quality-evaluation.json'),result);console.log(JSON.stringify(result.overall,null,2));
+        store.acquireLock();await atomicJson(join(config.output,internalName('quality-evaluation.json')),result);console.log(JSON.stringify(result.overall,null,2));
       }
       else if(command==='export'){store.acquireLock();await exportAccepted(store,config.profiles);console.log(join(config.output,'catalog.json'));}
-      else if(command==='coverage'){store.acquireLock();const coverage=await exportCoverage(store,config.profiles);console.log(JSON.stringify({totals:coverage.totals,viewport:coverage.viewport,gaps:coverage.gaps},null,2));console.log(join(config.output,'coverage.json'));}
+      else if(command==='coverage'){store.acquireLock();const coverage=await exportCoverage(store,config.profiles);console.log(JSON.stringify({totals:coverage.totals,viewport:coverage.viewport,gaps:coverage.gaps},null,2));console.log(join(config.output,internalName('coverage.json')));}
       else if(command==='prune'){store.acquireLock();console.log(await pruneQuarantine(store,Number(flags.get('--older-than-days')??config.quality?.quarantineDays??30),config.profiles));}
       else if(command==='report'){store.acquireLock();await exportCatalog(store);console.log(join(config.output,'report.html'));}
       else{const jobs=store.jobs();console.table(jobs.map(j=>({stage:j.stage,status:j.status,attempts:j.attempts,source:j.key,reason:j.error ?? j.stoppingReason ?? ''})));console.log(`${store.captures().filter(c=>c.manifest).length} published capture versions.`);}

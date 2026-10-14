@@ -21,7 +21,8 @@ import { referenceSubjects, subjectImageId, type ReferenceSubject } from './refe
 import { TAXONOMY, TAXONOMY_VERSION, TAXONOMY_FINGERPRINT } from './taxonomy.ts';
 import { hasCurrentClassification } from './coverage.ts';
 import { exportAccepted } from './catalog.ts';
-import { hash } from './utils.ts';
+import { hash,canonicalUrl } from './utils.ts';
+import { captureSignature } from './capture-policy.ts';
 
 export const BRIDGE_CONTEXT_ID = hash([
   TAXONOMY_FINGERPRINT,
@@ -81,7 +82,9 @@ class PendingReview extends Error {
 /** This adapter only exchanges saved evidence and validated results. It never starts a model. */
 export class AnalysisBridge {
   readonly config: Config;
-  constructor(config: Config) {
+  readonly currentCapturesOnly:boolean;
+  constructor(config: Config,currentCapturesOnly=false) {
+    this.currentCapturesOnly=currentCapturesOnly;
     this.config = { ...config, classifier: { ...config.classifier, runner: 'mcp' } };
   }
   context() {
@@ -502,6 +505,10 @@ export class AnalysisBridge {
     return this.locked(async (store) => {
       for (const capture of store.latestCaptures()) {
         if (!capture.manifest) continue;
+        if(this.currentCapturesOnly && /^[a-f0-9]{64}$/.test(capture.signature)) {
+          const origins=capture.manifest.provenance.map(p=>this.config.sources.find(s=>s.url===p.seedUrl)).filter(s=>!!s);
+          if(origins.length && !origins.some(source=>capture.signature===captureSignature(this.config,source,capture.manifest!.provenance.find(p=>p.seedUrl===source.url)?.expectedHttpStatus??(canonicalUrl(capture.manifest!.requestedUrl)===canonicalUrl(source.url)?source.expectedHttpStatus:undefined))))continue;
+        }
         for (const subject of referenceSubjects(capture.manifest)) {
           const prior = store.reference(subject.id);
           if (

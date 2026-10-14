@@ -48,7 +48,7 @@ export class Workflow {
   constructor(config: Config, dependencies: WorkflowDependencies = {}) {
     this.dependencies = dependencies;
     this.config = { ...config, classifier: { ...config.classifier, runner: 'mcp' } };
-    this.bridge = new AnalysisBridge(this.config);
+    this.bridge = new AnalysisBridge(this.config,!dependencies.runOptions?.classifyOnly);
   }
   private persist(state: RunState, status: 'running' | 'complete' | 'incomplete' | 'failed') {
     state.updatedAt = now();
@@ -219,6 +219,7 @@ export class Workflow {
     if (external?.aborted) cancel();
     try {
       await this.waitForReview(active); // Drain saved reviews before collecting another page.
+      let batchPages=0;
       const summary = await (this.dependencies.pipeline ?? runPipeline)(this.config, {
         ...this.dependencies.runOptions,
         ...state.options,
@@ -237,8 +238,14 @@ export class Workflow {
           }
         },
         log: this.dependencies.runOptions?.log ?? ((message) => console.error(message)),
-        onCaptureReady: (captureId) => this.waitForReview(active, captureId),
+        onCaptureReady: async (captureId) => {
+          if(++batchPages >= (this.config.collection?.reviewBatchPages??3)) {
+            batchPages=0;await this.waitForReview(active,captureId);
+          }
+        },
       });
+      // The final partial batch is mandatory too; completed never means capture-only.
+      if(batchPages)await this.waitForReview(active);
       state.summary = summary;
       const snapshot = await this.bridge.status();
       summary.classified = snapshot.classified;
