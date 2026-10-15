@@ -11,6 +11,7 @@ import { Store } from '../../src/store.ts';
 export async function runPairedFixture(
   config: Config,
   options: RunOptions = {},
+  fixture:{qualify?:boolean}={},
 ): Promise<RunSummary> {
   const bridge = new AnalysisBridge(config),
     context = bridge.context();
@@ -47,26 +48,27 @@ export async function runPairedFixture(
                 )
                 .map((axis) => ({
                   axis,
-                  label: 'unknown',
-                  evidenceIds: [],
-                  confidence: 'low',
+                  label: fixture.qualify&&axis==='visual_style'?'minimalism':fixture.qualify&&axis==='appearance'?'clean':'unknown',
+                  evidenceIds: fixture.qualify&&['visual_style','appearance'].includes(axis)?[id]:[],
+                  confidence: fixture.qualify&&['visual_style','appearance'].includes(axis)?'high':'low',
                   note: 'Synthetic fixture only',
+                  ...(fixture.qualify&&axis==='visual_style'?{role:'primary'}:{}),
                 })),
-              warnings: [],
             }
           : {
-              score: 6,
-              verdict: 'reject',
+              score: fixture.qualify?9:6,
+              verdict: fixture.qualify?'accept':'reject',
               evidenceIds: [id],
               reasons: ['Synthetic contract classifier; no aesthetic evaluation'],
-              weaknesses: ['Fixture is not an editorial reference'],
+              weaknesses: fixture.qualify?[]:['Fixture is not an editorial reference'],
               criteria: Object.fromEntries(
                 CRITERIA.map((criterion) => [
                   criterion,
-                  { score: 6, evidenceIds: [id], reason: 'Deterministic test response' },
+                  { score: fixture.qualify?9:6, evidenceIds: [id], reason: 'Deterministic test response' },
                 ]),
               ),
             };
+      if(packet.phase==='classification'&&fixture.qualify)await bridge.concepts(started.clientId,[{axis:'visual_style',label:'minimalism'},{axis:'appearance',label:'clean'}]);
       await bridge.submit(packet.id, value, undefined, started.clientId);
     }
     const store = new Store(config.output);
