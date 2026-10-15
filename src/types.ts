@@ -16,7 +16,7 @@ export type DiscoverySettings = {
   navigationTimeoutMs: number; settleTimeoutMs: number; plateauChecks: number;
   maxScrollSteps: number; maxDurationMs: number; minDelayMs: number; maxEntries?: number;
 };
-export type ClassifierSettings = { runner: 'mcp' | 'codex'; command: string; model?: string; reasoning?: 'low' | 'medium' | 'high' | 'xhigh'; timeoutMs: number; maxAttempts: number };
+export type ClassifierSettings = { runner: 'mcp' | 'codex'; command: string; model?: string; reasoning?: 'low' | 'medium' | 'high' | 'xhigh'; timeoutMs: number; maxAttempts: number; mcpReviewProfile?:string };
 export type Config = {
   output: string; freshnessDays: number; sources: Source[]; profiles: CaptureProfile[];
   capture: CaptureSettings; discovery: DiscoverySettings; classifier: ClassifierSettings;
@@ -25,6 +25,7 @@ export type Config = {
 };
 export type Intervention = { at: string; frameUrl: string; action: string; target: string; method: string; verified: boolean; note?: string };
 export type EvidenceItem = { id: string; regionId?: string; kind: string; value: unknown };
+export type CaptureIssue = { message: string; regionId?: string };
 export type ImageFrame = {
   path: string; thumbnail: string; width: number; height: number; sha256: string;
   bounds: Rect; scrollY: number; kind: 'static' | 'scroll-state' | 'viewport-fallback';
@@ -38,7 +39,7 @@ export type Region = {
 export type ViewportCapture = {
   profile: CaptureProfile; status: CaptureStatus; requestedUrl: string; finalUrl: string;
   title: string; capturedAt: string; pageHeight: number; regions: Region[];
-  evidence: EvidenceItem[]; warnings: string[]; interventions: Intervention[];
+  evidence: EvidenceItem[]; warnings: string[]; issues?: CaptureIssue[]; interventions: Intervention[];
   coverage: Array<{ start: number; end: number }>; stoppingReason: string;
   environment: Record<string, unknown>; overview?: string;
 };

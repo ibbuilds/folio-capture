@@ -17,6 +17,7 @@ export type QualityRecord = {
   verdict: 'accepted' | 'rejected' | 'uncertain' | 'pending' | 'repair';
   assessedAt: string; experimental: true; reasons: string[];
   model: string; reasoning: string; reportedModels: string[];
+  reviewProfile?:string;
   inspectedImages: string[]; assessment?: QualityPass; critique?: QualityPass;
   reviewRevision?: number;
 };
@@ -42,9 +43,14 @@ export function referenceSubjects(manifest: PageManifest): ReferenceSubject[] {
     const pageVariantId = idFor([manifest.captureId, 'page', variant.profile.id]);
     const common = { siteId, pageId: manifest.pageId, captureId: manifest.captureId, profileId: variant.profile.id, viewport } as const;
     // Unlocalized capture warnings cannot safely be interpreted as design weaknesses.
-    const issues = variant.warnings.filter(w => !/^(Capture coverage contains gaps|Exploration limit reached)/.test(w));
-    if (variant.status === 'blocked' || variant.status === 'failed') issues.push(`Capture ${variant.status}`);
-    if (variant.interventions.some(i => !i.verified)) issues.push('Unverified nuisance intervention');
+    const coverageWarning=(message:string)=>/^(Capture coverage contains gaps|Exploration limit reached)/.test(message);
+    // Old unscoped warnings remain conservative; new issues identify the affected section.
+    const scoped=variant.issues??[];
+    const legacy=variant.warnings.filter(w=>!coverageWarning(w)&&!scoped.some(issue=>issue.message===w));
+    const globalIssues=[...legacy,...scoped.filter(issue=>!issue.regionId&&!coverageWarning(issue.message)).map(issue=>issue.message)];
+    if (variant.status === 'blocked' || variant.status === 'failed') globalIssues.push(`Capture ${variant.status}`);
+    if (variant.interventions.some(i => !i.verified)) globalIssues.push('Unverified nuisance intervention');
+    const issues=[...new Set([...globalIssues,...scoped.filter(issue=>!coverageWarning(issue.message)).map(issue=>issue.message)])];
     let covered = 0;
     for (const range of [...variant.coverage].sort((a,b) => a.start-b.start)) {
       if (range.start > covered + 2) break;
@@ -61,7 +67,7 @@ export function referenceSubjects(manifest: PageManifest): ReferenceSubject[] {
       subjects.push({ ...common, id: idFor([manifest.captureId, 'section', variant.profile.id, region.id]),
         parentId: sectionId, sectionId, scope: 'section', regionId: region.id, title: region.title, order: region.order,
         frames: region.frames, evidence: variant.evidence.filter(e => e.regionId === region.id),
-        captureIssues: [...issues, ...(!regionCovered ? ['Incomplete section coverage'] : [])] });
+        captureIssues: [...new Set([...globalIssues,...scoped.filter(issue=>issue.regionId===region.id).map(issue=>issue.message), ...(!regionCovered ? ['Incomplete section coverage'] : [])])] });
     }
   }
   return subjects;

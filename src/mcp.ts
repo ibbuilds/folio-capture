@@ -152,7 +152,7 @@ export function createBridgeServer(config: Config, dependencies: WorkflowDepende
     },
     async ({ packetId, offset, count, runId, clientId }) => {
       workflow.touch(runId, clientId);
-      return packetResult(await bridge.images(packetId, offset, count));
+      return packetResult(await bridge.images(packetId, offset, count,clientId));
     },
   );
   server.registerTool(
@@ -174,6 +174,7 @@ export function createBridgeServer(config: Config, dependencies: WorkflowDepende
         return textResult(await bridge.submit(packetId, value, reportedModel, clientId));
       } catch (error) {
         if (!(error instanceof ReviewValidationError)) throw error;
+        if(!error.retryable)await workflow.reviewFailed(runId,clientId);
         return {
           isError: true,
           content: [
@@ -183,7 +184,8 @@ export function createBridgeServer(config: Config, dependencies: WorkflowDepende
                 committed: false,
                 packetId,
                 issues: error.issues,
-                next: 'Fix all listed issues together. Batch any required get_concepts definitions, then resubmit. Do not restart this packet or repeat delivered images.',
+                retryable:error.retryable,
+                next: error.retryable?'Fix all listed issues together. Batch any required get_concepts definitions, then resubmit. Do not restart this packet or repeat delivered images.':'Review attempt limit reached; collection is paused and nothing was accepted. Correct the classifier before starting a new run.',
               }),
             },
           ],

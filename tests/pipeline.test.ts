@@ -3,13 +3,46 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 import { parseConfig } from '../src/config.ts';
 import { runPipeline as unpairedPipeline, validateCaptureFiles } from '../src/pipeline.ts';
 import { runPairedFixture as runPipeline } from './support/paired-capture.ts';
 import { Store } from '../src/store.ts';
 import { chromium } from 'playwright';
 import type { PageManifest } from '../src/types.ts';
+import { auditOutput } from '../src/audit.ts';
+
+test('paired multi-page collection classifies complete sections across all six profiles and resumes without duplicating designs',{timeout:240000},async t=>{
+  const root=await mkdtemp(join(tmpdir(),'folio-complete-site-'));
+  t.after(async()=>{assert(resolve(root).startsWith(resolve(tmpdir())+sep));await rm(root,{recursive:true,force:true,maxRetries:4});});
+  const server=createServer((req,res)=>{
+    if(req.url==='/sitemap.xml'){res.writeHead(200,{'Content-Type':'application/xml'});res.end(`<urlset><url><loc>http://127.0.0.1:${(server.address() as {port:number}).port}/about</loc></url></urlset>`);return;}
+    const title=req.url==='/about'?'About the team':req.url==='/pricing'?'Simple pricing':'Build better products';
+    res.writeHead(200,{'Content-Type':'text/html'});
+    res.end(`<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>*{box-sizing:border-box}body{margin:0;font:18px Arial}header{height:60px}section{height:500px;padding:32px;background:#fff4de}section+section{background:#cceeff}h1,h2{margin:0 0 24px}</style><header><nav><button aria-controls="menu" aria-expanded="false" onclick="document.getElementById('menu').innerHTML='<a href=/pricing>Pricing</a>';this.setAttribute('aria-expanded','true')">Explore</button><span id="menu"></span></nav></header><main><section><h1>${title}</h1><p>A complete hero composition.</p></section><section><h2>Customer stories</h2><p>Evidence belongs to this complete section.</p></section></main>`);
+  });
+  await new Promise<void>(accept=>server.listen(0,'127.0.0.1',accept));t.after(()=>new Promise<void>(accept=>server.close(()=>accept())));
+  const origin=`http://127.0.0.1:${(server.address() as {port:number}).port}`;
+  const config=parseConfig({output:root,sources:[{url:origin,kind:'site',maxPages:3}],discovery:{settleTimeoutMs:600,minDelayMs:20},capture:{maxAttempts:1,mediaTimeoutMs:400,settleTimeoutMs:600,cleanupTimeoutMs:400,explorationTimeoutMs:5000,attemptTimeoutMs:15000}});
+  const abort=new AbortController();
+  const interrupted=await runPipeline(config,{signal:abort.signal,log:message=>{if(message===`Capture ${origin}/pricing`)abort.abort();}},{qualify:true});
+  assert.equal(interrupted.interrupted,true);
+  const resumed=await runPipeline(config,{log:()=>{}},{qualify:true});assert.equal(resumed.interrupted,false);
+  const ledger=new Store(root);
+  try{
+    assert.equal(ledger.latestCaptures().length,3);assert.equal(ledger.pages().length,3);
+    assert(ledger.latestCaptures().every(capture=>capture.manifest!.variants.length===6&&capture.manifest!.variants.every(variant=>variant.status==='complete'&&variant.regions.length===2&&variant.regions.every(region=>region.referenceKind==='section'&&region.frames.length===1))),JSON.stringify(ledger.latestCaptures().map(capture=>({url:capture.manifest!.requestedUrl,variants:capture.manifest!.variants.map(variant=>({profile:variant.profile.id,status:variant.status,warnings:variant.warnings,regions:variant.regions.map(region=>({title:region.title,kind:region.referenceKind,frames:region.frames.length}))}))}))));
+    assert(ledger.references().every(record=>record.quality.verdict==='accepted'&&record.classification));
+    assert.equal(ledger.jobs('site-discovery')[0].stoppingReason,'navigation_graph_exhausted');
+  }finally{ledger.close();}
+  const catalog=JSON.parse(await readFile(join(root,'catalog.json'),'utf8'));
+  assert.equal(catalog.pages.length,3);assert.equal(catalog.references.filter((reference:any)=>reference.scope==='section').length,36);
+  assert.deepEqual(new Set(catalog.references.map((reference:any)=>reference.profileId)),new Set(config.profiles.map(profile=>profile.id)));
+  assert.equal(Object.keys(catalog.fileViews.publishedImages).length,36,'Whole-page and secondary classifications do not multiply visible images');
+  assert(Object.values(catalog.fileViews.publishedImages).every(path=>String(path).startsWith('categories/minimalism/')));
+  const integrity=await auditOutput(root);assert.equal(integrity.healthy,true,JSON.stringify(integrity.issues));
+  const repeated=await runPipeline(config,{log:()=>{}},{qualify:true});assert.equal(repeated.captured,0);assert.equal(repeated.reused,3);
+});
 
 test('unpaired MCP and unavailable Codex are refused before any browser or capture, including direct script calls',async t=>{
   const root=await mkdtemp(join(tmpdir(),'folio-no-unpaired-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:3}));

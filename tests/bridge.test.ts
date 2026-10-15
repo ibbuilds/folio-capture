@@ -144,6 +144,53 @@ function pass(id: string, accept = true) {
     ),
   };
 }
+
+test('repeated invalid MCP judgments pause collection with resumable pending work and a bounded session budget',async t=>{
+  const {root,config}=await fixture(t);
+  let collections=0;
+  const workflow=new Workflow(config,{waitMs:1,pipeline:async()=>{collections++;throw new Error('Must not collect after invalid saved reviews');}});
+  const context=workflow.bridge.context(),run=await workflow.start(context.contextId,context.clientId);
+  t.after(async()=>{await workflow.shutdown();});
+  const task=await workflow.next(context.contextId,run.runId,run.clientId);if('done' in task)assert.fail();
+  for(let attempt=0;attempt<config.classifier.maxAttempts;attempt++)await assert.rejects(workflow.bridge.submit(task.packet.id,pass('foreign'),undefined,context.clientId),error=>error instanceof ReviewValidationError&&error.retryable===(attempt+1<config.classifier.maxAttempts));
+  const paused=await workflow.next(context.contextId,run.runId,run.clientId);
+  assert('done' in paused&&paused.done);assert('reason' in paused&&paused.reason==='review_validation_limit');assert.equal(collections,0);
+  const ledger=new Store(root);try{assert(ledger.references().every(record=>record.quality.verdict==='pending'));assert.equal(ledger.jobs('mcp-response').length,0);}finally{ledger.close();}
+  const fresh=workflow.bridge.context(),resumed=await workflow.start(fresh.contextId,fresh.clientId);
+  const retry=await workflow.next(fresh.contextId,resumed.runId,resumed.clientId);if('done' in retry)assert.fail();
+  assert.equal(retry.packet.id,task.packet.id);await workflow.bridge.submit(retry.packet.id,pass('i1'),undefined,fresh.clientId);
+  await workflow.stop(resumed.runId,resumed.clientId);
+});
+
+test('changing the declared MCP review profile invalidates cached quality without revisiting the website',async t=>{
+  const {bridge,config,root}=await fixture(t);
+  const context=bridge.context();
+  let task=await bridge.next(context.contextId);if('done' in task)assert.fail();
+  const subject=task.packet.subjectId;
+  await bridge.submit(task.packet.id,pass('i1'));
+  task=await bridge.next(context.contextId);if('done' in task)assert.fail();assert.equal(task.packet.phase,'critique');await bridge.submit(task.packet.id,pass('i1'));
+  task=await bridge.next(context.contextId);if('done' in task)assert.fail();assert.equal(task.packet.phase,'classification');
+  const value=task.packet.resultTemplate!;
+  await bridge.submit(task.packet.id,value);
+  const ledger=new Store(root);try{assert.equal(ledger.reference(subject)!.quality.verdict,'accepted');}finally{ledger.close();}
+  const changed=new AnalysisBridge({...config,classifier:{...config.classifier,mcpReviewProfile:'sol-medium-evaluation'}}),next=await changed.next(context.contextId);
+  if('done' in next)assert.fail();assert.equal(next.packet.phase,'assessment');assert.equal(next.packet.subjectId,subject);
+  const after=new Store(root);try{assert.equal(after.reference(subject)!.quality.verdict,'pending');assert.equal(after.reference(subject)!.quality.reviewProfile,'sol-medium-evaluation');assert.equal(after.reference(subject)!.classification,undefined);assert.equal(after.reference(subject)!.qualityHistory!.length,1);}finally{after.close();}
+});
+
+test('a new classifier conversation must receive every image even when an older conversation already read the complete packet',async t=>{
+  const {bridge}=await fixture(t,10),first=bridge.context();
+  const task=await bridge.next(first.contextId,first.clientId);if('done' in task)assert.fail();
+  let remaining=task.remaining,offset=task.nextOffset;
+  while(remaining){const chunk=await bridge.images(task.packet.id,offset,4,first.clientId);remaining=chunk.remaining;offset=chunk.nextOffset;}
+  const second=bridge.context(),resumed=await bridge.next(second.contextId,second.clientId);if('done' in resumed)assert.fail();
+  assert.equal(resumed.packet.id,task.packet.id);assert.equal(resumed.images.length,4);assert.equal(resumed.remaining,6);
+  await assert.rejects(bridge.submit(resumed.packet.id,pass('i1'),undefined,second.clientId),/Retrieve all packet images/);
+  await assert.rejects(bridge.submit(resumed.packet.id,pass('i1'),undefined,first.clientId),/this classifier session/);
+  remaining=resumed.remaining;offset=resumed.nextOffset;
+  while(remaining){const chunk=await bridge.images(resumed.packet.id,offset,4,second.clientId);remaining=chunk.remaining;offset=chunk.nextOffset;}
+  assert.equal((await bridge.submit(resumed.packet.id,pass('i1'),undefined,second.clientId)).committed,true);
+});
 function labels(scope: string, id: string) {
   return {
     labels: Object.keys(TAXONOMY)
@@ -173,20 +220,25 @@ test('compact context retains every allowed label and full definitions remain re
 
 test('a forged pairing token cannot start collection and a disconnected classifier cannot advance',async t=>{
   const {config,bridge}=await fixture(t);let entered=0,advanced=0;
-  const workflow=new Workflow(config,{connectionMs:60,waitMs:5,pipeline:async(_config,options={})=>{
+  const realNow=Date.now;let release:(()=>void)|undefined;
+  const workflow=new Workflow(config,{connectionMs:2000,waitMs:5,pipeline:async(_config,options={})=>{
     options.assertClassifierActive?.();entered++;
-    await new Promise(accept=>setTimeout(accept,180));options.assertClassifierActive?.();advanced++;
+    await new Promise<void>(accept=>{release=accept;options.signal?.addEventListener('abort',()=>accept(),{once:true});});options.assertClassifierActive?.();advanced++;
     throw new Error('A disconnected classifier must not reach another capture');
   }});
   await assert.rejects(workflow.start(BRIDGE_CONTEXT_ID,'a'.repeat(64)),/Pairing requires/);
   const ctx=bridge.context();const run=await workflow.start(ctx.contextId,ctx.clientId);
-  // Saved tasks are deliberately completed before collection; the client then stops requesting work.
+  try{
+  // Expire the lease explicitly; filesystem latency is not the behavior under test.
   for(;;){const next=await workflow.next(ctx.contextId,run.runId,run.clientId);if('done'in next){if(next.done)assert.fail();break;}
-    while(next.remaining){const more=await bridge.images(next.packet.id,next.nextOffset,4);next.remaining=more.remaining;next.nextOffset=more.nextOffset;}
-    await bridge.submit(next.packet.id,pass(next.images[0].id,false));
+    while(next.remaining){const more=await bridge.images(next.packet.id,next.nextOffset,4,run.clientId);next.remaining=more.remaining;next.nextOffset=more.nextOffset;}
+    await bridge.submit(next.packet.id,pass(next.images[0].id,false),undefined,run.clientId);
   }
-  await new Promise(accept=>setTimeout(accept,240));
+  for(let tries=0;!release&&tries<100;tries++)await new Promise(done=>setTimeout(done,20));
+  assert(release);Date.now=()=>realNow()+3000;release();
+  for(let tries=0;tries<100;tries++){if((await bridge.status()).workflow?.phase==='paused')break;await new Promise(done=>setTimeout(done,20));}
   const status=await bridge.status();assert.equal(entered,1);assert.equal(advanced,0);assert.equal(status.workflow?.phase,'paused');assert.equal(status.connection.paired,false);
+  }finally{Date.now=realNow;await workflow.shutdown();}
 });
 
 test('normal collection defers obsolete geometry to recapture while explicit saved-image review remains available',async t=>{
@@ -259,8 +311,9 @@ test('configured classifier timeout keeps a slow collection paired beyond the fo
 test('an authenticated long poll stays paired while collecting and status alone cannot renew its finite lease',async t=>{
   const {config,bridge}=await fixture(t);
   for(;;){const packet=await bridge.next(BRIDGE_CONTEXT_ID);if('done'in packet)break;await bridge.submit(packet.packet.id,pass(packet.images[0].id,false));}
-  config.classifier.timeoutMs=500;
-  const workflow=new Workflow(config,{waitMs:600,connectionMs:100,pipeline:async(_config,options={})=>{
+  config.classifier.timeoutMs=5000;
+  const realNow=Date.now;
+  const workflow=new Workflow(config,{waitMs:2500,connectionMs:1000,pipeline:async(_config,options={})=>{
     options.signal!.throwIfAborted();
     await new Promise<void>(accept=>options.signal!.addEventListener('abort',()=>accept(),{once:true}));
     options.signal!.throwIfAborted();
@@ -269,14 +322,15 @@ test('an authenticated long poll stays paired while collecting and status alone 
   const context=workflow.bridge.context(),run=await workflow.start(context.contextId,context.clientId);
   try {
     const pending=workflow.next(context.contextId,run.runId,run.clientId);
-    await new Promise(done=>setTimeout(done,200));
+    await new Promise(done=>setTimeout(done,1200));
     const status=await bridge.status();assert.equal(status.workflow?.phase,'collecting');assert.equal(status.connection.paired,true,'An owned get_packet request in flight is active');
     const waiting=await pending;assert('waiting'in waiting&&waiting.waiting);
-    for(let tries=0;tries<20;tries++){
-      await bridge.status();await new Promise(done=>setTimeout(done,15));
+    Date.now=()=>realNow()+10000;
+    for(let tries=0;tries<100;tries++){
+      if((await bridge.status()).workflow?.phase==='paused')break;await new Promise(done=>setTimeout(done,20));
     }
     const paused=await bridge.status();assert.equal(paused.workflow?.phase,'paused');assert.equal(paused.workflow?.reason,'classifier_idle');assert.equal(paused.connection.paired,false);
-  }finally{await workflow.shutdown();}
+  }finally{Date.now=realNow;await workflow.shutdown();}
 });
 
 test('organizing old captures recovers an interrupted rename without changing bytes, IDs or judgments',async t=>{
@@ -294,7 +348,7 @@ test('organizing old captures recovers an interrupted rename without changing by
     assert.equal(relocated.manifest!.captureId,manifest.captureId);assert.deepEqual(await readFile(join(root,relocated.directory,'0.png')),before);
     assert.equal(JSON.stringify(store.reference(prior.subject.id)!.classification),classification);
     assert.equal(store.reference(prior.subject.id)!.directory,relocated.directory);assert.equal(store.asset(manifest.variants[0].regions[0].frames[0].sha256),`${relocated.directory}/0.png`);
-    const catalog=JSON.parse(await readFile(join(root,'catalog.json'),'utf8'));assert.ok(catalog.references[0].images[0].path.startsWith('categories/minimalism/product.test/home/'));
+    const catalog=JSON.parse(await readFile(join(root,'catalog.json'),'utf8'));assert.ok(catalog.references[0].images[0].path.startsWith('.folio/captures/'));assert.ok(Object.values(catalog.fileViews.publishedImages).some(path=>String(path).startsWith('categories/minimalism/product.test/home/')));
     assert.equal((await organizeOutput(store)).moved,0);
   }finally{store.close();}
 });
@@ -548,7 +602,7 @@ test('one ChatGPT start drives backlog, capture, validated review and export; co
       if (result.waiting) {
         sawWaiting = true;
         const status = await call('status');
-        assert.equal(status.workflow.phase, 'collecting');
+        assert(['collecting','reviewing','completed'].includes(status.workflow.phase),'A review can become ready between a waiting response and the status read');
         continue;
       }
       const packet = result.packet;
@@ -629,7 +683,7 @@ test('an idle chat pauses rather than claiming completion, and its committed ass
   let run = await workflow.start(context.contextId, context.clientId);
   let packet = await workflow.next(context.contextId, run.runId, run.clientId);
   if ('done' in packet) assert.fail('assessment missing');
-  await bridge.submit(packet.packet.id, pass(packet.images[0].id));
+  await bridge.submit(packet.packet.id, pass(packet.images[0].id),undefined,run.clientId);
   await new Promise((accept) => setTimeout(accept, 120));
   const paused = await workflow.next(context.contextId, run.runId, run.clientId);
   assert.ok('done' in paused && paused.done);
@@ -650,7 +704,7 @@ test('a restarted engine records an interrupted owner honestly and preserves the
   const run = await workflow.start(context.contextId, context.clientId);
   const task = await workflow.next(context.contextId, run.runId, run.clientId);
   if ('done' in task) assert.fail();
-  await bridge.submit(task.packet.id, pass(task.images[0].id));
+  await bridge.submit(task.packet.id, pass(task.images[0].id),undefined,run.clientId);
   await workflow.stop(run.runId, run.clientId);
   const store = new Store(root);
   try {
@@ -967,6 +1021,7 @@ test('image batches shrink at the transport byte budget without marking omitted 
 
 test('all review problems are returned together, counted and repaired without losing a completed pass', async (t) => {
   const { bridge, root } = await fixture(t);
+  bridge.config.classifier.maxAttempts=3;
   const context = bridge.context();
   let task = await bridge.next(BRIDGE_CONTEXT_ID);
   if ('done' in task) assert.fail();
@@ -1007,14 +1062,12 @@ test('all review problems are returned together, counted and repaired without lo
     ),
   );
   await assert.rejects(
-    bridge.submit(task.packet.id, labels('page', 'i1'), undefined, context.clientId),
+    bridge.submit(task.packet.id, {...labels('page','i1'),labels:labels('page','i1').labels.map(label=>label.axis==='visual_style'?{...label,label:' MINIMALISM '}:label)}, undefined, context.clientId),
     (error) =>
       error instanceof ReviewValidationError &&
       error.issues.some((i) => i.path === 'appearance:clean') &&
       error.issues.some((i) => i.path === 'visual_style:minimalism'),
   );
-  const uppercase=labels('page','i1');uppercase.labels.find(l=>l.axis==='visual_style')!.label=' MINIMALISM ';
-  await assert.rejects(bridge.submit(task.packet.id,uppercase,undefined,context.clientId),error=>error instanceof ReviewValidationError && error.issues.some(i=>i.path==='visual_style:minimalism'));
   const unsupported = labels('page', 'i1');
   unsupported.labels[0].axis = '__proto__';
   unsupported.labels[1].label = 'invented';

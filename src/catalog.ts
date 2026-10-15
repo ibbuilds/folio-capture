@@ -71,7 +71,7 @@ export async function exportAccepted(store:Store,profiles?:CaptureProfile[]) {
     }
   }
   const fileViews=await exportFileViews(store.output,references,indexes,records);
-  for(const reference of references)for(const image of reference.images)image.path=fileViews.publishedImages[image.path]??image.path;
+  // Catalog consumers use immutable originals; readable views may move after reclassification.
   const generation=internalName(`exports/${Date.now()}-${randomUUID().slice(0,8)}`);
   const staging=inside(store.output,`${generation}.staging`);
   await mkdir(staging,{recursive:true});

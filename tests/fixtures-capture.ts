@@ -20,6 +20,14 @@ export async function captureFixture() {
       res.end('<body style="margin:0"><div role="dialog" aria-modal="true" style="position:fixed;inset:0;background:#ff00ff">Cookies and privacy<button onclick="this.parentElement.remove()">Reject all</button></div></body>'); return;
     }
     let extra = '';
+    if(route==='/neighbor-broken'){
+      res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
+      res.end('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box}body{margin:0;font:18px Arial}section{height:500px;padding:32px}h1,h2{margin:0 0 24px}img{width:200px;height:100px}</style><main><section id="healthy"><h1>Healthy hero</h1><p>Complete section with no broken media.</p></section><section id="broken"><h2>Broken showcase</h2><img src="/broken.svg" alt="Broken neighbor"></section></main>');return;
+    }
+    if(route==='/semantic-wrapper'){
+      res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
+      res.end('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box}body{margin:0;font:18px Arial}#intro,.chapter{height:650px;padding:40px}#intro{background:#fff4de}.chapter{background:#cceeff}.chapter:last-child{background:#eedddd}.cards{display:flex;gap:16px}.card{width:30%;height:180px;padding:20px;border:1px solid}h1,h2{margin:0 0 24px}</style><main><section id="page-wrapper"><div id="intro"><h1>Product introduction</h1><p>One complete hero.</p></div><section class="chapter" id="features"><h2>Features</h2><div class="cards"><section class="card"><h3>Speed</h3><p>Supporting detail</p></section><section class="card"><h3>Clarity</h3><p>Supporting detail</p></section></div></section><section class="chapter" id="proof"><h2>Customer stories</h2><p>A distinct complete composition.</p></section></section></main>');return;
+    }
     if (route === '/recurrent') extra = `<script>
       function show(){if(document.querySelector('#newsletter-popup'))return;const modal=document.createElement('div');modal.id='newsletter-popup';modal.className='nuisance';modal.setAttribute('role','dialog');modal.setAttribute('aria-modal','true');modal.innerHTML='<h2>Join our newsletter</h2><button>Close</button>';modal.querySelector('button').onclick=()=>{modal.remove();setTimeout(show,80)};document.body.append(modal)}setTimeout(show,20);
     </script>`;
