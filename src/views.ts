@@ -44,6 +44,9 @@ function folder(reference: ViewReference) {
       : `s${String((reference.order ?? 0) + 1).padStart(3, '0')}-${nameComponent(reference.title, 32)}`;
   return `${captureKey(pageFolder(reference.url))}/${section}/${nameComponent(reference.profileId, 32)}`;
 }
+function primaryAesthetic(reference:ViewReference) {
+  return reference.labels?.find(label=>label.axis==='visual_style'&&label.role==='primary'&&label.label!=='unknown'&&['model','human'].includes(label.provenance));
+}
 
 /** Ordinary category folders share original image bytes through hard links, never copies. */
 export async function exportFileViews(
@@ -101,13 +104,7 @@ export async function exportFileViews(
   };
   void indexes; // Other dimensions are metadata indexes, never additional image folders.
   for (const reference of references.filter((r) => r.scope === 'section')) {
-    const primary = reference.labels?.find(
-      (l) =>
-        l.axis === 'visual_style' &&
-        l.role === 'primary' &&
-        l.label !== 'unknown' &&
-        ['model', 'human'].includes(l.provenance),
-    );
+    const primary = primaryAesthetic(reference);
     const category = primary ? nameComponent(primary.label, 80) : 'unassigned';
     add(`categories/${category}/${readableFolder(reference)}`, reference, {
       id: reference.id,
@@ -115,6 +112,15 @@ export async function exportFileViews(
       primaryAesthetic: primary?.label ?? null,
       labels: reference.labels,
       images: reference.images,
+    });
+  }
+  for(const reference of references.filter(reference=>reference.scope==='page')) {
+    if(reference.images.every(image=>publishedImages[image.path]))continue;
+    const primary=primaryAesthetic(reference),category=primary?nameComponent(primary.label,80):'unassigned';
+    add(`categories/${category}/${readableFolder(reference)}`,reference,{
+      id:reference.id,url:reference.url,scope:'page',primaryAesthetic:primary?.label??null,
+      labels:reference.labels,images:reference.images,
+      qualification:'Whole-page qualification only; individual sections keep their own decisions.',
     });
   }
   for (const record of [...records].sort(

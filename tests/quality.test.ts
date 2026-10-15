@@ -120,6 +120,19 @@ test('identical observed states consume one image slot without copying judgments
   assert.equal(store.references().length,1,'Other scopes remain unassessed');
 });
 
+test('an accepted page with no qualifying sections has a visible category entry without promoting section decisions',async t=>{
+  const {store,config,root}=await setup(t),base=mockRunner({allAccept:true});
+  await curateCapture(store,'fixture',config,{runProcess:async(...args)=>{
+    const data=JSON.parse(args[2].prompt.match(/^EVIDENCE_DATA=(.*)$/m)![1]);
+    if(!args[2].prompt.startsWith('Classify')&&!(data.scope==='page'&&data.profile==='desktop'))return {stdout:'',stderr:'',lastMessage:JSON.stringify(pass(data.images[0].id,6))};
+    return base(...args);
+  }});
+  const catalog=await exportAccepted(store);assert.equal(catalog.references.length,1);assert.equal(catalog.references[0].scope,'page');
+  for(const image of catalog.references[0].images){const view=catalog.fileViews.publishedImages[image.path];assert.match(view,/^categories\/minimalism\/.*\/whole-page\/desktop\//);await access(join(root,view));}
+  assert(store.references().filter(record=>record.subject.scope==='section').every(record=>record.quality.verdict==='rejected'));
+  assert.equal(Object.keys(catalog.fileViews.publishedImages).length,4,'Each source frame gets one visible path, including rejected mobile review');
+});
+
 test('scopes, mixed labels and viewport acceptance preserve images once and reject weak parents',async t=>{
   const {store,config,root,manifest,directory}=await setup(t);
   const original=JSON.stringify(manifest);
