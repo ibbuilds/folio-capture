@@ -144,6 +144,39 @@ function pass(id: string, accept = true) {
     ),
   };
 }
+
+test('repeated invalid MCP judgments pause collection with resumable pending work and a bounded session budget',async t=>{
+  const {root,config}=await fixture(t);
+  let collections=0;
+  const workflow=new Workflow(config,{waitMs:1,pipeline:async()=>{collections++;throw new Error('Must not collect after invalid saved reviews');}});
+  const context=workflow.bridge.context(),run=await workflow.start(context.contextId,context.clientId);
+  t.after(async()=>{await workflow.shutdown();});
+  const task=await workflow.next(context.contextId,run.runId,run.clientId);if('done' in task)assert.fail();
+  for(let attempt=0;attempt<config.classifier.maxAttempts;attempt++)await assert.rejects(workflow.bridge.submit(task.packet.id,pass('foreign'),undefined,context.clientId),error=>error instanceof ReviewValidationError&&error.retryable===(attempt+1<config.classifier.maxAttempts));
+  const paused=await workflow.next(context.contextId,run.runId,run.clientId);
+  assert('done' in paused&&paused.done);assert('reason' in paused&&paused.reason==='review_validation_limit');assert.equal(collections,0);
+  const ledger=new Store(root);try{assert(ledger.references().every(record=>record.quality.verdict==='pending'));assert.equal(ledger.jobs('mcp-response').length,0);}finally{ledger.close();}
+  const fresh=workflow.bridge.context(),resumed=await workflow.start(fresh.contextId,fresh.clientId);
+  const retry=await workflow.next(fresh.contextId,resumed.runId,resumed.clientId);if('done' in retry)assert.fail();
+  assert.equal(retry.packet.id,task.packet.id);await workflow.bridge.submit(retry.packet.id,pass('i1'),undefined,fresh.clientId);
+  await workflow.stop(resumed.runId,resumed.clientId);
+});
+
+test('changing the declared MCP review profile invalidates cached quality without revisiting the website',async t=>{
+  const {bridge,config,root}=await fixture(t);
+  const context=bridge.context();
+  let task=await bridge.next(context.contextId);if('done' in task)assert.fail();
+  const subject=task.packet.subjectId;
+  await bridge.submit(task.packet.id,pass('i1'));
+  task=await bridge.next(context.contextId);if('done' in task)assert.fail();assert.equal(task.packet.phase,'critique');await bridge.submit(task.packet.id,pass('i1'));
+  task=await bridge.next(context.contextId);if('done' in task)assert.fail();assert.equal(task.packet.phase,'classification');
+  const value=task.packet.resultTemplate!;
+  await bridge.submit(task.packet.id,value);
+  const ledger=new Store(root);try{assert.equal(ledger.reference(subject)!.quality.verdict,'accepted');}finally{ledger.close();}
+  const changed=new AnalysisBridge({...config,classifier:{...config.classifier,mcpReviewProfile:'sol-medium-evaluation'}}),next=await changed.next(context.contextId);
+  if('done' in next)assert.fail();assert.equal(next.packet.phase,'assessment');assert.equal(next.packet.subjectId,subject);
+  const after=new Store(root);try{assert.equal(after.reference(subject)!.quality.verdict,'pending');assert.equal(after.reference(subject)!.classification,undefined);assert.equal(after.reference(subject)!.qualityHistory!.length,1);}finally{after.close();}
+});
 function labels(scope: string, id: string) {
   return {
     labels: Object.keys(TAXONOMY)
@@ -294,7 +327,7 @@ test('organizing old captures recovers an interrupted rename without changing by
     assert.equal(relocated.manifest!.captureId,manifest.captureId);assert.deepEqual(await readFile(join(root,relocated.directory,'0.png')),before);
     assert.equal(JSON.stringify(store.reference(prior.subject.id)!.classification),classification);
     assert.equal(store.reference(prior.subject.id)!.directory,relocated.directory);assert.equal(store.asset(manifest.variants[0].regions[0].frames[0].sha256),`${relocated.directory}/0.png`);
-    const catalog=JSON.parse(await readFile(join(root,'catalog.json'),'utf8'));assert.ok(catalog.references[0].images[0].path.startsWith('categories/minimalism/product.test/home/'));
+    const catalog=JSON.parse(await readFile(join(root,'catalog.json'),'utf8'));assert.ok(catalog.references[0].images[0].path.startsWith('.folio/captures/'));assert.ok(Object.values(catalog.fileViews.publishedImages).some(path=>String(path).startsWith('categories/minimalism/product.test/home/')));
     assert.equal((await organizeOutput(store)).moved,0);
   }finally{store.close();}
 });
@@ -967,6 +1000,7 @@ test('image batches shrink at the transport byte budget without marking omitted 
 
 test('all review problems are returned together, counted and repaired without losing a completed pass', async (t) => {
   const { bridge, root } = await fixture(t);
+  bridge.config.classifier.maxAttempts=3;
   const context = bridge.context();
   let task = await bridge.next(BRIDGE_CONTEXT_ID);
   if ('done' in task) assert.fail();
@@ -1007,14 +1041,12 @@ test('all review problems are returned together, counted and repaired without lo
     ),
   );
   await assert.rejects(
-    bridge.submit(task.packet.id, labels('page', 'i1'), undefined, context.clientId),
+    bridge.submit(task.packet.id, {...labels('page','i1'),labels:labels('page','i1').labels.map(label=>label.axis==='visual_style'?{...label,label:' MINIMALISM '}:label)}, undefined, context.clientId),
     (error) =>
       error instanceof ReviewValidationError &&
       error.issues.some((i) => i.path === 'appearance:clean') &&
       error.issues.some((i) => i.path === 'visual_style:minimalism'),
   );
-  const uppercase=labels('page','i1');uppercase.labels.find(l=>l.axis==='visual_style')!.label=' MINIMALISM ';
-  await assert.rejects(bridge.submit(task.packet.id,uppercase,undefined,context.clientId),error=>error instanceof ReviewValidationError && error.issues.some(i=>i.path==='visual_style:minimalism'));
   const unsupported = labels('page', 'i1');
   unsupported.labels[0].axis = '__proto__';
   unsupported.labels[1].label = 'invented';

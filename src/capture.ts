@@ -49,8 +49,8 @@ async function settle(page: Page, timeoutMs: number, sectionSelector?: string): 
 }
 
 /** Wait only for assets affecting the current rendered view, not every offscreen lazy asset. */
-async function readyMedia(page: Page, timeoutMs: number): Promise<string[]> {
-  return page.evaluate(async budget => {
+async function readyMedia(page: Page, timeoutMs: number, bounds?:Rect): Promise<string[]> {
+  return page.evaluate(async ({budget,bounds}) => {
     const elements: Element[] = [];
     const visit = (root: Document | ShadowRoot) => { for (const el of root.querySelectorAll('*')) { elements.push(el); if (el.shadowRoot) visit(el.shadowRoot); } };
     visit(document);
@@ -58,6 +58,7 @@ async function readyMedia(page: Page, timeoutMs: number): Promise<string[]> {
       const r = element.getBoundingClientRect(), s = getComputedStyle(element);
       if (r.width <= 1 || r.height <= 1 || s.display === 'none' || s.visibility === 'hidden') return false;
       let left = Math.max(0, r.left), right = Math.min(innerWidth, r.right), top = Math.max(0, r.top), bottom = Math.min(innerHeight, r.bottom);
+      if(bounds){left=Math.max(left,bounds.x-scrollX);right=Math.min(right,bounds.x+bounds.width-scrollX);top=Math.max(top,bounds.y-scrollY);bottom=Math.min(bottom,bounds.y+bounds.height-scrollY);}
       let parent: Element | null = element.parentElement ?? (element.getRootNode() instanceof ShadowRoot ? (element.getRootNode() as ShadowRoot).host : null);
       while (parent) {
         const style = getComputedStyle(parent), rect = parent.getBoundingClientRect();
@@ -106,7 +107,7 @@ async function readyMedia(page: Page, timeoutMs: number): Promise<string[]> {
       else if (video.readyState < 2 && !video.poster) warnings.push(`Video has no rendered frame: ${video.currentSrc || video.src}`);
     }
     return [...new Set(warnings)];
-  }, timeoutMs);
+  }, {budget:timeoutMs,bounds});
 }
 
 async function describe(page: Page): Promise<{ title: string; description: string; text: string; headings: unknown[]; regions: DomRegion[]; height: number }> {
@@ -138,14 +139,39 @@ async function describe(page: Page): Promise<{ title: string; description: strin
       return parts.join(' > ');
     };
     const semantic='section, article, [role="region"]';
-    const ownHeading=(el:Element)=>Array.from(el.querySelectorAll('h1,h2,h3')).find(h=>(h.closest(semantic)===el||!h.closest(semantic))&&(h.textContent??'').trim());
+    const headingCache=new Map<Element,Element|undefined>();
+    const ownHeading=(el:Element)=>{
+      if(headingCache.has(el))return headingCache.get(el);
+      const found=Array.from(el.querySelectorAll('h1,h2,h3')).find(h=>(h.closest(semantic)===el||!h.closest(semantic))&&(h.textContent??'').trim());
+      headingCache.set(el,found);return found;
+    };
     const substantive=(el:Element)=>Boolean(ownHeading(el)||el.getAttribute('aria-label')||el.getAttribute('aria-labelledby')||
       (el.textContent??'').trim().length>30||Array.from(el.querySelectorAll('img,video,canvas,iframe')).some(media=>{const r=media.getBoundingClientRect();return r.width>80&&r.height>80;})||
       (el.getBoundingClientRect().height>innerHeight*2&&Array.from(el.querySelectorAll('*')).some(child=>{const r=child.getBoundingClientRect();return ['sticky','fixed'].includes(getComputedStyle(child).position)&&r.width>=innerWidth*.45&&r.height>100;})));
     const candidates = all.filter(el => el.matches(semantic) && main.contains(el) && visible(el) && el.getBoundingClientRect().width >= innerWidth * .45 && substantive(el));
-    const independentChildren=(el:Element)=>candidates.filter(child=>child!==el&&el.contains(child)&&Boolean(ownHeading(child)||child.getAttribute('aria-label'))&&
-      !candidates.some(between=>between!==el&&between!==child&&el.contains(between)&&between.contains(child)));
-    const wrapper=(el:Element)=>!ownHeading(el)&&!el.getAttribute('aria-label')&&independentChildren(el).filter(child=>Boolean(child.querySelector('h1,h2'))||child.getAttribute('aria-label')).length>=2;
+    const childCache=new Map<Element,Element[]>(),chapterCache=new Map<Element,Element[]>(),wrapperCache=new Map<Element,boolean>();
+    const independentChildren=(el:Element)=>{
+      if(childCache.has(el))return childCache.get(el)!;
+      const children=candidates.filter(child=>child!==el&&el.contains(child)&&Boolean(ownHeading(child)||child.getAttribute('aria-label'))&&
+        !candidates.some(between=>between!==el&&between!==child&&el.contains(between)&&between.contains(child)));
+      childCache.set(el,children);return children;
+    };
+    const chapters=(el:Element)=>{
+      if(chapterCache.has(el))return chapterCache.get(el)!;
+      const result=independentChildren(el).filter(child=>{
+      const r=child.getBoundingClientRect(),parent=el.getBoundingClientRect();
+      return Boolean(ownHeading(child)?.matches('h1,h2')||child.getAttribute('aria-label'))&&r.width>=parent.width*.8&&r.height>=Math.max(180,innerHeight*.4);
+      }).sort((a,b)=>a.getBoundingClientRect().top-b.getBoundingClientRect().top);
+      chapterCache.set(el,result);return result;
+    };
+    const wrapper=(el:Element)=>{
+      if(wrapperCache.has(el))return wrapperCache.get(el)!;
+      const children=chapters(el);
+      const stacked=children.length>=2&&children.every((child,index)=>!index||child.getBoundingClientRect().top>=children[index-1].getBoundingClientRect().bottom-4);
+      const result=stacked||!ownHeading(el)&&!el.getAttribute('aria-label')&&independentChildren(el).filter(child=>Boolean(child.querySelector('h1,h2'))||child.getAttribute('aria-label')).length>=2;
+      wrapperCache.set(el,result);return result;
+    };
+    const introductions=candidates.filter(el=>wrapper(el)&&ownHeading(el)&&ownHeading(el)!.getBoundingClientRect().bottom<(chapters(el)[0]?.getBoundingClientRect().top??0));
     const leafBands = candidates.filter(el => {
       if(wrapper(el))return false;
       return !candidates.some(parent=>parent!==el&&parent.contains(el)&&!wrapper(parent));
@@ -159,6 +185,7 @@ async function describe(page: Page): Promise<{ title: string; description: strin
     const headingBands:Element[]=[];
     for(const h of majorHeadings){
       if(leafBands.some(band=>band.contains(h)))continue;
+      if(introductions.some(parent=>ownHeading(parent)===h))continue;
       let best:Element|undefined;
       for(let current=h.parentElement;current&&current!==main;current=current.parentElement){
         if(majorIn(current).length>1)break;
@@ -172,7 +199,7 @@ async function describe(page: Page): Promise<{ title: string; description: strin
     const inferred=[...directBands,...headingBands.filter(band=>!directBands.some(parent=>parent===band||parent.contains(band)))];
     const chrome = all.filter(el => el.matches('header, footer, [role="banner"], [role="contentinfo"]') && visible(el) &&
       !main.contains(el) && !all.some(parent => parent !== el && parent.matches('header, footer') && parent.contains(el)));
-    const chosen = [...new Set([...leafBands, ...inferred, ...chrome])];
+    const chosen = [...new Set([...leafBands, ...inferred, ...chrome, ...introductions])];
     const regions = chosen.map(el => {
       const r = el.getBoundingClientRect(), style = getComputedStyle(el), descendants = all.filter(child => el === child || el.contains(child)).slice(0, 1500);
       const headings = heading(el), first = (ownHeading(el)?.textContent??headings[0]?.text??'').replace(/\s+/g,' ').trim();
@@ -187,7 +214,7 @@ async function describe(page: Page): Promise<{ title: string; description: strin
       let columns: number | null = null;
       if (style.display.includes('grid') && style.gridTemplateColumns !== 'none') columns = style.gridTemplateColumns.split(/\s+(?![^()]*\))/).filter(Boolean).length;
       else if (style.display.includes('flex') && style.flexDirection.startsWith('row')) columns = el.children.length;
-      const y = Math.max(0, r.top + scrollY), end = Math.min(height, r.bottom + scrollY);
+      const y = Math.max(0, r.top + scrollY), end = Math.min(height, introductions.includes(el)?chapters(el)[0].getBoundingClientRect().top+scrollY:r.bottom + scrollY);
       const unresolved=!leafBands.includes(el)&&!chrome.includes(el)&&directBands.includes(el)&&r.height>innerHeight*2&&majorIn(el).length>1;
       return { title: unresolved?'Unresolved page region':first || el.getAttribute('aria-label') || (el.tagName === 'HEADER' ? 'Navigation' : el.tagName === 'FOOTER' ? 'Footer' : text.slice(0, 80).split('\n')[0] || 'Untitled section'),
         section:!unresolved,
@@ -219,7 +246,11 @@ function makeRegions(snapshot: Awaited<ReturnType<typeof describe>>, profile: Ca
   if(bands.length>1&&bands[0].title==='Navigation'&&bands[0].y===0&&bands[0].end<=profile.height*.25&&bands[1].selector) {
     bands[1].y=0;bands.shift();
   }
-  return bands.map((band, index) => {
+  const paddingFor=(band:DomRegion|undefined)=>!band?.selector?0:band.end-band.y<=profile.height?Math.min(contextPixels,Math.max(0,(profile.height-(band.end-band.y))/2)):contextPixels;
+  // Context already covers small gaps (including a short document's empty tail).
+  // Keep larger unresolved content, but do not save the same empty strip again.
+  const useful=bands.filter((band,index)=>band.selector||band.end-band.y>paddingFor(bands[index-1])+paddingFor(bands[index+1]));
+  return useful.map((band, index) => {
     const bounds: Rect = { x: 0, y: band.y, width: profile.width, height: band.end - band.y };
     // Neighboring context never turns a section that fits into an extra screenshot.
     const padding=bounds.height<=profile.height?Math.min(contextPixels,Math.max(0,(profile.height-bounds.height)/2)):contextPixels;
@@ -273,7 +304,7 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
   const { browser, profile, settings, outputDir, onProgress } = options;
   if (!/^[a-zA-Z0-9_-]+$/.test(profile.id)) throw new Error('Capture profile id must be a safe directory name.');
   const result: ViewportCapture = { profile, status: 'failed', requestedUrl: options.url, finalUrl: options.url, title: '',
-    capturedAt: new Date().toISOString(), pageHeight: 0, regions: [], evidence: [], warnings: [], interventions: [], coverage: [], stoppingReason: 'not_started',
+    capturedAt: new Date().toISOString(), pageHeight: 0, regions: [], evidence: [], warnings: [], issues: [], interventions: [], coverage: [], stoppingReason: 'not_started',
     environment: { browser: 'chromium', browserVersion: browser.version(), platform: os.platform(), release: os.release(), architecture: os.arch(),
       namingVersion:NAMING_VERSION,viewport: { width: profile.width, height: profile.height }, deviceScaleFactor: profile.dpr, screenshotScale: 'device', locale: 'en-US', timezone: 'UTC', colorScheme: 'light', reducedMotion: 'no-preference' } };
   let context: BrowserContext | undefined;
@@ -284,7 +315,10 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
   const timer = setTimeout(() => { timedOut = true; abort(); }, settings.attemptTimeoutMs);
   options.signal?.addEventListener('abort', abort, { once: true });
   const check = () => { if (options.signal?.aborted) throw new Error('Capture aborted.'); if (timedOut) throw new Error('Page attempt timed out.'); };
-  const warn = (warning: string) => { if (!result.warnings.includes(warning)) result.warnings.push(warning); };
+  const warn = (warning: string, regionId?:string) => {
+    if (!result.warnings.includes(warning)) result.warnings.push(warning);
+    if (!result.issues!.some(issue=>issue.message===warning&&issue.regionId===regionId)) result.issues!.push({message:warning,...(regionId?{regionId}:{})});
+  };
   const observeViewport = async () => {
     const actual = await page!.evaluate(() => ({ innerWidth, innerHeight, devicePixelRatio,
       visualViewport: visualViewport ? { width: visualViewport.width, height: visualViewport.height, scale: visualViewport.scale, offsetLeft: visualViewport.offsetLeft, offsetTop: visualViewport.offsetTop } : null }));
@@ -306,7 +340,7 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
     const target = path.join(outputDir, ...relative.split('/'));
     await mkdir(path.dirname(target), { recursive: true }); await writeFile(target, buffer);
   };
-  const cleanup = async () => {
+  const cleanup = async (regionId?:string) => {
     check();
     const cleaned = await sweepCleanup(page!, settings, result.interventions, async () => {
       if (rawDiagnosticWritten) return;
@@ -315,8 +349,8 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
       result.evidence.push({ id: `${profile.id}-before-cleanup`, kind: 'raw-diagnostic', value: { path: diagnostic, purpose: 'Before the first nuisance intervention' } });
       rawDiagnosticWritten = true;
     });
-    for (const blocker of cleaned.unresolved) warn(`Unresolved overlay: ${blocker}`);
-    for (const warning of cleaned.warnings) warn(warning);
+    for (const blocker of cleaned.unresolved) warn(`Unresolved overlay: ${blocker}`,regionId);
+    for (const warning of cleaned.warnings) warn(warning,regionId);
     if (cleaned.snapshots.length) result.evidence.push({ id: `${profile.id}-cleanup-state-${++cleanupSnapshotNumber}`, kind: 'cleanup-state', value: cleaned.snapshots });
     return cleaned;
   };
@@ -331,14 +365,14 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
     },region.selector);
   };
   const readiness = async (recordWarnings = true,region?:Region) => {
-    const observations = await readyMedia(page!, settings.mediaTimeoutMs);
+    const observations = await readyMedia(page!, settings.mediaTimeoutMs,region?.captureBounds);
     if (!await settle(page!, settings.settleTimeoutMs,region?.referenceKind==='section'?region.selector:undefined)) observations.push('Layout did not settle within the configured budget.');
     const visibility=region?await sectionVisibility(region):null;
     if(visibility&&!visibility.visible){
       observations.push(`Section ${region!.id} remained hidden within the configured readiness budget.`);
       if(recordWarnings)result.evidence.push({id:`${region!.id}-unrendered-${region!.frames.length}`,regionId:region!.id,kind:'unrendered-section',value:{...visibility,reason:'Section did not become rendered naturally before capture.',budgetMs:settings.settleTimeoutMs}});
     }
-    if (recordWarnings) for (const warning of observations) warn(warning);
+    if (recordWarnings) for (const warning of observations) warn(warning,region?.id);
     check();
     return !visibility||visibility.visible;
   };
@@ -436,11 +470,11 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
         check();
         const expectedNav = await navigationOcclusion(page, region);
         await page.evaluate(y => scrollTo({ top: Math.max(0, y), behavior: 'instant' }), nextY - expectedNav);
-        const cleaned = await cleanup();
-        if (cleaned.unresolved.length) { warn('A blocking overlay appeared during section capture.'); break; }
+        const cleaned = await cleanup(region.id);
+        if (cleaned.unresolved.length) { warn('A blocking overlay appeared during section capture.',region.id); break; }
         if(!await readiness(true,region))break;
-        const beforeScreenshot = await cleanup();
-        if (beforeScreenshot.unresolved.length) { warn('A blocking overlay appeared immediately before a screenshot.'); break; }
+        const beforeScreenshot = await cleanup(region.id);
+        if (beforeScreenshot.unresolved.length) { warn('A blocking overlay appeared immediately before a screenshot.',region.id); break; }
         if((await sectionVisibility(region))?.visible===false&&!await readiness(true,region))break;
         await verifyViewport();
         const scroll = await page.evaluate(() => ({ x: scrollX, y: scrollY }));
@@ -479,10 +513,10 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
         // repeating nearly the whole previous viewport. Pinned scenes keep real states.
         const planned=region.roleHint==='scroll-dependent'?region.captureBounds:{...region.captureBounds,y:nextY,height:region.captureBounds.y+region.captureBounds.height-nextY};
         const visible = intersectRect(planned, viewport);
-        if (!visible || visible.y + visible.height <= previousEnd + 1) { warn(`Section ${region.id} could not advance within its rendered viewport.`); break; }
+        if (!visible || visible.y + visible.height <= previousEnd + 1) { warn(`Section ${region.id} could not advance within its rendered viewport.`,region.id); break; }
         const stateDom=await frameDom(page,documentToViewport(visible,scroll.x,scroll.y),region.selector);
         const image=await captureRegionImage(page,documentToViewport(visible,scroll.x,scroll.y),profile,settings.screenshotTimeoutMs,verifyEncodedViewport);
-        if (!image) { warn(`Invalid screenshot bounds for ${region.id}.`); break; }
+        if (!image) { warn(`Invalid screenshot bounds for ${region.id}.`,region.id); break; }
         const {buffer:encoded,crop}=image;
         result.environment.referenceImageMethods??={};
         const methods=result.environment.referenceImageMethods as Record<string,number>;methods[image.method]=(methods[image.method]??0)+1;
@@ -501,7 +535,7 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
         if (previousEnd >= region.captureBounds.y + region.captureBounds.height - 1) break;
         nextY = previousEnd - Math.min(visible.height * settings.frameOverlap, visible.height - 1);
       }
-      if (!region.frames.length) warn(`No usable frames for ${region.id}.`);
+      if (!region.frames.length) warn(`No usable frames for ${region.id}.`,region.id);
     }
     const nestedScrollers = await page.evaluate(profileId => {
       const all: Element[] = [], roots: Array<Document | ShadowRoot> = [document];
@@ -557,10 +591,10 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
           await locator.evaluate((el, context) => {
             const r = el.getBoundingClientRect(); scrollTo({ top: Math.max(0, r.top + scrollY - context.padding - context.nav), behavior: 'instant' });
           }, { padding: settings.contextPixels, nav: navBefore });
-          const cleaned = await cleanup();
+          const cleaned = await cleanup(parent.id);
           if (cleaned.unresolved.length) { unhandled.push({ ...scroller, reason: 'blocking-overlay' }); break; }
-          await readiness();
-          const finalCleanup = await cleanup();
+          if(!await readiness(true,parent)){unhandled.push({...scroller,reason:'parent-section-not-rendered'});break;}
+          const finalCleanup = await cleanup(parent.id);
           if (finalCleanup.unresolved.length) { unhandled.push({ ...scroller, reason: 'late-blocking-overlay' }); break; }
           await verifyViewport();
           const metrics = await locator.evaluate(el => {
@@ -621,14 +655,19 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
           return { left: el.scrollLeft, top: el.scrollTop };
         }, { left: scroller.initialLeft, top: scroller.initialTop }).catch(() => null);
         const verified = !!restored && Math.abs(restored.left - scroller.initialLeft) <= 1 && Math.abs(restored.top - scroller.initialTop) <= 1;
-        if (!verified) warn(`Scroll position could not be restored for ${scroller.selector}.`);
+        if (!verified) warn(`Scroll position could not be restored for ${scroller.selector}.`,parent.id);
         const restoreId = `${scroller.key}-restore`;
         parent.evidenceIds.push(restoreId);
         result.evidence.push({ id: restoreId, regionId: parent.id, kind: 'observed-scroll-restore', value: { selector: scroller.selector, requested: { left: scroller.initialLeft, top: scroller.initialTop }, actual: restored, verified } });
       }
     }
     if (unhandled.length) {
-      warn('Some internal scrolling content remains uncovered; see observed scroll-state evidence.');
+      for(const value of unhandled){
+        const scroller=value as {bounds?:Rect};
+        const affected=scroller.bounds?result.regions.filter(region=>intersectRect(region.bounds,scroller.bounds!)):[];
+        if(affected.length)for(const region of affected)warn('Some internal scrolling content remains uncovered; see observed scroll-state evidence.',region.id);
+        else warn('Some internal scrolling content remains uncovered; see observed scroll-state evidence.');
+      }
       result.evidence.push({ id: `${profile.id}-internal-scrollers`, kind: 'uncovered-scroll-states', value: unhandled });
     }
     const finalHeight = await pageHeight(page);

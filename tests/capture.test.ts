@@ -18,6 +18,29 @@ const settings: CaptureSettings = {
   contextPixels: 24, frameOverlap: .15, cleanupPasses: 3, cleanupTimeoutMs: 2000, preserveSelectors: [], dismissSelectors: [],
 };
 
+test('broken media in a neighboring section does not invalidate the current clean section', {timeout:45000},async()=>{
+  const fixture=await captureFixture(),directory=await mkdtemp(path.join(os.tmpdir(),'folio-neighbor-media-')),browser=await chromium.launch({channel:'chromium'});
+  try{
+    const capture=await captureViewport({browser,url:`${fixture.url}/neighbor-broken`,settings:{...settings,contextPixels:0},profile:{id:'desktop',width:800,height:1000,dpr:2,isMobile:false,hasTouch:false},outputDir:directory});
+    assert.equal(capture.status,'incomplete');
+    const subjects=referenceSubjects({schemaVersion:1,pageId:'page',captureId:'capture',captureSignature:'fixture',requestedUrl:capture.requestedUrl,title:capture.title,capturedAt:capture.capturedAt,status:capture.status,reviewStatus:'needs-review',provenance:[],variants:[capture]});
+    assert.deepEqual(subjects.find(subject=>subject.title==='Healthy hero')!.captureIssues,[]);
+    assert(subjects.find(subject=>subject.title==='Broken showcase')!.captureIssues.some(issue=>issue.includes('Broken image')));
+    assert(subjects.find(subject=>subject.scope==='page')!.captureIssues.some(issue=>issue.includes('Broken image')));
+  }finally{await browser.close();await fixture.close();const target=path.resolve(directory);assert(target.startsWith(path.resolve(os.tmpdir())+path.sep));await rm(target,{recursive:true,force:true,maxRetries:4});}
+});
+
+test('semantic page wrappers with their own hero do not swallow the following sections or split their cards', {timeout:45000},async()=>{
+  const fixture=await captureFixture(),directory=await mkdtemp(path.join(os.tmpdir(),'folio-semantic-wrapper-')),browser=await chromium.launch({channel:'chromium'});
+  try{
+    const capture=await captureViewport({browser,url:`${fixture.url}/semantic-wrapper`,settings,profile:{id:'desktop',width:800,height:600,dpr:2,isMobile:false,hasTouch:false},outputDir:directory});
+    assert.equal(capture.status,'complete',JSON.stringify(capture.warnings));
+    assert.deepEqual(capture.regions.map(region=>region.title),['Product introduction','Features','Customer stories']);
+    assert(capture.regions.every(region=>region.frames.length===1));
+    assert.deepEqual(uncoveredRanges(capture.pageHeight,capture.coverage),[]);
+  }finally{await browser.close();await fixture.close();const target=path.resolve(directory);assert(target.startsWith(path.resolve(os.tmpdir())+path.sep));await rm(target,{recursive:true,force:true,maxRetries:4});}
+});
+
 test('delayed section reveals become readable naturally and permanently hidden sections remain incomplete', {timeout:45000},async t=>{
   const fixture=await captureFixture(),directory=await mkdtemp(path.join(os.tmpdir(),'folio-delayed-reveal-'));
   const browser=await chromium.launch({channel:'chromium'});
@@ -29,6 +52,8 @@ test('delayed section reveals become readable naturally and permanently hidden s
       if(route==='hidden-section'){
         assert.equal(capture.status,'incomplete');assert.equal(hero.frames.length,0,'An invisible section is not published as a complete design');
         assert(capture.evidence.some(item=>item.regionId===hero.id&&item.kind==='unrendered-section'));
+        const subjects=referenceSubjects({schemaVersion:1,pageId:'page',captureId:'capture',captureSignature:'fixture',requestedUrl:capture.requestedUrl,title:capture.title,capturedAt:capture.capturedAt,status:capture.status,reviewStatus:'needs-review',provenance:[],variants:[capture]});
+        assert.deepEqual(subjects.find(subject=>subject.title==='Feature comparison')!.captureIssues,[],'A hidden hero does not invalidate a fully captured feature section');
         assert(uncoveredRanges(capture.pageHeight,capture.coverage).length>0);
       }else{
         assert.equal(capture.status,'complete',JSON.stringify(capture.warnings));

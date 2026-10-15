@@ -312,11 +312,19 @@ export class Workflow {
       }
     }
   }
+  async reviewFailed(runId?:string,clientId?:string) {
+    if(!activeRuns.has(this.config.output))return;
+    if(!runId||!clientId)throw new Error('The owning review session is required.');
+    const active=this.own(runId,clientId);
+    active.state.reason='review_validation_limit';
+    active.abort.abort(new Error('Repeated invalid reviews reached the attempt limit. Saved work remains pending.'));
+    await active.task;
+  }
   async next(contextId: string, runId?: string, clientId?: string) {
     if (contextId !== BRIDGE_CONTEXT_ID) throw new Error('Call get_context first.');
     if (!runId && !activeRuns.has(this.config.output)) {
       this.touch();
-      return this.bridge.next(contextId);
+      return this.bridge.next(contextId,clientId);
     }
     if (!runId || !clientId) throw new Error('Supply runId and clientId from start_run.');
     // Stay below the 30-second launcher request budget; fewer empty calls for slow captures.
@@ -349,8 +357,9 @@ export class Workflow {
       }
       this.own(runId, clientId);
       if (active.state.phase === 'reviewing') {
-        const packet = await this.bridge.next(contextId);
+        const packet = await this.bridge.next(contextId,clientId);
         if (!('done' in packet)) return { ...packet, workflow: this.describe(active.state) };
+        if('needsAttention' in packet&&packet.needsAttention){await this.reviewFailed(runId,clientId);continue;}
         active.advance?.(); // bridge.next has released its writer lock before collection resumes.
       }
       if (Date.now() >= deadline)

@@ -60,6 +60,66 @@ function mockRunner(options:{failure?:()=>boolean;counter?:()=>void;allAccept?:b
   };
 }
 
+test('a broken section cannot quarantine its healthy siblings, while legacy unknown warnings stay conservative',async t=>{
+  const {store,config,manifest,directory}=await setup(t);
+  const variant=manifest.variants[0],broken=variant.regions[1];
+  const message=`Section ${broken.id} remained hidden within the configured readiness budget.`;
+  variant.status='incomplete';variant.warnings=[message];variant.issues=[{regionId:broken.id,message}];
+  variant.coverage=[{start:0,end:200}];broken.frames=[];manifest.status='incomplete';
+  store.publishCapture(manifest,directory);
+  await curateCapture(store,'fixture',config,{runProcess:mockRunner()});
+  const records=store.references();
+  assert.equal(records.find(r=>r.subject.regionId===variant.regions[0].id)!.quality.verdict,'accepted');
+  assert.equal(records.find(r=>r.subject.regionId===broken.id)!.quality.verdict,'repair');
+  assert.equal(records.find(r=>r.subject.scope==='page'&&r.subject.profileId===variant.profile.id)!.quality.verdict,'repair');
+  delete variant.issues;
+  assert(referenceSubjects(manifest).find(s=>s.regionId===variant.regions[0].id)!.captureIssues.includes(message),'Unscoped old warnings cannot be declared harmless');
+});
+
+test('scoped Codex reviews repair invalid responses within the configured budget and never retry authentication failures',async t=>{
+  const {store,config,manifest}=await setup(t);
+  const subject=referenceSubjects(manifest).find(s=>s.title==='Excellent'&&s.profileId==='desktop')!;
+  const base=mockRunner();let calls=0;
+  await curateCapture(store,'fixture',config,{subjectId:subject.id,runProcess:async(...args)=>{
+    if(++calls===1)return {stdout:'',stderr:'',lastMessage:'{}'};
+    if(calls===2)assert.match(args[2].prompt,/LOCAL_VALIDATION_FEEDBACK/);
+    return base(...args);
+  }});
+  assert.equal(calls,4);assert.equal(store.reference(subject.id)!.quality.verdict,'accepted');
+  assert.equal(store.jobs('quality-assessment')[0].attempts,2);
+  calls=0;
+  await curateCapture(store,'fixture',config,{subjectId:subject.id,reassess:true,runProcess:async()=>{calls++;return {stdout:'',stderr:'',lastMessage:'invalid JSON'};}});
+  assert.equal(calls,config.classifier.maxAttempts);assert.equal(store.reference(subject.id)!.quality.verdict,'pending');
+  calls=0;
+  await curateCapture(store,'fixture',config,{subjectId:subject.id,reassess:true,runProcess:async()=>{calls++;throw new Error('Authentication unavailable; login required');}});
+  assert.equal(calls,1);assert.equal(store.reference(subject.id)!.quality.verdict,'pending');
+});
+
+test('reclassification moves readable views without invalidating current or historical catalog asset paths',async t=>{
+  const {store,config,root}=await setup(t);
+  await curateCapture(store,'fixture',config,{runProcess:mockRunner()});
+  const before=await exportAccepted(store),image=before.references[0].images[0];
+  const record=store.reference(before.references[0].id)!;
+  record.classification!.labels.find(label=>label.axis==='visual_style')!.label=TAXONOMY.visual_style.find(concept=>!['unknown','minimalism'].includes(concept.label))!.label;
+  store.saveReference(record);
+  const after=await exportAccepted(store);
+  assert.equal(after.references[0].images[0].path,image.path);
+  assert.notEqual(after.fileViews.publishedImages[image.path],before.fileViews.publishedImages[image.path]);
+  const historical=JSON.parse(await readFile(join(root,before.generation,'catalog.json'),'utf8'));
+  assert.equal(createHash('sha256').update(await readFile(join(root,historical.references[0].images[0].path))).digest('hex'),image.sha256);
+});
+
+test('identical observed states consume one image slot without copying judgments to another subject',async t=>{
+  const {store,config,manifest,directory}=await setup(t);
+  const region=manifest.variants[0].regions[0];region.frames=Array.from({length:30},()=>({...region.frames[0]}));
+  store.publishCapture(manifest,directory);config.quality!.maxImages=1;
+  const subject=referenceSubjects(manifest).find(subject=>subject.regionId===region.id)!;
+  const base=mockRunner();let deliveries=0;
+  await curateCapture(store,'fixture',config,{subjectId:subject.id,runProcess:async(...args)=>{const images=args[1].filter(argument=>argument==='--image');assert.equal(images.length,1);deliveries+=images.length;return base(...args);}});
+  assert.equal(deliveries,3);assert.equal(store.reference(subject.id)!.quality.verdict,'accepted');
+  assert.equal(store.references().length,1,'Other scopes remain unassessed');
+});
+
 test('scopes, mixed labels and viewport acceptance preserve images once and reject weak parents',async t=>{
   const {store,config,root,manifest,directory}=await setup(t);
   const original=JSON.stringify(manifest);
@@ -75,7 +135,8 @@ test('scopes, mixed labels and viewport acceptance preserve images once and reje
   const clean=JSON.parse(await readFile(join(root,catalog.indexes['appearance/clean']),'utf8'));
   const testimonials=JSON.parse(await readFile(join(root,catalog.indexes['section/testimonials']),'utf8'));
   assert.deepEqual(clean.referenceIds,testimonials.referenceIds);
-  assert.match(catalog.references[0].images[0].path,/^categories\/minimalism\//);
+  assert.match(catalog.references[0].images[0].path,/^captures\//,'Catalog paths remain stable when readable categories change');
+  assert.match(catalog.fileViews.publishedImages[catalog.references[0].images[0].path],/^categories\/minimalism\//);
   assert.equal(JSON.stringify(store.capture('fixture')!.manifest),original,'Legacy manifest untouched');
   await curateCapture(store,'fixture',config,{runProcess:mockRunner({counter:()=>calls++})});
   assert.equal(calls,13,'Two quality passes per subject and one accepted enrichment, all cached');
