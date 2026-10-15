@@ -17,6 +17,7 @@ export type QualityRecord = {
   verdict: 'accepted' | 'rejected' | 'uncertain' | 'pending' | 'repair';
   assessedAt: string; experimental: true; reasons: string[];
   model: string; reasoning: string; reportedModels: string[];
+  reviewProfile?:string;
   inspectedImages: string[]; assessment?: QualityPass; critique?: QualityPass;
   reviewRevision?: number;
 };

@@ -175,7 +175,7 @@ test('changing the declared MCP review profile invalidates cached quality withou
   const ledger=new Store(root);try{assert.equal(ledger.reference(subject)!.quality.verdict,'accepted');}finally{ledger.close();}
   const changed=new AnalysisBridge({...config,classifier:{...config.classifier,mcpReviewProfile:'sol-medium-evaluation'}}),next=await changed.next(context.contextId);
   if('done' in next)assert.fail();assert.equal(next.packet.phase,'assessment');assert.equal(next.packet.subjectId,subject);
-  const after=new Store(root);try{assert.equal(after.reference(subject)!.quality.verdict,'pending');assert.equal(after.reference(subject)!.classification,undefined);assert.equal(after.reference(subject)!.qualityHistory!.length,1);}finally{after.close();}
+  const after=new Store(root);try{assert.equal(after.reference(subject)!.quality.verdict,'pending');assert.equal(after.reference(subject)!.quality.reviewProfile,'sol-medium-evaluation');assert.equal(after.reference(subject)!.classification,undefined);assert.equal(after.reference(subject)!.qualityHistory!.length,1);}finally{after.close();}
 });
 function labels(scope: string, id: string) {
   return {

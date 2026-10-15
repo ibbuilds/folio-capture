@@ -14,6 +14,7 @@ import { ReviewValidationError, type ReviewIssue } from './review-validation.ts'
 
 export const RUBRIC_VERSION = '2.0.0-experimental';
 export const SCOPED_PROMPT_VERSION = '3.0.0';
+const SCOPED_TAXONOMY_HASH=hash(TAXONOMY);
 export const CRITERIA = ['hierarchy', 'typography-readability', 'spacing-consistency', 'aesthetic-coherence', 'imagery-content-fit', 'responsive-execution'] as const;
 export function reviewIdentity(settings:Config['classifier']) {
   return settings.runner==='mcp'?{runner:'mcp',profile:settings.mcpReviewProfile??'unspecified'}:{runner:'codex',model:settings.model??'gpt-6.1-sol',reasoning:settings.reasoning??'high'};
@@ -22,7 +23,7 @@ export function qualityCacheKey(subject:ReferenceSubject,config:Config,reviewRev
   return hash({subject,rubric:RUBRIC_VERSION,settings:reviewIdentity(config.classifier),maxImages:config.quality?.maxImages??24,...(reviewRevision?{reviewRevision}:{})});
 }
 export function scopedCacheKey(qualityKey:string,config:Config,revision=0) {
-  return hash({quality:qualityKey,taxonomy:TAXONOMY,taxonomyFingerprint:TAXONOMY_FINGERPRINT,prompt:SCOPED_PROMPT_VERSION,settings:reviewIdentity(config.classifier),...(revision?{classificationRevision:revision}:{})});
+  return hash({quality:qualityKey,taxonomy:SCOPED_TAXONOMY_HASH,taxonomyFingerprint:TAXONOMY_FINGERPRINT,prompt:SCOPED_PROMPT_VERSION,settings:reviewIdentity(config.classifier),...(revision?{classificationRevision:revision}:{})});
 }
 async function validatedVision<T>(request:Parameters<typeof visionJson>[0],validate:(value:unknown)=>T,onAttempt?:()=>void) {
   const attempts=request.settings.runner==='codex'?request.settings.maxAttempts:1;
@@ -122,7 +123,7 @@ export async function curateCapture(store:Store, captureId:string, config:Config
     const record:ReferenceRecord=prior?.quality.cacheKey===key && !options.reassess ? prior : {
       schemaVersion:2,subject,directory:capture.directory,sourceUrl:capture.manifest.requestedUrl,
       quality:{schemaVersion:2,subjectId:subject.id,cacheKey:key,rubricVersion:RUBRIC_VERSION,verdict:'pending',assessedAt:now(),experimental:true,
-        reasons:[],model:settings.runner==='mcp'?'chatgpt-client-selected':settings.model??'gpt-6.1-sol',reasoning:settings.runner==='mcp'?'client-selected':settings.reasoning??'high',reportedModels:[],inspectedImages:[],...(reviewRevision?{reviewRevision}:{})},
+        reasons:[],model:settings.runner==='mcp'?'chatgpt-client-selected':settings.model??'gpt-6.1-sol',reasoning:settings.runner==='mcp'?'client-selected':settings.reasoning??'high',reportedModels:[],inspectedImages:[],...(settings.runner==='mcp'?{reviewProfile:settings.mcpReviewProfile??'unspecified'}:{}),...(reviewRevision?{reviewRevision}:{})},
     };
     if(prior && record!==prior) {
       record.classificationHistory=[...(prior.classificationHistory??[])];retainClassification(record,prior.classification);
