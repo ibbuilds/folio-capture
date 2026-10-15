@@ -64,7 +64,7 @@ test('mobile-only navigation is observed before capture and its destinations sta
       const home=new URL(route.request().url()).pathname==='/';
       return route.fulfill({contentType:'text/html',body:home?`<header id="nav"></header><main><h1>Responsive homepage</h1></main><script>addEventListener('resize',()=>{if(innerWidth>=600||document.querySelector('button'))return;const button=document.createElement('button');button.setAttribute('aria-label','Menu');button.textContent='Menu';button.onclick=()=>{const link=document.createElement('a');link.href='/mobile-page';link.textContent='Mobile page';button.after(link)};document.querySelector('#nav').append(button)})</script>`:'<main><h1>Mobile destination</h1></main>'});
     });return context;};const value=Reflect.get(target,key,target);return typeof value==='function'?value.bind(target):value;}});
-  const config=parseConfig({sources:[{url:'https://responsive.test/',kind:'site',maxPages:2}],discovery:{settleTimeoutMs:500,minDelayMs:20}}),captured:string[]=[];
+  const config=parseConfig({sources:[{url:'https://responsive.test/',kind:'site',maxPages:2}],discovery:{settleTimeoutMs:500,minDelayMs:20,maxScrollSteps:1}}),captured:string[]=[];
   await discoverSite(store,routed,config.sources[0],config.discovery,async url=>{
     if(url==='https://responsive.test/')assert(store.jobs('site-page').some(job=>job.payload.url==='https://responsive.test/mobile-page'));
     captured.push(url);

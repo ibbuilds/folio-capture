@@ -68,7 +68,7 @@ export async function discoverSite(store:Store,browser:Browser|(()=>Promise<Brow
         for(const viewport of [{width:1440,height:1000},{width:390,height:844}]){
           await page.setViewportSize(viewport);await page.evaluate(()=>scrollTo({top:0,behavior:'instant'}));
           previous='';stable=0;lastChange=Date.now();settledEnd=false;
-          for(;steps<Math.min(settings.maxScrollSteps,200)&&Date.now()<deadline;steps++){
+          for(;Date.now()<deadline;){
           signal?.throwIfAborted();
           const revealed=await revealNavigation(page,signal);navigation.push(...revealed.interventions);queue(revealed.links,'navigation-disclosure');
           const metrics=await page.evaluate(()=>({y:scrollY,height:Math.max(document.documentElement.scrollHeight,document.body?.scrollHeight??0,innerHeight),viewport:innerHeight}));
@@ -78,7 +78,10 @@ export async function discoverSite(store:Store,browser:Browser|(()=>Promise<Brow
           stable=bottom&&signature===previous?stable+1:0;previous=signature;
           const loading=await page.locator('[aria-busy="true"],[role="progressbar"]').evaluateAll(nodes=>nodes.some(el=>el.checkVisibility({checkOpacity:true,checkVisibilityCSS:true})&&el.getBoundingClientRect().width>0));
           if(!loading&&stable>=settings.plateauChecks&&Date.now()-lastChange>=Math.max(500,Math.min(settings.settleTimeoutMs,2000))){settledEnd=true;break;}
-          if(!bottom)await page.evaluate(size=>scrollTo({top:scrollY+size,behavior:'instant'}),metrics.viewport*.8);
+          if(!bottom){
+            if(steps>=Math.min(settings.maxScrollSteps,200))break;
+            await page.evaluate(size=>scrollTo({top:scrollY+size,behavior:'instant'}),metrics.viewport*.8);steps++;
+          }
           if(cleanup){const result=await sweepCleanup(page,{...cleanup,preserveSelectors:[...cleanup.preserveSelectors,...source.preserveSelectors??[]],dismissSelectors:[...cleanup.dismissSelectors,...source.dismissSelectors??[]]},interventions);if(result.unresolved.length)throw new Error(`Site navigation blocked: ${result.unresolved.join('; ')}`);}
           await delay(Math.min(250,settings.minDelayMs),signal);
           }
