@@ -56,6 +56,7 @@ export type AnalysisPacket = {
   priorAssessment?: unknown;
   axes?: string[];
   delivered: string[];
+  deliveryClientId?:string;
 };
 type PacketSummary = Pick<AnalysisPacket, 'id' | 'phase' | 'subjectId'>;
 export type ImageDelivery = {
@@ -334,6 +335,7 @@ export class AnalysisBridge {
         images,
         schema: request.schema,
         delivered: old?.payload.delivered || [],
+        ...(old?.payload.deliveryClientId?{deliveryClientId:old.payload.deliveryClientId}:{}),
         ...(phase === 'classification'
           ? {
               axes: classificationAxes(subject),
@@ -425,8 +427,9 @@ export class AnalysisBridge {
   }
   private publicPacket(packet: AnalysisPacket) {
     const aliases = this.aliases(packet);
+    const {deliveryClientId:_deliveryClientId,...publicFields}=packet;
     return {
-      ...packet,
+      ...publicFields,
       images: packet.images.map(({ path: _path, ...image }) => ({
         ...image,
         id: aliases.get(image.id)!,
@@ -552,6 +555,10 @@ export class AnalysisBridge {
             const budgetId=(clientId?store.getJob('mcp-client',clientId)?.payload.runId:undefined)??clientId??'saved';
             if(validation&&validation.payload.budgetId===budgetId&&validation.payload.failures>=this.config.classifier.maxAttempts)
               return {done:true,needsAttention:true,reason:'review_validation_limit',note:'Repeated invalid judgments reached the attempt limit. Saved work remains pending. Start a new run after correcting the classifier.'};
+            if(clientId&&packet.payload.deliveryClientId!==clientId){
+              packet.payload.delivered=[];packet.payload.deliveryClientId=clientId;
+              const metrics=this.metrics(store,packet.payload);delete metrics.lastImageAt;store.job('mcp-metrics',packet.id,metrics);
+            }
             return this.deliver(store, packet.payload);
           }
         }
@@ -562,10 +569,11 @@ export class AnalysisBridge {
       };
     });
   }
-  async images(packetId: string, offset: number, count = 4): Promise<ImageDelivery> {
+  async images(packetId: string, offset: number, count = 4,clientId?:string): Promise<ImageDelivery> {
     return this.locked(async (store) => {
       const packet = store.getJob('mcp-packet', packetId);
       if (packet?.status !== 'pending') throw new Error('Unknown or completed packet.');
+      if(packet.payload.deliveryClientId&&packet.payload.deliveryClientId!==clientId)throw new Error('Retrieve get_packet in this classifier session before reading more images.');
       if (
         offset < 0 ||
         offset >= packet.payload.images.length ||
@@ -591,6 +599,7 @@ export class AnalysisBridge {
       const job = store.getJob('mcp-packet', packetId);
       if (!job) throw new Error('Unknown packet.');
       const packet = job.payload as AnalysisPacket;
+      if(packet.deliveryClientId&&packet.deliveryClientId!==clientId)throw new ReviewValidationError([{path:'images',message:'Retrieve the complete packet in this classifier session before submitting a judgment.'}]);
       const subject = await this.verifyPacket(store, packet);
       const budgetId=(clientId?store.getJob('mcp-client',clientId)?.payload.runId:undefined)??clientId??'saved';
       const previousValidation=store.getJob('mcp-validation',packet.id);

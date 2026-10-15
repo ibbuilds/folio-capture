@@ -152,7 +152,7 @@ export function createBridgeServer(config: Config, dependencies: WorkflowDepende
     },
     async ({ packetId, offset, count, runId, clientId }) => {
       workflow.touch(runId, clientId);
-      return packetResult(await bridge.images(packetId, offset, count));
+      return packetResult(await bridge.images(packetId, offset, count,clientId));
     },
   );
   server.registerTool(

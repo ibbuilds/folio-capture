@@ -177,6 +177,20 @@ test('changing the declared MCP review profile invalidates cached quality withou
   if('done' in next)assert.fail();assert.equal(next.packet.phase,'assessment');assert.equal(next.packet.subjectId,subject);
   const after=new Store(root);try{assert.equal(after.reference(subject)!.quality.verdict,'pending');assert.equal(after.reference(subject)!.quality.reviewProfile,'sol-medium-evaluation');assert.equal(after.reference(subject)!.classification,undefined);assert.equal(after.reference(subject)!.qualityHistory!.length,1);}finally{after.close();}
 });
+
+test('a new classifier conversation must receive every image even when an older conversation already read the complete packet',async t=>{
+  const {bridge}=await fixture(t,10),first=bridge.context();
+  const task=await bridge.next(first.contextId,first.clientId);if('done' in task)assert.fail();
+  let remaining=task.remaining,offset=task.nextOffset;
+  while(remaining){const chunk=await bridge.images(task.packet.id,offset,4,first.clientId);remaining=chunk.remaining;offset=chunk.nextOffset;}
+  const second=bridge.context(),resumed=await bridge.next(second.contextId,second.clientId);if('done' in resumed)assert.fail();
+  assert.equal(resumed.packet.id,task.packet.id);assert.equal(resumed.images.length,4);assert.equal(resumed.remaining,6);
+  await assert.rejects(bridge.submit(resumed.packet.id,pass('i1'),undefined,second.clientId),/Retrieve all packet images/);
+  await assert.rejects(bridge.submit(resumed.packet.id,pass('i1'),undefined,first.clientId),/this classifier session/);
+  remaining=resumed.remaining;offset=resumed.nextOffset;
+  while(remaining){const chunk=await bridge.images(resumed.packet.id,offset,4,second.clientId);remaining=chunk.remaining;offset=chunk.nextOffset;}
+  assert.equal((await bridge.submit(resumed.packet.id,pass('i1'),undefined,second.clientId)).committed,true);
+});
 function labels(scope: string, id: string) {
   return {
     labels: Object.keys(TAXONOMY)
@@ -215,8 +229,8 @@ test('a forged pairing token cannot start collection and a disconnected classifi
   const ctx=bridge.context();const run=await workflow.start(ctx.contextId,ctx.clientId);
   // Saved tasks are deliberately completed before collection; the client then stops requesting work.
   for(;;){const next=await workflow.next(ctx.contextId,run.runId,run.clientId);if('done'in next){if(next.done)assert.fail();break;}
-    while(next.remaining){const more=await bridge.images(next.packet.id,next.nextOffset,4);next.remaining=more.remaining;next.nextOffset=more.nextOffset;}
-    await bridge.submit(next.packet.id,pass(next.images[0].id,false));
+    while(next.remaining){const more=await bridge.images(next.packet.id,next.nextOffset,4,run.clientId);next.remaining=more.remaining;next.nextOffset=more.nextOffset;}
+    await bridge.submit(next.packet.id,pass(next.images[0].id,false),undefined,run.clientId);
   }
   await new Promise(accept=>setTimeout(accept,240));
   const status=await bridge.status();assert.equal(entered,1);assert.equal(advanced,0);assert.equal(status.workflow?.phase,'paused');assert.equal(status.connection.paired,false);
@@ -662,7 +676,7 @@ test('an idle chat pauses rather than claiming completion, and its committed ass
   let run = await workflow.start(context.contextId, context.clientId);
   let packet = await workflow.next(context.contextId, run.runId, run.clientId);
   if ('done' in packet) assert.fail('assessment missing');
-  await bridge.submit(packet.packet.id, pass(packet.images[0].id));
+  await bridge.submit(packet.packet.id, pass(packet.images[0].id),undefined,run.clientId);
   await new Promise((accept) => setTimeout(accept, 120));
   const paused = await workflow.next(context.contextId, run.runId, run.clientId);
   assert.ok('done' in paused && paused.done);
@@ -683,7 +697,7 @@ test('a restarted engine records an interrupted owner honestly and preserves the
   const run = await workflow.start(context.contextId, context.clientId);
   const task = await workflow.next(context.contextId, run.runId, run.clientId);
   if ('done' in task) assert.fail();
-  await bridge.submit(task.packet.id, pass(task.images[0].id));
+  await bridge.submit(task.packet.id, pass(task.images[0].id),undefined,run.clientId);
   await workflow.stop(run.runId, run.clientId);
   const store = new Store(root);
   try {

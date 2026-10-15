@@ -31,7 +31,7 @@ export async function runPairedFixture(
       let offset = next.nextOffset,
         remaining = next.remaining;
       while (remaining) {
-        const chunk = await bridge.images(packet.id, offset, 4);
+        const chunk = await bridge.images(packet.id, offset, 4,started.clientId);
         offset = chunk.nextOffset;
         remaining = chunk.remaining;
         workflow.touch(started.runId, started.clientId);
