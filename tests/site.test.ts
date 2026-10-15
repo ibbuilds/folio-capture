@@ -62,7 +62,7 @@ test('mobile-only navigation is observed before capture and its destinations sta
   const routed=new Proxy(browser,{get(target,key){if(key==='newContext')return async()=>{
     const context=await target.newContext();await context.route('**/*',route=>{
       const home=new URL(route.request().url()).pathname==='/';
-      return route.fulfill({contentType:'text/html',body:home?`<header id="nav"></header><main><h1>Responsive homepage</h1></main><script>addEventListener('resize',()=>{if(innerWidth<600&&!document.querySelector('button'))document.querySelector('#nav').innerHTML='<button aria-label="Menu" onclick="this.insertAdjacentHTML(\'afterend\',\'<a href=/mobile-page>Mobile page</a>\')">Menu</button>'})</script>`:'<main><h1>Mobile destination</h1></main>'});
+      return route.fulfill({contentType:'text/html',body:home?`<header id="nav"></header><main><h1>Responsive homepage</h1></main><script>addEventListener('resize',()=>{if(innerWidth>=600||document.querySelector('button'))return;const button=document.createElement('button');button.setAttribute('aria-label','Menu');button.textContent='Menu';button.onclick=()=>{const link=document.createElement('a');link.href='/mobile-page';link.textContent='Mobile page';button.after(link)};document.querySelector('#nav').append(button)})</script>`:'<main><h1>Mobile destination</h1></main>'});
     });return context;};const value=Reflect.get(target,key,target);return typeof value==='function'?value.bind(target):value;}});
   const config=parseConfig({sources:[{url:'https://responsive.test/',kind:'site',maxPages:2}],discovery:{settleTimeoutMs:500,minDelayMs:20}}),captured:string[]=[];
   await discoverSite(store,routed,config.sources[0],config.discovery,async url=>{
