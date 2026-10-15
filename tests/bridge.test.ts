@@ -220,20 +220,25 @@ test('compact context retains every allowed label and full definitions remain re
 
 test('a forged pairing token cannot start collection and a disconnected classifier cannot advance',async t=>{
   const {config,bridge}=await fixture(t);let entered=0,advanced=0;
-  const workflow=new Workflow(config,{connectionMs:60,waitMs:5,pipeline:async(_config,options={})=>{
+  const realNow=Date.now;let release:(()=>void)|undefined;
+  const workflow=new Workflow(config,{connectionMs:2000,waitMs:5,pipeline:async(_config,options={})=>{
     options.assertClassifierActive?.();entered++;
-    await new Promise(accept=>setTimeout(accept,180));options.assertClassifierActive?.();advanced++;
+    await new Promise<void>(accept=>{release=accept;options.signal?.addEventListener('abort',()=>accept(),{once:true});});options.assertClassifierActive?.();advanced++;
     throw new Error('A disconnected classifier must not reach another capture');
   }});
   await assert.rejects(workflow.start(BRIDGE_CONTEXT_ID,'a'.repeat(64)),/Pairing requires/);
   const ctx=bridge.context();const run=await workflow.start(ctx.contextId,ctx.clientId);
-  // Saved tasks are deliberately completed before collection; the client then stops requesting work.
+  try{
+  // Expire the lease explicitly; filesystem latency is not the behavior under test.
   for(;;){const next=await workflow.next(ctx.contextId,run.runId,run.clientId);if('done'in next){if(next.done)assert.fail();break;}
     while(next.remaining){const more=await bridge.images(next.packet.id,next.nextOffset,4,run.clientId);next.remaining=more.remaining;next.nextOffset=more.nextOffset;}
     await bridge.submit(next.packet.id,pass(next.images[0].id,false),undefined,run.clientId);
   }
-  await new Promise(accept=>setTimeout(accept,240));
+  for(let tries=0;!release&&tries<100;tries++)await new Promise(done=>setTimeout(done,20));
+  assert(release);Date.now=()=>realNow()+3000;release();
+  for(let tries=0;tries<100;tries++){if((await bridge.status()).workflow?.phase==='paused')break;await new Promise(done=>setTimeout(done,20));}
   const status=await bridge.status();assert.equal(entered,1);assert.equal(advanced,0);assert.equal(status.workflow?.phase,'paused');assert.equal(status.connection.paired,false);
+  }finally{Date.now=realNow;await workflow.shutdown();}
 });
 
 test('normal collection defers obsolete geometry to recapture while explicit saved-image review remains available',async t=>{
@@ -306,8 +311,9 @@ test('configured classifier timeout keeps a slow collection paired beyond the fo
 test('an authenticated long poll stays paired while collecting and status alone cannot renew its finite lease',async t=>{
   const {config,bridge}=await fixture(t);
   for(;;){const packet=await bridge.next(BRIDGE_CONTEXT_ID);if('done'in packet)break;await bridge.submit(packet.packet.id,pass(packet.images[0].id,false));}
-  config.classifier.timeoutMs=500;
-  const workflow=new Workflow(config,{waitMs:600,connectionMs:100,pipeline:async(_config,options={})=>{
+  config.classifier.timeoutMs=5000;
+  const realNow=Date.now;
+  const workflow=new Workflow(config,{waitMs:2500,connectionMs:1000,pipeline:async(_config,options={})=>{
     options.signal!.throwIfAborted();
     await new Promise<void>(accept=>options.signal!.addEventListener('abort',()=>accept(),{once:true}));
     options.signal!.throwIfAborted();
@@ -316,14 +322,15 @@ test('an authenticated long poll stays paired while collecting and status alone 
   const context=workflow.bridge.context(),run=await workflow.start(context.contextId,context.clientId);
   try {
     const pending=workflow.next(context.contextId,run.runId,run.clientId);
-    await new Promise(done=>setTimeout(done,200));
+    await new Promise(done=>setTimeout(done,1200));
     const status=await bridge.status();assert.equal(status.workflow?.phase,'collecting');assert.equal(status.connection.paired,true,'An owned get_packet request in flight is active');
     const waiting=await pending;assert('waiting'in waiting&&waiting.waiting);
-    for(let tries=0;tries<20;tries++){
-      await bridge.status();await new Promise(done=>setTimeout(done,15));
+    Date.now=()=>realNow()+10000;
+    for(let tries=0;tries<100;tries++){
+      if((await bridge.status()).workflow?.phase==='paused')break;await new Promise(done=>setTimeout(done,20));
     }
     const paused=await bridge.status();assert.equal(paused.workflow?.phase,'paused');assert.equal(paused.workflow?.reason,'classifier_idle');assert.equal(paused.connection.paired,false);
-  }finally{await workflow.shutdown();}
+  }finally{Date.now=realNow;await workflow.shutdown();}
 });
 
 test('organizing old captures recovers an interrupted rename without changing bytes, IDs or judgments',async t=>{
@@ -595,7 +602,7 @@ test('one ChatGPT start drives backlog, capture, validated review and export; co
       if (result.waiting) {
         sawWaiting = true;
         const status = await call('status');
-        assert.equal(status.workflow.phase, 'collecting');
+        assert(['collecting','reviewing','completed'].includes(status.workflow.phase),'A review can become ready between a waiting response and the status read');
         continue;
       }
       const packet = result.packet;
