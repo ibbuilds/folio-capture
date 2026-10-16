@@ -3,7 +3,7 @@ import { hash } from './utils.ts';
 
 export function captureSignature(config: Config, source: Source, expectedHttpStatus?: 404) {
   return hash({
-    version: 6,
+    version: 7,
     playwright: '1.62.1',
     profiles: config.profiles,
     ...(expectedHttpStatus ? { expectedHttpStatus } : {}),

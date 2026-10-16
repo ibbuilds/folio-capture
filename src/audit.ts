@@ -5,7 +5,8 @@ import { createHash } from 'node:crypto';
 import sharp from 'sharp';
 import { z } from 'zod';
 import type { PageManifest } from './types.ts';
-import type { ReferenceRecord } from './references.ts';
+import { sectionEvidenceIssues, type ReferenceRecord } from './references.ts';
+import { runtimeOwnerAlive } from './runtime-owner.ts';
 import { hasCurrentClassification } from './coverage.ts';
 import { trustedAsset } from './quality.ts';
 import { inside, canonicalUrl, errorMessage, now } from './utils.ts';
@@ -267,6 +268,7 @@ export async function auditOutput(output: string) {
     for (const variant of capture.manifest.variants) {
       if (variant.overview) checkImage(`${capture.directory}/${variant.overview}`);
       for (const region of variant.regions) {
+        for(const message of sectionEvidenceIssues(variant,region))issue('error','capture-evidence-mismatch',message,{path:`${capture.directory}/${region.frames[0]?.path??'manifest.json'}`,subjectId:region.id});
         for (const frame of region.frames) {
           checkImage(`${capture.directory}/${frame.path}`, frame);
           checkImage(`${capture.directory}/${frame.thumbnail}`);
@@ -450,6 +452,11 @@ export async function auditOutput(output: string) {
       : j.payload.phase === 'critique' && !record.quality.critique;
   });
   const workflow = jobs.find((j) => j.stage === 'workflow' && j.key === 'active');
+  let abandoned=false;
+  if(workflow?.status==='running'&&typeof workflow.payload.ownerPid==='number'){
+    abandoned=!runtimeOwnerAlive(workflow.payload.ownerPid);
+    if(abandoned)issue('warning','engine-interrupted','The saved workflow owner is no longer running. Progress is resumable; this is not an active classifier.');
+  }
   if (workflow?.status === 'incomplete' && pendingPackets.length)
     issue(
       'warning',
@@ -497,9 +504,9 @@ export async function auditOutput(output: string) {
         'Unique file bytes exclude allocation/compression. captures holds originals; categories and review share them through hard links. exports retains metadata snapshots.',
     },
     progress: {
-      workflow: workflow?.status ?? 'none',
-      phase: workflow?.payload.phase ?? null,
-      reason: workflow?.payload.reason ?? null,
+      workflow: abandoned?'incomplete':workflow?.status ?? 'none',
+      phase: abandoned?'paused':workflow?.payload.phase ?? null,
+      reason: abandoned?'engine_interrupted':workflow?.payload.reason ?? null,
       pendingReviews: pendingPackets.length,
       obsoleteSavedPackets: savedPendingPackets.length - pendingPackets.length,
       discovery: jobs

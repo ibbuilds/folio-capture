@@ -4,19 +4,35 @@ import { randomUUID, createHash } from 'node:crypto';
 import type { Store } from './store.ts';
 import { atomicJson, idFor, inside, now } from './utils.ts';
 import { trustedAsset, retainClassification } from './quality.ts';
-import type { ReferenceRecord } from './references.ts';
+import { sectionEvidenceIssues, type ReferenceRecord } from './references.ts';
 import type { CaptureProfile } from './types.ts';
 import { hasCurrentClassification, buildCoverage } from './coverage.ts';
 import { taxonomyDocument, TAXONOMY_VERSION } from './taxonomy.ts';
 import { exportFileViews } from './views.ts';
 import { exportCatalog } from './report.ts';
 import { internalName } from './output-paths.ts';
+import { sealExport,pruneExportHistory } from './output-maintenance.ts';
 
 /** Immutable export generations: catalog.json is the single atomic publication point. */
 export async function exportAccepted(store:Store,profiles?:CaptureProfile[]) {
   const taxonomy=taxonomyDocument(),verifiedAssets=new Set<string>();
   const captures=store.exportCaptures(),captureById=new Map(captures.map(c=>[c.id,c]));
   const records=store.exportReferences();
+  const evidenceChecks=new Map(store.exportEvidenceChecks().map(check=>[`${check.captureId}:${check.profileId}`,check]));
+  const repaired=new Set<string>();
+  for(const record of records){
+    const variant=evidenceChecks.get(`${record.subject.captureId}:${record.subject.profileId}`);
+    if(!variant)continue;
+    const issues=variant.regions.filter(region=>record.subject.scope==='page'||record.subject.regionId===region.id).flatMap(region=>sectionEvidenceIssues(variant,region));
+    if(!issues.length||record.quality.verdict==='repair')continue;
+    const full=store.reference(record.subject.id)!;
+    full.qualityHistory??=[];full.qualityHistory.push(full.quality);
+    retainClassification(full);delete full.classification;
+    full.subject.captureIssues=[...new Set([...full.subject.captureIssues,...issues])];
+    full.quality={...full.quality,verdict:'repair',reasons:[...new Set(issues)]};store.saveReference(full);
+    record.quality=full.quality;delete record.classification;repaired.add(record.subject.captureId);
+  }
+  for(const id of repaired){const capture=captureById.get(id)!;await atomicJson(join(inside(store.output,capture.directory),'references.v2.json'),{schemaVersion:2,captureId:id,references:store.references(id)});}
   const eligible=records.filter(r=>r.quality.verdict==='accepted' && hasCurrentClassification(r) && !r.pruned);
   const references=[];
   const exceptions:Array<{id:string;reason:string}>=[];
@@ -87,12 +103,14 @@ export async function exportAccepted(store:Store,profiles?:CaptureProfile[]) {
       rejected:records.filter(r=>r.quality.verdict==='rejected').length,uncertain:records.filter(r=>r.quality.verdict==='uncertain').length,
       pending:records.filter(r=>r.quality.verdict==='pending').length,repair:records.filter(r=>r.quality.verdict==='repair').length},exceptions};
   await atomicJson(join(staging,'catalog.json'),catalog,false);
+  await sealExport(store.output,`${generation}.staging`,generation);
   await rename(staging,inside(store.output,generation));
   await atomicJson(join(store.output,'catalog.json'),catalog,false);
   await atomicJson(join(store.output,internalName('coverage.json')),coverage);
   await atomicJson(join(store.output,internalName('quarantine.json')),{schemaVersion:2,policy:'Logical quarantine: assets stored once at their original capture paths.',
     references:store.quarantineInventory()});
   await exportCatalog(store,false);
+  await pruneExportHistory(store.output,generation);
   return catalog;
 }
 
@@ -104,7 +122,7 @@ export async function pruneQuarantine(store:Store,olderThanDays:number,profiles?
   const candidates=records.filter(r=>r.quality.verdict==='rejected' && Date.parse(r.quality.assessedAt)<=cutoff);
   const candidateIds=new Set(candidates.map(r=>r.subject.id));
   const protectedPaths=new Set<string>();
-  const assets=(record:ReferenceRecord)=>record.subject.frames.flatMap(f=>[`${record.directory}/${f.path}`,`${record.directory}/${f.thumbnail}`]);
+  const assets=(record:ReferenceRecord)=>[...new Set(record.subject.frames.flatMap(f=>[`${record.directory}/${f.path}`,`${record.directory}/${f.thumbnail}`]))];
   for(const record of records)if(!candidateIds.has(record.subject.id))for(const path of assets(record))protectedPaths.add(inside(store.output,path));
   for(const capture of store.captures()) {
     if(!capture.manifest)continue;

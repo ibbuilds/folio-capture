@@ -464,12 +464,16 @@ export class AnalysisBridge {
     offset = 0,
     count = 4,
     metadataIncluded = true,
+    onlyUndelivered=false,
   ) {
     const localStart = performance.now();
     await this.verifyPacket(store, packet, false);
     const images = [];
     let bytes = 0;
-    for (const image of packet.images.slice(offset, offset + count)) {
+    let nextOffset=offset;
+    const selected=packet.images.map((image,index)=>({image,index})).filter(({image,index})=>index>=offset&&(!onlyUndelivered||!packet.delivered.includes(image.id))).slice(0,count);
+    const delivered:string[]=[];
+    for (const {image,index} of selected) {
       const data = await this.imageBytes(store, image);
       if (data.length > 12 * 1024 * 1024)
         throw new Error(
@@ -477,6 +481,7 @@ export class AnalysisBridge {
         );
       if (images.length && bytes + data.length > 12 * 1024 * 1024) break;
       bytes += data.length;
+      delivered.push(image.id);nextOffset=index+1;
       images.push({
         id: this.aliases(packet).get(image.id)!,
         data: data.toString('base64'),
@@ -486,7 +491,7 @@ export class AnalysisBridge {
     packet.delivered = [
       ...new Set([
         ...packet.delivered,
-        ...packet.images.slice(offset, offset + images.length).map((i) => i.id),
+        ...delivered,
       ]),
     ];
     store.job('mcp-packet', packet.id, packet);
@@ -496,7 +501,7 @@ export class AnalysisBridge {
         ? full
         : { id: packet.id, phase: packet.phase, subjectId: packet.subjectId },
       images,
-      nextOffset: offset + images.length,
+      nextOffset,
       remaining: packet.images.length - packet.delivered.length,
       metadataIncluded,
     };
@@ -559,7 +564,8 @@ export class AnalysisBridge {
               packet.payload.delivered=[];packet.payload.deliveryClientId=clientId;
               const metrics=this.metrics(store,packet.payload);delete metrics.lastImageAt;store.job('mcp-metrics',packet.id,metrics);
             }
-            return this.deliver(store, packet.payload);
+            const offset=packet.payload.images.findIndex((image:PacketImage)=>!packet.payload.delivered.includes(image.id));
+            return this.deliver(store, packet.payload,offset<0?packet.payload.images.length:offset,4,true,true);
           }
         }
       }

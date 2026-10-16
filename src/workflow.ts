@@ -30,6 +30,7 @@ type ActiveRun = {
   lastActivity: number;
   timer: ReturnType<typeof setInterval>;
   receiptAt: number;
+  warmupBaseline?: number;
 };
 const activeRuns = new Map<string, ActiveRun>();
 export type WorkflowDependencies = {
@@ -82,12 +83,19 @@ export class Workflow {
     }
     return active;
   }
-  private async waitForReview(active: ActiveRun, captureId?: string) {
+  private completedReviews() {
+    const store=new Store(this.config.output);
+    try{return Number(store.db.prepare("SELECT count(*) AS count FROM jobs WHERE stage='mcp-response' AND status='complete'").get()!.count);}
+    finally{store.close();}
+  }
+  private async waitForReview(active: ActiveRun, captureId?: string, warmup=false) {
     active.state.phase = 'reviewing';
     active.state.captureId = captureId;
+    active.warmupBaseline=warmup?this.completedReviews():undefined;
     await new Promise<void>((accept, reject) => {
       const abort = () => {
         active.advance = undefined;
+        active.warmupBaseline=undefined;
         reject(active.abort.signal.reason);
       };
       active.advance = () => {
@@ -246,15 +254,23 @@ export class Workflow {
         },
         log: this.dependencies.runOptions?.log ?? ((message) => console.error(message)),
         onCaptureReady: async (captureId) => {
-          // Surface the first result promptly instead of empty polling through three slow pages.
-          if(firstCapture || ++batchPages >= (this.config.collection?.reviewBatchPages??3)) {
-            firstCapture=false;batchPages=0;await this.waitForReview(active,captureId);
+          const batchLimit=this.config.collection?.reviewBatchPages??3;
+          batchPages++;
+          if(firstCapture){
+            firstCapture=false;
+            // Confirm the classifier is actually responding, then fill the bounded batch.
+            // Every remaining judgment is still mandatory at the full/final batch gate.
+            await this.waitForReview(active,captureId,batchLimit>1);
+            if(batchLimit===1)batchPages=0;
+          }else if(batchPages>=batchLimit){
+            batchPages=0;await this.waitForReview(active,captureId);
           }
         },
       });
-      // The final partial batch is mandatory too; completed never means capture-only.
-      if(batchPages)await this.waitForReview(active);
       state.summary = summary;
+      // The final partial batch is mandatory too; completed never means capture-only.
+      // An interrupted collector retains pending review and its resumable summary.
+      if(batchPages&&!summary.interrupted&&!active.abort.signal.aborted)await this.waitForReview(active);
       const snapshot = await this.bridge.status();
       summary.classified = snapshot.classified;
       summary.pendingClassification =
@@ -357,6 +373,7 @@ export class Workflow {
       }
       this.own(runId, clientId);
       if (active.state.phase === 'reviewing') {
+        if(active.warmupBaseline!==undefined&&this.completedReviews()>active.warmupBaseline){active.advance?.();continue;}
         const packet = await this.bridge.next(contextId,clientId);
         if (!('done' in packet)) return { ...packet, workflow: this.describe(active.state) };
         if('needsAttention' in packet&&packet.needsAttention){await this.reviewFailed(runId,clientId);continue;}

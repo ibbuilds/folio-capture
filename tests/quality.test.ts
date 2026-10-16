@@ -76,6 +76,32 @@ test('a broken section cannot quarantine its healthy siblings, while legacy unkn
   assert(referenceSubjects(manifest).find(s=>s.regionId===variant.regions[0].id)!.captureIssues.includes(message),'Unscoped old warnings cannot be declared harmless');
 });
 
+test('a complete section with empty viewport evidence is repaired without grading the wrong screenshot',async t=>{
+  const {store,config,manifest,directory}=await setup(t);const variant=manifest.variants[0],region=variant.regions[0];
+  region.referenceKind='section';variant.evidence.push({id:'wrong-crop-state',regionId:region.id,kind:'capture-state',value:{bounds:region.bounds,dom:{scope:'visible-frame',text:'',headings:[],media:[]}}});
+  store.publishCapture(manifest,directory);let calls=0;
+  const subject=referenceSubjects(manifest).find(subject=>subject.regionId===region.id)!;
+  await curateCapture(store,'fixture',config,{subjectId:subject.id,runProcess:async()=>{calls++;throw new Error('Wrong pixels must never reach a classifier');}});
+  assert.equal(calls,0);assert.equal(store.reference(subject.id)!.quality.verdict,'repair');assert.match(store.reference(subject.id)!.quality.reasons.join(' '),/recapture/);
+});
+
+test('export detects inconsistent legacy crops through compact evidence checks and preserves prior decisions',async t=>{
+  const {store,config,manifest,directory}=await setup(t),variant=manifest.variants[0],region=variant.regions[0];
+  region.referenceKind='section';store.publishCapture(manifest,directory);
+  await curateCapture(store,'fixture',config,{runProcess:mockRunner({allAccept:true})});
+  assert.equal((await exportAccepted(store)).references.length,6);
+  const original=store.references().find(record=>record.subject.regionId===region.id)!;
+  variant.evidence.push({id:'legacy-wrong-crop',regionId:region.id,kind:'capture-state',value:{bounds:region.bounds,dom:{scope:'visible-frame',text:'',headings:[],media:[]}}});
+  store.publishCapture(manifest,directory);
+  const checks=store.exportEvidenceChecks();assert(!JSON.stringify(checks).includes('Excellent'),'DOM presence is checked without decoding complete text');
+  assert.equal((await exportAccepted(store)).references.length,4,'Only the affected section and its whole-page claim require repair');
+  const repaired=store.reference(original.subject.id)!;
+  assert.equal(repaired.quality.verdict,'repair');assert.equal(repaired.qualityHistory!.at(-1)!.verdict,'accepted');
+  assert.deepEqual(repaired.classificationHistory!.at(-1),original.classification);assert(repaired.subject.evidence.length);
+  const mobile=store.references().find(record=>record.subject.profileId==='mobile'&&record.subject.scope==='page')!;
+  assert.equal(mobile.quality.verdict,'accepted');
+});
+
 test('scoped Codex reviews repair invalid responses within the configured budget and never retry authentication failures',async t=>{
   const {store,config,manifest}=await setup(t);
   const subject=referenceSubjects(manifest).find(s=>s.title==='Excellent'&&s.profileId==='desktop')!;
@@ -128,9 +154,9 @@ test('an accepted page with no qualifying sections has a visible category entry 
     return base(...args);
   }});
   const catalog=await exportAccepted(store);assert.equal(catalog.references.length,1);assert.equal(catalog.references[0].scope,'page');
-  for(const image of catalog.references[0].images){const view=catalog.fileViews.publishedImages[image.path];assert.match(view,/^categories\/minimalism\/.*\/whole-page\/desktop\//);await access(join(root,view));}
+  for(const image of catalog.references[0].images){const view=catalog.fileViews.publishedImages[image.path];assert.match(view,/^categories\/minimalism\/.*\/whole-page\//);await access(join(root,view));}
   assert(store.references().filter(record=>record.subject.scope==='section').every(record=>record.quality.verdict==='rejected'));
-  assert.equal(Object.keys(catalog.fileViews.publishedImages).length,4,'Each source frame gets one visible path, including rejected mobile review');
+  assert.equal(Object.keys(catalog.fileViews.publishedImages).length,2,'Only accepted page images are visible; rejected variants stay in internal quarantine');
 });
 
 test('scopes, mixed labels and viewport acceptance preserve images once and reject weak parents',async t=>{
@@ -185,6 +211,22 @@ test('readable category views use hard links and safely preserve user files duri
   await assert.rejects(access(join(root,image.path)));
   assert.equal(await readFile(join(root,notePath),'utf8'),'User notes');
   assert.equal(await readFile(join(root,metadata),'utf8'),'User replacement');
+});
+
+test('accepted viewport variants share one section folder and rejected images do not clutter review',async t=>{
+  const {store,config,root}=await setup(t);
+  await curateCapture(store,'fixture',config,{runProcess:mockRunner({allAccept:true})});
+  const catalog=await exportAccepted(store);
+  const sections=catalog.references.filter(reference=>reference.scope==='section'&&reference.title==='Excellent');assert.equal(sections.length,2);
+  const paths=sections.map(reference=>catalog.fileViews.publishedImages[reference.images[0].path]);
+  assert.equal(paths[0].split('/').slice(0,-1).join('/'),paths[1].split('/').slice(0,-1).join('/'),'Desktop and mobile belong to the same section folder');
+  const metadata=JSON.parse(await readFile(join(root,paths[0].replace(/[^/]+$/,'reference.json')),'utf8'));
+  assert.deepEqual(new Set(metadata.variants.map((variant:any)=>variant.profileId)),new Set(['desktop','mobile']));
+  assert.equal(new Set(metadata.variants.flatMap((variant:any)=>variant.images.map((image:any)=>image.path))).size,2);
+  for(const record of store.references()){if(record.subject.profileId==='mobile'){record.quality.verdict='rejected';store.saveReference(record);}}
+  const changed=await exportAccepted(store);assert(Object.values(changed.fileViews.publishedImages).every(path=>!path.includes('--mobile--')));
+  const inventory=JSON.parse(await readFile(join(root,'.folio/file-views.json'),'utf8'));assert(!inventory.files.some((file:any)=>file.path.startsWith('review/')&&file.source));
+  assert(store.references().some(record=>record.subject.profileId==='mobile'&&record.quality.verdict==='rejected'),'Quarantine retains decisions; organization does not delete evidence');
 });
 
 test('interrupted critique resumes the saved first pass; model errors never accept',async t=>{

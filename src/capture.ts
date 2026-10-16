@@ -9,6 +9,7 @@ import { documentToViewport, intersectRect, mergeCoverage, uncoveredRanges } fro
 import { sweepCleanup } from './cleanup.ts';
 import { guardNuisances } from './nuisance.ts';
 import { captureRegionImage, captureCompleteSection, prepareSectionCapture } from './image-capture.ts';
+import { sectionEvidenceIssues } from './references.ts';
 import { imageName, NAMING_VERSION } from './naming.ts';
 import { ResolvedDuplicate } from './utils.ts';
 
@@ -202,7 +203,7 @@ async function describe(page: Page): Promise<{ title: string; description: strin
     const chosen = [...new Set([...leafBands, ...inferred, ...chrome, ...introductions])];
     const regions = chosen.map(el => {
       const r = el.getBoundingClientRect(), style = getComputedStyle(el), descendants = all.filter(child => el === child || el.contains(child)).slice(0, 1500);
-      const headings = heading(el), first = (ownHeading(el)?.textContent??headings[0]?.text??'').replace(/\s+/g,' ').trim();
+      const headings = heading(el), own=ownHeading(el) as HTMLElement|null, first = (own?.innerText??own?.textContent??headings[0]?.text??'').replace(/\s+/g,' ').trim();
       const stickyElements = descendants.filter(child => ['sticky', 'fixed'].includes(getComputedStyle(child).position)).map(child => ({ tag: child.tagName.toLowerCase(), text: (child.textContent ?? '').trim().slice(0, 100), position: getComputedStyle(child).position }));
       const text = ((el as HTMLElement).innerText ?? '').trim().slice(0, 6000);
       const media = descendants.filter(child => child.matches('img,video,iframe,canvas,svg')).slice(0, 40).map(child => {
@@ -339,6 +340,12 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
   const relativeWrite = async (relative: string, buffer: Buffer) => {
     const target = path.join(outputDir, ...relative.split('/'));
     await mkdir(path.dirname(target), { recursive: true }); await writeFile(target, buffer);
+  };
+  const preview = async (imagePath:string,suffix:string,buffer:Buffer) => {
+    if(!settings.thumbnails)return imagePath;
+    const thumbnail=`thumbnails/${profile.id}/${suffix}.webp`;
+    await relativeWrite(thumbnail,await sharp(buffer).resize({width:480,withoutEnlargement:true}).webp({quality:85}).toBuffer());
+    return thumbnail;
   };
   const cleanup = async (regionId?:string) => {
     check();
@@ -499,8 +506,8 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
               result.environment.referenceImageMethods??={};
               const methods=result.environment.referenceImageMethods as Record<string,number>;methods['complete-section']=(methods['complete-section']??0)+1;
               const suffix=imageName(options.url,profile.id,{section:region,part:1});
-              const imagePath=`${profile.id}/sections/${suffix}.png`,thumbnail=`thumbnails/${profile.id}/${suffix}.webp`;
-              await relativeWrite(imagePath,complete.buffer);await relativeWrite(thumbnail,await sharp(complete.buffer).resize({width:480,withoutEnlargement:true}).webp({quality:85}).toBuffer());
+              const imagePath=`${profile.id}/sections/${suffix}.png`;
+              await relativeWrite(imagePath,complete.buffer);const thumbnail=await preview(imagePath,suffix,complete.buffer);
               region.frames.push({path:imagePath,thumbnail,width:complete.crop.width,height:complete.crop.height,sha256:createHash('sha256').update(complete.buffer).digest('hex'),bounds:complete.bounds,scrollY:scroll.y,kind:'static'});
               const evidenceId=`${suffix}-state`;region.evidenceIds.push(evidenceId);
               result.evidence.push({id:evidenceId,regionId:region.id,kind:'capture-state',value:{scroll,viewport:profile,bounds:complete.bounds,navigationOcclusion:nav,method:'complete-section',dom:await frameDom(page,documentToViewport(complete.bounds,scroll.x,scroll.y),region.selector)}});
@@ -521,9 +528,9 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
         result.environment.referenceImageMethods??={};
         const methods=result.environment.referenceImageMethods as Record<string,number>;methods[image.method]=(methods[image.method]??0)+1;
         const suffix = imageName(options.url,profile.id,{section:region,part:++part,...(region.roleHint==='scroll-dependent'?{stateKey:region.id}:{})});
-        const imagePath = `${profile.id}/sections/${suffix}.png`, thumbnail = `thumbnails/${profile.id}/${suffix}.webp`;
+        const imagePath = `${profile.id}/sections/${suffix}.png`;
         await relativeWrite(imagePath, encoded);
-        await relativeWrite(thumbnail, await sharp(encoded).resize({ width: 480, withoutEnlargement: true }).webp({ quality: 85 }).toBuffer());
+        const thumbnail=await preview(imagePath,suffix,encoded);
         region.frames.push({ path: imagePath, thumbnail, width: crop.width, height: crop.height, sha256: createHash('sha256').update(encoded).digest('hex'),
           bounds: visible, scrollY: scroll.y, kind: region.roleHint === 'scroll-dependent' ? 'scroll-state' : region.method === 'viewport-fallback' ? 'viewport-fallback' : 'static' });
         frameCount++;
@@ -626,9 +633,9 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
           result.environment.referenceImageMethods??={};
           const methods=result.environment.referenceImageMethods as Record<string,number>;methods[image.method]=(methods[image.method]??0)+1;
           const suffix = imageName(options.url,profile.id,{section:parent,stateKey:scroller.key,part:parent.frames.length+1});
-          const imagePath = `${profile.id}/sections/${suffix}.png`, thumbnail = `thumbnails/${profile.id}/${suffix}.webp`;
+          const imagePath = `${profile.id}/sections/${suffix}.png`;
           await relativeWrite(imagePath, encoded);
-          await relativeWrite(thumbnail, await sharp(encoded).resize({ width: 480, withoutEnlargement: true }).webp({ quality: 85 }).toBuffer());
+          const thumbnail=await preview(imagePath,suffix,encoded);
           parent.frames.push({ path: imagePath, thumbnail, width: crop.width, height: crop.height, sha256: createHash('sha256').update(encoded).digest('hex'), bounds: visible, scrollY: metrics.scroll.y, kind: 'scroll-state' });
           frameCount++;
           const leadingClip = scroller.direction === 'rtl' ? Math.max(0, metrics.bounds.x + metrics.bounds.width - content.x - content.width) : Math.max(0, content.x - metrics.bounds.x);
@@ -677,6 +684,8 @@ export async function captureViewport(options: CaptureOptions): Promise<Viewport
     const gaps = uncoveredRanges(result.pageHeight, result.coverage);
     if (gaps.length) { warn('Capture coverage contains gaps.'); result.evidence.push({ id: `${profile.id}-coverage-gaps`, kind: 'coverage-gaps', value: gaps }); }
     result.status = result.warnings.length ? 'incomplete' : 'complete';
+    for(const region of result.regions)for(const issue of sectionEvidenceIssues(result,region))warn(issue,region.id);
+    if(result.warnings.length&&result.status==='complete')result.status='incomplete';
     result.stoppingReason = reachedBottom ? result.status === 'complete' ? 'page_end' : 'quality_warning' : 'exploration_limit';
   } catch (error) {
     if(error instanceof ResolvedDuplicate)throw error;

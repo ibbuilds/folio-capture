@@ -15,6 +15,7 @@ type ViewReference = {
   profileId: string;
   order?: number;
   scope?: string;
+  sectionId?:string;
   labels?: Label[];
   images: Array<{ path: string; kind?: string }>;
 };
@@ -42,7 +43,7 @@ function folder(reference: ViewReference) {
     reference.scope === 'page'
       ? 'whole-page'
       : `s${String((reference.order ?? 0) + 1).padStart(3, '0')}-${nameComponent(reference.title, 32)}`;
-  return `${captureKey(pageFolder(reference.url))}/${section}/${nameComponent(reference.profileId, 32)}`;
+  return `${captureKey(pageFolder(reference.url))}/${section}`;
 }
 function primaryAesthetic(reference:ViewReference) {
   return reference.labels?.find(label=>label.axis==='visual_style'&&label.role==='primary'&&label.label!=='unknown'&&['model','human'].includes(label.provenance));
@@ -70,37 +71,32 @@ export async function exportFileViews(
     claimed = new Set<string>();
   const publishedImages: Record<string, string> = {};
   const readableFolder = (reference: ViewReference) => {
-    const existing = assigned.get(reference.id);
+    const identity=JSON.stringify([reference.url,reference.scope,reference.scope==='page'?null:reference.sectionId??[reference.order,reference.title]]);
+    const existing = assigned.get(identity);
     if (existing) return existing;
     const base = folder(reference);
     let directory = base,
       ordinal = 1;
     while (claimed.has(directory)) directory = `${base}--${++ordinal}`;
-    assigned.set(reference.id, directory);
+    assigned.set(identity, directory);
     claimed.add(directory);
     return directory;
   };
-  const add = (directory: string, reference: ViewReference, note: unknown) => {
-    for (const [i, image] of reference.images.entries()) {
+  const add = (directory: string, reference: ViewReference, note: Record<string,unknown>,publishImages=true) => {
+    for (const [i, image] of (publishImages?reference.images:[]).entries()) {
       if (publishedImages[image.path]) continue;
       const path = `${directory}/${imageName(reference.url, reference.profileId, { ...(reference.scope === 'page' ? {} : { section: { title: reference.title, order: reference.order ?? 0 } }), part: i + 1, ...(image.kind === 'scroll-state' ? { stateKey: 'scroll' } : {}) })}.png`;
       publishedImages[image.path] = path;
       desired.push({ path, source: image.path });
     }
     const path = `${directory}/reference.json`;
-    desired.push({ path });
-    notes.set(
-      path,
-      typeof note === 'object' && note !== null
-        ? {
-            ...note,
-            images: reference.images.map((image) => ({
-              ...image,
-              path: publishedImages[image.path] ?? image.path,
-            })),
-          }
-        : note,
-    );
+    if(!notes.has(path)){
+      desired.push({path});
+      notes.set(path,{schemaVersion:2,url:reference.url,title:reference.title,scope:reference.scope,order:reference.order,
+        ...(directory.startsWith('categories/')?{primaryAesthetic:primaryAesthetic(reference)?.label??null}:{}),variants:[]});
+    }
+    const document=notes.get(path) as {variants:unknown[]};
+    document.variants.push({...note,profileId:reference.profileId,images:reference.images.map(image=>({...image,path:publishedImages[image.path]??image.path}))});
   };
   void indexes; // Other dimensions are metadata indexes, never additional image folders.
   for (const reference of references.filter((r) => r.scope === 'section')) {
@@ -128,6 +124,7 @@ export async function exportFileViews(
   )) {
     if (
       record.pruned ||
+      record.quality.verdict==='rejected' ||
       (record.quality.verdict === 'accepted' && hasCurrentClassification(record))
     )
       continue;
@@ -138,17 +135,15 @@ export async function exportFileViews(
       profileId: record.subject.profileId,
       order: record.subject.order,
       scope: record.subject.scope,
+      sectionId:record.subject.sectionId,
       images: record.subject.frames.map((f) => ({
         path: `${record.directory}/${f.path}`,
         kind: f.kind,
       })),
     };
-    // Whole-page decisions can expose otherwise unowned context frames, never duplicate section PNGs.
-    if (
-      record.subject.scope === 'page' &&
-      reference.images.every((image) => publishedImages[image.path])
-    )
-      continue;
+    // A page review references its section originals. It never republishes rejected
+    // sections or creates another set of viewport folders just for page context.
+    const hasSections=record.subject.scope==='page'&&records.some(candidate=>candidate.subject.captureId===record.subject.captureId&&candidate.subject.profileId===record.subject.profileId&&candidate.subject.scope==='section');
     const status =
       record.quality.verdict === 'accepted' ? 'classification-pending' : record.quality.verdict;
     add(`review/${readableFolder(reference)}`, reference, {
@@ -158,7 +153,7 @@ export async function exportFileViews(
       scope: record.subject.scope,
       reasons: record.quality.reasons,
       images: reference.images,
-    });
+    },!hasSections);
   }
   const inventory: Inventory = { schemaVersion: 1, files: [], exceptions: [] };
   const ownedPath = (name: string) => {

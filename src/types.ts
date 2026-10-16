@@ -11,6 +11,7 @@ export type CaptureSettings = {
   maxScrollSteps: number; explorationTimeoutMs: number; contextPixels: number;
   frameOverlap: number; cleanupPasses: number; cleanupTimeoutMs: number;
   preserveSelectors: string[]; dismissSelectors: string[];
+  thumbnails?:boolean;
 };
 export type DiscoverySettings = {
   navigationTimeoutMs: number; settleTimeoutMs: number; plateauChecks: number;
