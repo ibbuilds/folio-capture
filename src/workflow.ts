@@ -267,9 +267,10 @@ export class Workflow {
           }
         },
       });
-      // The final partial batch is mandatory too; completed never means capture-only.
-      if(batchPages)await this.waitForReview(active);
       state.summary = summary;
+      // The final partial batch is mandatory too; completed never means capture-only.
+      // An interrupted collector retains pending review and its resumable summary.
+      if(batchPages&&!summary.interrupted&&!active.abort.signal.aborted)await this.waitForReview(active);
       const snapshot = await this.bridge.status();
       summary.classified = snapshot.classified;
       summary.pendingClassification =
