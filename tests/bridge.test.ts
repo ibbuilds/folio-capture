@@ -253,12 +253,12 @@ test('paired collection reviews its first capture immediately, then bounded batc
   const {root,config,bridge}=await fixture(t);
   for(;;){const packet=await bridge.next(BRIDGE_CONTEXT_ID);if('done'in packet)break;await bridge.submit(packet.packet.id,pass(packet.images[0].id,false));}
   const steps:string[]=[];
-  let releaseFirst!:()=>void,releaseFourth!:()=>void;
-  const firstReady=new Promise<void>(accept=>{releaseFirst=accept;}),fourthReady=new Promise<void>(accept=>{releaseFourth=accept;});
+  let releaseFirst!:()=>void,releaseThird!:()=>void;
+  const firstReady=new Promise<void>(accept=>{releaseFirst=accept;}),thirdReady=new Promise<void>(accept=>{releaseThird=accept;});
   const workflow=new Workflow(config,{waitMs:5,pipeline:async(_config,options={})=>{
     for(const id of ['first','second','third','fourth','fifth']){
       if(id==='first')await firstReady;
-      else if(id==='fourth')await fourthReady;
+      else if(id==='third')await thirdReady;
       else await new Promise(done=>setTimeout(done,15));
       await options.onCaptureReady!(id);steps.push(id);
     }
@@ -274,14 +274,45 @@ test('paired collection reviews its first capture immediately, then bounded batc
   }
   assert(state);assert.equal(state.captureId,'first');assert.equal(state.phase,'reviewing');assert.deepEqual(steps,[]);
   await workflow.next(context.contextId,started.runId,started.clientId);
-  releaseFourth();
+  releaseThird();
   for(let tries=0;tries<50;tries++){
     const snapshot=new Store(root);try{state=snapshot.getJob('workflow','active')!.payload;}finally{snapshot.close();}
-    if(state?.captureId==='fourth')break;await new Promise(done=>setTimeout(done,10));
+    if(state?.captureId==='third')break;await new Promise(done=>setTimeout(done,10));
   }
-  assert(state);assert.equal(state.captureId,'fourth');assert.equal(state.phase,'reviewing');assert.deepEqual(steps,['first','second','third']);
+  assert(state);assert.equal(state.captureId,'third');assert.equal(state.phase,'reviewing');assert.deepEqual(steps,['first','second']);
   for(;;){const result=await workflow.next(context.contextId,started.runId,started.clientId);if('done'in result&&result.done){assert('phase'in result);assert.equal(result.phase,'completed');break;}}
   assert.deepEqual(steps,['first','second','third','fourth','fifth']);
+});
+
+test('one committed first-page judgment fills the bounded collection batch but cannot skip its remaining reviews',async t=>{
+  const {root,config,bridge,manifest,directory}=await fixture(t);
+  for(;;){const task=await bridge.next(BRIDGE_CONTEXT_ID);if('done'in task)break;await bridge.submit(task.packet.id,pass(task.images[0].id,false));}
+  const captured:string[]=[],released:string[]=[];
+  const workflow=new Workflow(config,{waitMs:5,pipeline:async(_config,options={})=>{
+    const store=new Store(root);try{
+      const page=store.page(manifest.requestedUrl),next={...manifest,captureId:'new-fixture'};
+      store.createCapture(page,'sig',directory,'staging','new-fixture');store.publishCapture(next,directory);
+    }finally{store.close();}
+    for(const id of ['first','second','third']){captured.push(id);await options.onCaptureReady!(id);released.push(id);}
+    return {discovered:0,queued:0,captured:3,reused:0,unresolved:0,incomplete:0,unsupported:0,blocked:0,failed:0,classified:0,pendingClassification:0,interrupted:false};
+  }});
+  t.after(()=>workflow.shutdown());
+  const context=workflow.bridge.context(),run=await workflow.start(context.contextId,context.clientId);
+  let initial:Awaited<ReturnType<Workflow['next']>>;
+  for(;;){initial=await workflow.next(context.contextId,run.runId,run.clientId);if('packet'in initial)break;assert(!('done'in initial&&initial.done));}
+  assert.deepEqual(captured,['first']);assert.equal(initial.packet.phase,'assessment');
+  await bridge.submit(initial.packet.id,pass(initial.images[0].id),undefined,run.clientId);
+  let remaining:Awaited<ReturnType<Workflow['next']>>;
+  for(;;){remaining=await workflow.next(context.contextId,run.runId,run.clientId);if('packet'in remaining)break;assert(!('done'in remaining&&remaining.done));}
+  assert.deepEqual(captured,['first','second','third']);assert.deepEqual(released,['first','second']);
+  assert.equal(remaining.packet.phase,'critique','The original subject still needs its independent second judgment');
+  for(;;){
+    const task=remaining;
+    if('packet'in task)await bridge.submit(task.packet.id,pass(task.images[0].id,false),undefined,run.clientId);
+    remaining=await workflow.next(context.contextId,run.runId,run.clientId);
+    if('done'in remaining&&remaining.done){assert('phase'in remaining&&remaining.phase==='completed');break;}
+  }
+  assert.deepEqual(released,['first','second','third']);
 });
 
 test('configured classifier timeout keeps a slow collection paired beyond the former one-minute lease',async t=>{
@@ -973,6 +1004,19 @@ test('ten original frames use three bounded deliveries, compact follow-ups and c
   const critique = await bridge.next(BRIDGE_CONTEXT_ID);
   if ('done' in critique) assert.fail();
   assert.deepEqual((critique.packet.priorAssessment as any).evidenceIds, ['i1']);
+});
+
+test('polling the same review advances undelivered images without repeatedly retransmitting its first frames',async t=>{
+  const {bridge,root}=await fixture(t,8);const context=bridge.context();
+  const first=await bridge.next(context.contextId,context.clientId);if('done'in first)assert.fail();
+  const second=await bridge.next(context.contextId,context.clientId);if('done'in second)assert.fail();
+  assert.equal(first.packet.id,second.packet.id);assert.equal(first.images.length,4);assert.equal(second.images.length,4);
+  assert.equal(new Set([...first.images,...second.images].map(image=>image.id)).size,8);
+  const ready=await bridge.next(context.contextId,context.clientId);if('done'in ready)assert.fail();
+  assert.equal(ready.images.length,0);assert.equal(ready.remaining,0);assert.equal(ready.packet.images.length,8,'Metadata retains canonical image descriptions for citations');
+  const reread=await bridge.images(first.packet.id,0,1,context.clientId);assert.equal(reread.images[0].id,first.images[0].id,'Explicit rereads remain possible');
+  const store=new Store(root);try{const metrics=store.getJob('mcp-metrics',first.packet.id)!;assert.equal(metrics.payload.imageBytes,[...first.images,...second.images,...reread.images].reduce((sum,image)=>sum+Buffer.from(image.data,'base64').length,0));}finally{store.close();}
+  await bridge.submit(first.packet.id,pass(first.images[0].id),undefined,context.clientId);
 });
 
 test('tampering with an already delivered frame still prevents commitment after later batches', async (t) => {

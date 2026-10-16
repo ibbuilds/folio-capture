@@ -116,6 +116,7 @@ export function createBridgeServer(config: Config, dependencies: WorkflowDepende
             metadataIncluded: result.metadataIncluded,
             nextOffset: result.nextOffset,
             remainingImages: result.remaining,
+            ...(!result.images.length&&!result.remaining?{next:'All original images were already delivered in this classifier session. Submit the result using the packet image IDs, or explicitly call get_images to inspect a frame again.'}:{}),
             ...('workflow' in result ? { workflow: result.workflow } : {}),
           }),
         },
@@ -130,7 +131,7 @@ export function createBridgeServer(config: Config, dependencies: WorkflowDepende
     'get_packet',
     {
       description:
-        'Get the next review with full metadata, a classification resultTemplate and up to four original PNGs. May wait up to 20 seconds while collecting. Use short packet-local evidence IDs. Keep this metadata for get_images. waiting:true means call get_packet again immediately with the same session; do not end the turn. Only done:true ends this run. Work only on this subject/viewport.',
+        'Get the next review with full metadata, a classification resultTemplate and up to four undelivered original PNGs. Repeated calls continue remaining images; after full delivery, submit the result or use get_images for an explicit reread. May wait up to 20 seconds while collecting. Use short packet-local evidence IDs. Keep this metadata for get_images. waiting:true means call get_packet again immediately with the same session; do not end the turn. Only done:true ends this run. Work only on this subject/viewport.',
       inputSchema: { contextId: identifier, ...session },
       annotations: write,
     },
