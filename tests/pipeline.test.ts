@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, mkdir, writeFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve, sep } from 'node:path';
+import { join, resolve, sep, dirname } from 'node:path';
 import { parseConfig } from '../src/config.ts';
 import { runPipeline as unpairedPipeline, validateCaptureFiles } from '../src/pipeline.ts';
 import { runPairedFixture as runPipeline } from './support/paired-capture.ts';
@@ -27,6 +27,17 @@ test('paired multi-page collection classifies complete sections across all six p
   const abort=new AbortController();
   const interrupted=await runPipeline(config,{signal:abort.signal,log:message=>{if(message===`Capture ${origin}/pricing`)abort.abort();}},{qualify:true});
   assert.equal(interrupted.interrupted,true);
+  const oldStage='.folio/staging/fixture/home/superseded',pendingStage='.folio/staging/fixture/home/pending';
+  const saved=new Store(root);
+  try{
+    const page=saved.page(origin),published=saved.capture(page.latestCaptureId!)!,variant=published.manifest!.variants[0],frame=variant.regions[0].frames[0];
+    saved.createCapture(page,'obsolete-signature','.folio/captures/fixture/home/superseded',oldStage,'obsolete-checkpoint');
+    saved.db.prepare("UPDATE captures SET status='superseded' WHERE id='obsolete-checkpoint'").run();
+    await mkdir(dirname(join(root,oldStage,frame.path)),{recursive:true});await writeFile(join(root,oldStage,frame.path),await readFile(join(root,published.directory,frame.path)));
+    await writeFile(join(root,oldStage,`${variant.profile.id}/result.json`),JSON.stringify({profile:variant.profile,requestedUrl:page.url,regions:[{frames:[frame]}]}));
+    saved.createCapture(page,'pending-signature','.folio/captures/fixture/home/pending',pendingStage,'pending-checkpoint');
+    await mkdir(join(root,pendingStage),{recursive:true});await writeFile(join(root,pendingStage,'unfinished.txt'),'Resumable work');
+  }finally{saved.close();}
   const resumed=await runPipeline(config,{log:()=>{}},{qualify:true});assert.equal(resumed.interrupted,false);
   const ledger=new Store(root);
   try{
@@ -34,14 +45,30 @@ test('paired multi-page collection classifies complete sections across all six p
     assert(ledger.latestCaptures().every(capture=>capture.manifest!.variants.length===6&&capture.manifest!.variants.every(variant=>variant.status==='complete'&&variant.regions.length===2&&variant.regions.every(region=>region.referenceKind==='section'&&region.frames.length===1))),JSON.stringify(ledger.latestCaptures().map(capture=>({url:capture.manifest!.requestedUrl,variants:capture.manifest!.variants.map(variant=>({profile:variant.profile.id,status:variant.status,warnings:variant.warnings,regions:variant.regions.map(region=>({title:region.title,kind:region.referenceKind,frames:region.frames.length}))}))}))));
     assert(ledger.references().every(record=>record.quality.verdict==='accepted'&&record.classification));
     assert.equal(ledger.jobs('site-discovery')[0].stoppingReason,'navigation_graph_exhausted');
+    assert.equal(ledger.capture('obsolete-checkpoint')!.stagingDirectory,null,'Normal resume maintains obsolete staging automatically');
+    assert.equal(ledger.capture('pending-checkpoint')!.stagingDirectory,pendingStage,'Unfinished checkpoints are retained');
   }finally{ledger.close();}
   const catalog=JSON.parse(await readFile(join(root,'catalog.json'),'utf8'));
   assert.equal(catalog.pages.length,3);assert.equal(catalog.references.filter((reference:any)=>reference.scope==='section').length,36);
   assert.deepEqual(new Set(catalog.references.map((reference:any)=>reference.profileId)),new Set(config.profiles.map(profile=>profile.id)));
   assert.equal(Object.keys(catalog.fileViews.publishedImages).length,36,'Whole-page and secondary classifications do not multiply visible images');
   assert(Object.values(catalog.fileViews.publishedImages).every(path=>String(path).startsWith('categories/minimalism/')));
+  const imagePaths=Object.values(catalog.fileViews.publishedImages) as string[];
+  const sectionFolders=[...new Set(imagePaths.map(path=>path.split('/').slice(0,-1).join('/')))];
+  assert.equal(sectionFolders.length,6,'Normal capture automatically groups three pages into their six real sections');
+  for(const folder of sectionFolders){
+    const metadata=JSON.parse(await readFile(join(root,folder,'reference.json'),'utf8'));
+    assert.deepEqual(new Set(metadata.variants.map((variant:any)=>variant.profileId)),new Set(config.profiles.map(profile=>profile.id)));
+    assert.equal((await readdir(join(root,folder))).filter(name=>name.endsWith('.png')).length,6);
+  }
+  await assert.rejects(stat(join(root,oldStage)));assert.equal(await readFile(join(root,pendingStage,'unfinished.txt'),'utf8'),'Resumable work');
+  assert.equal((await readdir(join(root,'.folio/exports'))).length,2,'Export history is bounded without running organize or clean');
   const integrity=await auditOutput(root);assert.equal(integrity.healthy,true,JSON.stringify(integrity.issues));
   const repeated=await runPipeline(config,{log:()=>{}},{qualify:true});assert.equal(repeated.captured,0);assert.equal(repeated.reused,3);
+  const repeatedCatalog=JSON.parse(await readFile(join(root,'catalog.json'),'utf8'));
+  assert.deepEqual(Object.values(repeatedCatalog.fileViews.publishedImages).sort(),[...imagePaths].sort(),'A normal repeated run does not multiply category image paths');
+  assert.equal((await readdir(join(root,'.folio/exports'))).length,2);
+  assert.equal(await readFile(join(root,pendingStage,'unfinished.txt'),'utf8'),'Resumable work');
 });
 
 test('unpaired MCP and unavailable Codex are refused before any browser or capture, including direct script calls',async t=>{

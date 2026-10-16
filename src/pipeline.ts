@@ -8,6 +8,7 @@ import { heuristicClassification, classificationCacheKey } from './classificatio
 import { Store, type CaptureRecord } from './store.ts';
 import { curateCapture } from './quality.ts';
 import { exportAccepted } from './catalog.ts';
+import { pruneSupersededStaging } from './output-maintenance.ts';
 import { shareCaptureAssets, registerCaptureAssets } from './assets.ts';
 import { ensureCodexReady } from './classifier-ready.ts';
 import { captureVersion } from './naming.ts';
@@ -320,6 +321,11 @@ export async function runPipeline(config: Config, options: RunOptions = {}): Pro
     throw error;
   }finally{
     summary.queued=store.jobs('capture',['pending','running']).length;
-    try{await browser?.close();}finally{try{if(locked)await publishIndexes();}finally{store.close();}}
+    try{await browser?.close();}finally{try{if(locked){
+      await publishIndexes();
+      const maintenance=await pruneSupersededStaging(store);
+      if(maintenance.removed.length)log(`Output: removed ${maintenance.removed.length} superseded capture checkpoints.`);
+      for(const item of maintenance.preserved)log(`Output maintenance preserved ${item.path}: ${item.reason}`);
+    }}finally{store.close();}}
   }
 }

@@ -129,19 +129,28 @@ export async function pruneExportHistory(output: string, current: string, allowL
 /** Only superseded, unpublished checkpoints with a newer published capture qualify.
  * Complete captures, pending work, unknown files, and changed PNGs are preserved. */
 export async function pruneSupersededStaging(store: Store) {
-  store.assertNoEngines();
+  // The active collector may maintain its own output. Other stores, even in the
+  // same process, cannot bypass the writer lock to remove checkpoints.
+  store.assertOwnedLock();
   const pages = new Map(store.pages().map((page) => [page.id, page]));
   const removed: string[] = [],
     preserved: Array<{ path: string; reason: string }> = [];
   for (const capture of store.captures()) {
     const directory = capture.stagingDirectory,
       page = pages.get(capture.pageId);
+    const replacement = page?.latestCaptureId ? store.capture(page.latestCaptureId) : undefined;
     if (
       capture.status !== 'superseded' ||
       capture.manifest ||
       !directory ||
-      !page?.latestCaptureId ||
-      !store.capture(page.latestCaptureId)?.manifest
+      !page ||
+      !replacement?.manifest ||
+      replacement.manifest.status !== 'complete' ||
+      !replacement.manifest.variants.length ||
+      replacement.manifest.variants.some(
+        (variant) =>
+          variant.status !== 'complete' || !variant.regions.some((region) => region.frames.length),
+      )
     )
       continue;
     let scanned = false;
@@ -190,6 +199,16 @@ export async function pruneSupersededStaging(store: Store) {
       }
       if (files.some((name) => !expected.has(name)))
         throw new Error('Unknown checkpoint files preserved.');
+      // Automatic removal requires an intact replacement, not just a newer ledger row.
+      for (const variant of replacement.manifest.variants)
+        for (const region of variant.regions)
+          for (const frame of region.frames) {
+            const bytes = await readFile(
+              await trustedAsset(store.output, `${replacement.directory}/${frame.path}`),
+            );
+            if (createHash('sha256').update(bytes).digest('hex') !== frame.sha256)
+              throw new Error('Replacement capture requires repair; checkpoint preserved.');
+          }
       const target = await trustedAsset(store.output, directory);
       inside(await trustedAsset(store.output, '.folio/staging'), target);
       await rm(target, { recursive: true, force: true, maxRetries: 3 });

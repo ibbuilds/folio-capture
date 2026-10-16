@@ -68,6 +68,12 @@ export class Store {
     this.db.prepare("DELETE FROM meta WHERE key='runtime_lock' AND json_extract(value,'$.token')=?").run(this.lockToken);
     this.lockToken = undefined;
   }
+  assertOwnedLock() {
+    const row=this.db.prepare("SELECT value FROM meta WHERE key='runtime_lock'").get();
+    const owner=row?JSON.parse(String(row.value)):undefined;
+    if(!this.lockToken||owner?.token!==this.lockToken||owner.pid!==process.pid)
+      throw new Error('Output maintenance requires this store\'s exclusive runtime lock.');
+  }
   close() { this.releaseLock(); this.db.close(); }
   registerEngine() {
     this.acquireLock();
