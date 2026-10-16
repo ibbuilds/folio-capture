@@ -262,6 +262,15 @@ test('automatic checkpoint maintenance permits the active writer and refuses unl
   try {
     await assert.rejects(pruneSupersededStaging(owner), /exclusive runtime lock/);
     owner.acquireLock();
+    owner.captures = () => {
+      throw new Error('Maintenance must not decode every saved manifest');
+    };
+    owner.pages = () => {
+      throw new Error('Maintenance must not decode every page provenance record');
+    };
+    owner.capture = () => {
+      throw new Error('No obsolete checkpoint means no replacement manifest reads');
+    };
     assert.deepEqual(
       (await pruneSupersededStaging(owner)).removed,
       [],
