@@ -9,6 +9,7 @@ import { exportAccepted } from './catalog.ts';
 import { exportCatalog } from './report.ts';
 import { validateStoredCapture } from './pipeline.ts';
 import { captureKey, internalName } from './output-paths.ts';
+import { pruneExportHistory,pruneSupersededStaging } from './output-maintenance.ts';
 
 /** Move existing capture versions into readable site/page folders, with a durable rename ledger.
  * IDs, hashes, decisions and relative frame paths are preserved. No browser/model is started. */
@@ -174,7 +175,9 @@ export async function organizeOutput(
   // temporarily relocated assets as broken design or erase their saved classification.
   if (!exceptions.length) {
     await exportCatalog(store, false);
-    await exportAccepted(store, profiles);
+    const catalog=await exportAccepted(store, profiles);
+    const exports=await pruneExportHistory(store.output,catalog.generation,true),staging=await pruneSupersededStaging(store);
+    return {moved,exceptions,maintenance:{exports,staging}};
   }
   return { moved, exceptions };
 }
