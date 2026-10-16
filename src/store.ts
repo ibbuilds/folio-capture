@@ -31,6 +31,7 @@ export class Store {
       CREATE TABLE IF NOT EXISTS captures (id TEXT PRIMARY KEY, page_id TEXT NOT NULL REFERENCES pages(id), signature TEXT NOT NULL, directory TEXT NOT NULL, staging_directory TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, manifest TEXT, classification TEXT);
       CREATE INDEX IF NOT EXISTS jobs_stage_status ON jobs(stage,status);
       CREATE INDEX IF NOT EXISTS captures_page_signature ON captures(page_id,signature,created_at);
+      CREATE INDEX IF NOT EXISTS captures_obsolete_staging ON captures(status) WHERE status='superseded' AND manifest IS NULL AND staging_directory IS NOT NULL;
       CREATE TABLE IF NOT EXISTS reference_records (id TEXT PRIMARY KEY, capture_id TEXT NOT NULL REFERENCES captures(id), record TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS references_capture ON reference_records(capture_id);
       CREATE INDEX IF NOT EXISTS pages_latest_capture ON pages(latest_capture_id);
@@ -67,6 +68,12 @@ export class Store {
     if (!this.lockToken) return;
     this.db.prepare("DELETE FROM meta WHERE key='runtime_lock' AND json_extract(value,'$.token')=?").run(this.lockToken);
     this.lockToken = undefined;
+  }
+  assertOwnedLock() {
+    const row=this.db.prepare("SELECT value FROM meta WHERE key='runtime_lock'").get();
+    const owner=row?JSON.parse(String(row.value)):undefined;
+    if(!this.lockToken||owner?.token!==this.lockToken||owner.pid!==process.pid)
+      throw new Error('Output maintenance requires this store\'s exclusive runtime lock.');
   }
   close() { this.releaseLock(); this.db.close(); }
   registerEngine() {
