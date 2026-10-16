@@ -205,9 +205,13 @@ export async function pruneSupersededStaging(store: Store) {
         throw new Error('Unknown checkpoint files preserved.');
       // Automatic removal requires an intact replacement, not just a newer ledger row.
       if (!verifiedReplacements.has(replacement.id)) {
+        if (!/^(?:\.folio\/)?captures\//.test(replacement.directory))
+          throw new Error('Replacement is not published capture storage; checkpoint preserved.');
+        const replacementRoot = await trustedAsset(store.output, replacement.directory);
         for (const variant of replacement.manifest.variants)
           for (const region of variant.regions)
             for (const frame of region.frames) {
+              inside(replacementRoot, frame.path);
               const bytes = await readFile(
                 await trustedAsset(store.output, `${replacement.directory}/${frame.path}`),
               );

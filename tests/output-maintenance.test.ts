@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, writeFile, rename, rm, access } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { createHash } from 'node:crypto';
 import {
   sealExport,
@@ -207,6 +207,26 @@ test('superseded staging cleanup removes only verified unpublished checkpoints w
     );
     await access(join(root, stage));
     await writeFile(join(root, publishedDirectory, frame.path), png);
+    replacement.variants[0].regions[0].frames[0].path = relative(
+      join(root, publishedDirectory),
+      join(root, stage, frame.path),
+    ).replaceAll('\\', '/');
+    store.publishCapture(replacement, publishedDirectory);
+    assert.equal(
+      (await pruneSupersededStaging(store)).removed.length,
+      0,
+      'A replacement pointing into the checkpoint cannot authorize deleting those bytes',
+    );
+    await access(join(root, stage));
+    replacement.variants[0].regions[0].frames[0].path = frame.path;
+    store.publishCapture(replacement, stage);
+    assert.equal(
+      (await pruneSupersededStaging(store)).removed.length,
+      0,
+      'A staged directory cannot masquerade as a published replacement',
+    );
+    await access(join(root, stage));
+    store.publishCapture(replacement, publishedDirectory);
     store.releaseLock();
     const summary = await runPipeline(
       parseConfig({ output: root, sources: [page.url], classifier: { runner: 'codex' } }),
