@@ -134,6 +134,15 @@ test('audit detects changed pixels and missing managed category paths without re
   assert.deepEqual(await readFile(join(output, directory, 'section.png')), bad);
 });
 
+test('audit catches a hash-valid wrong-section viewport and reports a dead owner as paused without changing saved state',async t=>{
+  const {output,directory,manifest}=await fixture(t);const variant=manifest.variants[0],region=variant.regions[0];region.referenceKind='section';
+  variant.evidence=[{id:'region-dom',regionId:region.id,kind:'region-dom',value:{text:'Overview content'}},{id:'wrong-crop-state',regionId:region.id,kind:'capture-state',value:{bounds:region.bounds,dom:{scope:'visible-frame',text:'',headings:[],media:[]}}}];
+  const store=new Store(output);try{store.publishCapture(manifest,directory);const job=store.job('workflow','active',{phase:'reviewing',ownerPid:2147483647});store.start(job);}finally{store.close();}
+  await atomicJson(join(output,directory,'manifest.json'),manifest);
+  const result=await auditOutput(output);assert.equal(result.healthy,false);assert(result.issues.some(issue=>issue.code==='capture-evidence-mismatch'));assert.equal(result.progress.phase,'paused');assert.equal(result.progress.reason,'engine_interrupted');
+  const saved=new Store(output);try{assert.equal(saved.getJob('workflow','active')!.status,'running','Read-only audit does not rewrite the registry');}finally{saved.close();}
+});
+
 test('malformed export metadata is reported as an integrity error instead of crashing the audit', async (t) => {
   const { output } = await fixture(t);
   await writeFile(join(output, 'catalog.json'), '{}');

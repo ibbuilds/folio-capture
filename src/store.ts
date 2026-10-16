@@ -2,11 +2,12 @@ import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import type { JobStatus, PageManifest, Provenance, Classification } from './types.ts';
+import type { JobStatus, PageManifest, Provenance, Classification, Region, EvidenceItem } from './types.ts';
 import { canonicalUrl, idFor, now } from './utils.ts';
 import type { ReferenceRecord } from './references.ts';
 import { pageFolder } from './naming.ts';
 import { databaseName } from './output-paths.ts';
+import { runtimeOwnerAlive } from './runtime-owner.ts';
 
 export type Job = { id: string; stage: string; key: string; status: JobStatus; attempts: number; payload: any; result: any; error: string | null; stoppingReason: string | null; createdAt: string; updatedAt: string };
 export type PageRecord = { id: string; url: string; provenance: Provenance[]; latestCaptureId: string | null };
@@ -54,8 +55,7 @@ export class Store {
       const row = this.db.prepare("SELECT value FROM meta WHERE key='runtime_lock'").get() as { value: string } | undefined;
       if (row) {
         const owner = JSON.parse(row.value) as { pid: number };
-        let alive = true;
-        try { process.kill(owner.pid, 0); } catch (e) { if ((e as NodeJS.ErrnoException).code === 'ESRCH') alive = false; }
+        const alive=runtimeOwnerAlive(owner.pid);
         if (alive) throw new Error(`Another Folio Capture run owns this output folder (PID ${owner.pid}).`);
       }
       this.lockToken = randomUUID();
@@ -78,7 +78,7 @@ export class Store {
   assertNoEngines() {
     for(const row of this.db.prepare("SELECT value FROM meta WHERE key LIKE 'engine:%'").all()){
       const owner=JSON.parse(String(row.value));
-      try{process.kill(owner.pid,0);}catch(error){if((error as NodeJS.ErrnoException).code==='ESRCH')continue;throw error;}
+      if(!runtimeOwnerAlive(owner.pid))continue;
       throw new Error('Stop the Folio engine/bridge with Ctrl+C before resetting its output.');
     }
   }
@@ -97,8 +97,7 @@ export class Store {
     const active=this.getJob('workflow','active');
     if(active?.status!=='running')return;
     if(active.payload.runId===runId && active.payload.ownerPid===process.pid)return;
-    try { process.kill(active.payload.ownerPid,0); }
-    catch(error) { if((error as NodeJS.ErrnoException).code==='ESRCH')return; }
+    if(!runtimeOwnerAlive(active.payload.ownerPid))return;
     throw new Error('An automatic Folio workflow owns collection. Use its ChatGPT loop or stop_run before starting another collector.');
   }
   requirePairedWorkflow(runId?:string) {
@@ -240,6 +239,26 @@ export class Store {
         FROM json_each(c.manifest,'$.variants')))) AS manifest
       FROM captures c JOIN pages p ON p.latest_capture_id=c.id WHERE c.manifest IS NOT NULL ORDER BY c.created_at,c.id`).iterate();
     return Array.from(rows,row=>this.decodeCapture(row));
+  }
+  /** Keep only the presence/geometry needed for consistency checks. Full DOM and
+   * image evidence must not be decoded again for every exported reference. */
+  exportEvidenceChecks():Array<{captureId:string;profileId:string;regions:Array<Pick<Region,'id'|'bounds'|'referenceKind'>>;evidence:EvidenceItem[]}> {
+    const rows=this.db.prepare(`SELECT c.id AS capture_id,json_extract(v.value,'$.profile.id') AS profile_id,
+      json_object('regions',json((SELECT json_group_array(json_object('id',json_extract(r.value,'$.id'),
+        'bounds',json_extract(r.value,'$.bounds'),'referenceKind',json_extract(r.value,'$.referenceKind')))
+        FROM json_each(v.value,'$.regions') r)),
+      'evidence',json((SELECT json_group_array(json_object('regionId',json_extract(e.value,'$.regionId'),
+        'kind',json_extract(e.value,'$.kind'),'value',CASE WHEN json_extract(e.value,'$.kind')='region-dom'
+          THEN json_object('text',substr(trim(coalesce(json_extract(e.value,'$.value.text'),'')),1,1))
+          ELSE json_object('method',json_extract(e.value,'$.value.method'),'bounds',json_extract(e.value,'$.value.bounds'),
+            'dom',json_object('scope',json_extract(e.value,'$.value.dom.scope'),
+              'text',substr(trim(coalesce(json_extract(e.value,'$.value.dom.text'),'')),1,1),
+              'headings',json(CASE WHEN json_array_length(e.value,'$.value.dom.headings')>0 THEN '[true]' ELSE '[]' END),
+              'media',json(CASE WHEN json_array_length(e.value,'$.value.dom.media')>0 THEN '[true]' ELSE '[]' END))) END))
+        FROM json_each(v.value,'$.evidence') e WHERE json_extract(e.value,'$.kind') IN ('region-dom','capture-state')))) AS checks
+      FROM captures c JOIN pages p ON p.latest_capture_id=c.id JOIN json_each(c.manifest,'$.variants') v
+      WHERE c.manifest IS NOT NULL`).iterate();
+    return Array.from(rows,row=>({captureId:String(row.capture_id),profileId:String(row.profile_id),...JSON.parse(String(row.checks))}));
   }
   quarantineInventory():Array<{id:string;verdict:string;reasons:string[];pruned:ReferenceRecord['pruned']|null}> {
     const rows=this.db.prepare(`SELECT json_object('id',json_extract(record,'$.subject.id'),

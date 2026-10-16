@@ -30,13 +30,14 @@ test('broken media in a neighboring section does not invalidate the current clea
   }finally{await browser.close();await fixture.close();const target=path.resolve(directory);assert(target.startsWith(path.resolve(os.tmpdir())+path.sep));await rm(target,{recursive:true,force:true,maxRetries:4});}
 });
 
-test('semantic page wrappers with their own hero do not swallow the following sections or split their cards', {timeout:45000},async()=>{
+test('semantic page wrappers retain readable heading boundaries and optional previews without splitting their cards', {timeout:45000},async()=>{
   const fixture=await captureFixture(),directory=await mkdtemp(path.join(os.tmpdir(),'folio-semantic-wrapper-')),browser=await chromium.launch({channel:'chromium'});
   try{
-    const capture=await captureViewport({browser,url:`${fixture.url}/semantic-wrapper`,settings,profile:{id:'desktop',width:800,height:600,dpr:2,isMobile:false,hasTouch:false},outputDir:directory});
+    const capture=await captureViewport({browser,url:`${fixture.url}/semantic-wrapper`,settings:{...settings,thumbnails:true},profile:{id:'desktop',width:800,height:600,dpr:2,isMobile:false,hasTouch:false},outputDir:directory});
     assert.equal(capture.status,'complete',JSON.stringify(capture.warnings));
-    assert.deepEqual(capture.regions.map(region=>region.title),['Product introduction','Features','Customer stories']);
+    assert.deepEqual(capture.regions.map(region=>region.title),['Product introduction','Features Overview','Customer stories']);
     assert(capture.regions.every(region=>region.frames.length===1));
+    for(const region of capture.regions)for(const frame of region.frames){assert.notEqual(frame.thumbnail,frame.path);const preview=await sharp(await readFile(path.join(directory,frame.thumbnail))).metadata();assert.equal(preview.format,'webp');assert(preview.width!<=480);}
     assert.deepEqual(uncoveredRanges(capture.pageHeight,capture.coverage),[]);
   }finally{await browser.close();await fixture.close();const target=path.resolve(directory);assert(target.startsWith(path.resolve(os.tmpdir())+path.sep));await rm(target,{recursive:true,force:true,maxRetries:4});}
 });
@@ -77,6 +78,7 @@ test('named page sections survive full-page decoration and nested cards, with on
       assert(capture.regions.every(r=>r.referenceKind==='section'&&r.frames.length===1),'Each real section is one original PNG');
       assert.equal(capture.regions[0].frames[0].height,height*2,'Context does not create an extra hero image');
       assert(!capture.overview,'Successful hero is not saved twice');
+      assert(capture.regions.every(region=>region.frames.every(frame=>frame.thumbnail===frame.path)),'The normal folder workflow does not create separate thumbnails');
       assert.deepEqual(uncoveredRanges(capture.pageHeight,capture.coverage),[]);
       const subjects=referenceSubjects({schemaVersion:1,pageId:'page',captureId:'capture',captureSignature:'fixture',requestedUrl:capture.requestedUrl,title:capture.title,capturedAt:capture.capturedAt,status:'complete',reviewStatus:'unreviewed',provenance:[],variants:[capture]});
       assert.equal(subjects.filter(s=>s.scope==='section').length,8,'Cards and decoration never create separate classification jobs');

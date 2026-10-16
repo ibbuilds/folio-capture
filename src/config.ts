@@ -24,6 +24,7 @@ const configSchema = z.object({
     maxScrollSteps: positive.default(200), explorationTimeoutMs: positive.default(120000), contextPixels: z.number().int().min(0).max(500).default(64),
     frameOverlap: z.number().min(0.05).max(0.5).default(0.15), cleanupPasses: positive.max(5).default(3), cleanupTimeoutMs: positive.default(10000),
     preserveSelectors: z.array(z.string()).default([]), dismissSelectors: z.array(z.string()).default([]),
+    thumbnails:z.boolean().default(false),
   }).strict().prefault({}),
   discovery: z.object({ navigationTimeoutMs: positive.default(45000), settleTimeoutMs: positive.default(10000), plateauChecks: positive.default(3), maxScrollSteps: positive.default(500), maxDurationMs: positive.default(1800000), minDelayMs: positive.default(1000), maxEntries: positive.optional() }).strict().prefault({}),
   quality: z.object({ maxImages: positive.max(100).default(24), quarantineDays: positive.default(30) }).strict().prefault({}),

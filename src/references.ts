@@ -1,4 +1,4 @@
-import type { EvidenceItem, ImageFrame, Label, PageManifest } from './types.ts';
+import type { EvidenceItem, ImageFrame, Label, PageManifest, Region, ViewportCapture } from './types.ts';
 import { idFor } from './utils.ts';
 
 export type ReferenceSubject = {
@@ -35,6 +35,22 @@ export type ReferenceRecord = {
   pruned?: { at: string; paths: string[] };
 };
 
+/** A viewport that claims to contain the entire semantic section must contain
+ * its observed DOM too. This catches stale-scroll crops without guessing style. */
+export function sectionEvidenceIssues(variant:Pick<ViewportCapture,'evidence'>,region:Pick<Region,'id'|'bounds'|'referenceKind'>):string[] {
+  const source=variant.evidence.find(item=>item.regionId===region.id&&item.kind==='region-dom')?.value as {text?:string}|undefined;
+  if(region.referenceKind!=='section'||!source?.text?.trim())return [];
+  for(const item of variant.evidence.filter(item=>item.regionId===region.id&&item.kind==='capture-state')){
+    const state=item.value as {method?:string;bounds?:Region['bounds'];dom?:{scope?:string;text?:string;headings?:unknown[];media?:unknown[]}};
+    if(state.method==='complete-section'||!state.bounds||!state.dom||state.dom.scope!=='visible-frame')continue;
+    const a=state.bounds,b=region.bounds;
+    if(a.y<=b.y+1&&a.y+a.height>=b.y+b.height-1&&a.x<=b.x+1&&a.x+a.width>=b.x+b.width-1&&
+      !state.dom.text?.trim()&&!state.dom.headings?.length&&!state.dom.media?.length)
+      return ['Recorded viewport evidence contains none of the complete section content; the screenshot requires recapture.'];
+  }
+  return [];
+}
+
 export function referenceSubjects(manifest: PageManifest): ReferenceSubject[] {
   const siteId = idFor(new URL(manifest.requestedUrl).origin);
   const subjects: ReferenceSubject[] = [];
@@ -45,7 +61,7 @@ export function referenceSubjects(manifest: PageManifest): ReferenceSubject[] {
     // Unlocalized capture warnings cannot safely be interpreted as design weaknesses.
     const coverageWarning=(message:string)=>/^(Capture coverage contains gaps|Exploration limit reached)/.test(message);
     // Old unscoped warnings remain conservative; new issues identify the affected section.
-    const scoped=variant.issues??[];
+    const scoped=[...variant.issues??[],...variant.regions.flatMap(region=>sectionEvidenceIssues(variant,region).map(message=>({regionId:region.id,message})))];
     const legacy=variant.warnings.filter(w=>!coverageWarning(w)&&!scoped.some(issue=>issue.message===w));
     const globalIssues=[...legacy,...scoped.filter(issue=>!issue.regionId&&!coverageWarning(issue.message)).map(issue=>issue.message)];
     if (variant.status === 'blocked' || variant.status === 'failed') globalIssues.push(`Capture ${variant.status}`);

@@ -122,3 +122,40 @@ test('unexpected native clip dimensions fall back to a verified full screenshot'
     assert.equal(image?.method,'sharp-crop');assert.ok((await sharp(image!.buffer).ensureAlpha().raw().toBuffer()).equals(pixels));
   }finally{await context.close();}
 });
+
+test('a rejected complete-section capture restores scroll before a viewport fallback',async()=>{
+  const {page,context,profile}=await fixture(2);
+  try{
+    const bad=await sharp({create:{width:1,height:1,channels:3,background:'red'}}).png().toBuffer();
+    const wrapped=new Proxy(page,{get(target,key){
+      if(key==='context')return ()=>new Proxy(context,{get(c,k){
+        if(k==='newCDPSession')return async()=>{const session=await c.newCDPSession(target);return new Proxy(session,{get(s,p){
+          if(p==='send')return async(method:string,args:any)=>{if(method==='Page.captureScreenshot'){await target.evaluate(()=>scrollTo(0,0));return {data:bad.toString('base64')};}return s.send(method as any,args);};
+          const value=Reflect.get(s,p,s);return typeof value==='function'?value.bind(s):value;
+        }});};
+        const value=Reflect.get(c,k,c);return typeof value==='function'?value.bind(c):value;
+      }});
+      const value=Reflect.get(target,key,target);return typeof value==='function'?value.bind(target):value;
+    }});
+    const pixels=await expected(page,{x:0,y:0,width:640,height:300},2);
+    assert.equal(await captureCompleteSection(wrapped,{x:0,y:900,width:640,height:900},profile),null);
+    assert.equal(await page.evaluate(()=>scrollY),900);
+    const fallback=await captureRegionImage(page,{x:0,y:0,width:640,height:300},profile,5000,verify(profile));
+    assert(fallback);assert.ok((await sharp(fallback.buffer).ensureAlpha().raw().toBuffer()).equals(pixels),'Fallback captures the intended section, not the reset top of the page');
+  }finally{await context.close();}
+});
+
+for(const width of [360,390])test(`a visible fractional mobile section at ${width}px captures its own pixels without changing scroll`,async()=>{
+  const profile:CaptureProfile={id:'mobile',width,height:844,dpr:2,isMobile:true,hasTouch:true};
+  const context=await browser.newContext({viewport:{width,height:844},deviceScaleFactor:2,isMobile:true,hasTouch:true});
+  try{
+    const page=await context.newPage();
+    await page.setContent('<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}header{height:844px;background:red}section{height:502.09375px;background:blue}footer{height:2000px;background:green}</style><header>Hero</header><section>Overview</section><footer>Footer</footer>');
+    await page.evaluate(()=>scrollTo(0,780));
+    const bounds={x:0,y:780,width,height:630.09375};
+    const before=await expected(page,{...bounds,y:0},2);
+    const image=await captureCompleteSection(page,bounds,profile);assert(image);
+    assert.equal(await page.evaluate(()=>scrollY),780);
+    assert.ok((await sharp(image.buffer).ensureAlpha().raw().toBuffer()).equals(before),'Overview pixels match the actual scrolled mobile viewport');
+  }finally{await context.close();}
+});

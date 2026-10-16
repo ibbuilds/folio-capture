@@ -1,8 +1,20 @@
 import type { Page, CDPSession } from 'playwright';
 import sharp from 'sharp';
-import { pixelCrop } from './geometry.ts';
+import { documentToViewport, pixelCrop } from './geometry.ts';
 import type { CaptureProfile, Rect } from './types.ts';
 const sectionSessions = new WeakMap<Page, { session: CDPSession; profileKey: string }>();
+const position = (page:Page) => page.evaluate(()=>({x:scrollX,y:scrollY,width:innerWidth,height:innerHeight,dpr:devicePixelRatio}));
+type Position = Awaited<ReturnType<typeof position>>;
+async function restorePosition(page:Page,before:Position) {
+  const after=await position(page);
+  if(after.width!==before.width||after.height!==before.height||after.dpr!==before.dpr)
+    throw new Error('Screenshot changed the layout viewport; capture requires repair.');
+  if(after.x===before.x&&after.y===before.y)return;
+  await page.evaluate(({x,y})=>scrollTo({left:x,top:y,behavior:'instant'}),before);
+  await page.evaluate(()=>new Promise<void>(done=>requestAnimationFrame(()=>requestAnimationFrame(()=>done()))));
+  const restored=await position(page);
+  if(restored.x!==before.x||restored.y!==before.y)throw new Error('Screenshot scroll position could not be restored; capture requires repair.');
+}
 export async function prepareSectionCapture(page: Page, profile: CaptureProfile) {
   const profileKey = JSON.stringify(profile),
     existing = sectionSessions.get(page);
@@ -49,6 +61,7 @@ export async function captureRegionImage(
     caret: 'hide' as const,
     timeout: timeoutMs,
   };
+  const before=await position(page);
   if (
     Number.isInteger(profile.dpr) &&
     Object.values(anticipated).every((value) => Number.isInteger(value / profile.dpr))
@@ -61,7 +74,11 @@ export async function captureRegionImage(
     };
     const buffer = await page.screenshot({ ...options, clip, fullPage: false });
     const metadata = await sharp(buffer).metadata();
+    const after=await position(page);
+    const stable=Object.keys(before).every(key=>before[key as keyof Position]===after[key as keyof Position]);
+    await restorePosition(page,before);
     if (
+      stable &&
       metadata.format === 'png' &&
       metadata.width === anticipated.width &&
       metadata.height === anticipated.height
@@ -71,6 +88,10 @@ export async function captureRegionImage(
   }
   const buffer = await page.screenshot(options),
     metadata = await sharp(buffer).metadata();
+  const after=await position(page);
+  await restorePosition(page,before);
+  if(Object.keys(before).some(key=>before[key as keyof Position]!==after[key as keyof Position]))
+    throw new Error('Viewport screenshot moved away from its recorded section; capture requires repair.');
   verifyFullImage(metadata.width, metadata.height);
   const crop = pixelCrop(
     viewportRect,
@@ -125,8 +146,20 @@ export async function captureCompleteSection(
     documentRect.y + documentRect.height > dimensions.height + 1 / profile.dpr
   )
     return null;
+  const before=await position(page);
+  // A section already inside the viewport does not need an offscreen CDP capture.
+  // Besides being cheaper, this avoids mobile clip attempts that can reset scroll.
+  if(documentRect.x>=before.x&&documentRect.y>=before.y&&
+    documentRect.x+documentRect.width<=before.x+profile.width&&documentRect.y+documentRect.height<=before.y+profile.height){
+    const image=await captureRegionImage(page,documentToViewport(documentRect,before.x,before.y),profile,timeoutMs,(w,h)=>{
+      if(w!==profile.width*profile.dpr||h!==profile.height*profile.dpr)throw new Error('Unexpected encoded viewport dimensions.');
+    });
+    if(!image)return null;
+    return {buffer:image.buffer,crop:image.crop,bounds:{x:before.x+image.crop.x/profile.dpr,y:before.y+image.crop.y/profile.dpr,width:image.crop.width/profile.dpr,height:image.crop.height/profile.dpr},method:'complete-section' as const};
+  }
   const session = await prepareSectionCapture(page, profile);
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let completed=false;
   try {
     // Chromium uses the requesting session's metrics for screenshots. Detaching it resets
     // device emulation, so retain the session until its fresh browser context closes.
@@ -150,6 +183,7 @@ export async function captureCompleteSection(
         );
       }),
     ]);
+    completed=true;
     const buffer = Buffer.from(result.data, 'base64');
     if (buffer.length > 12 * 1024 * 1024) return null;
     const metadata = await sharp(buffer).metadata();
@@ -168,5 +202,8 @@ export async function captureCompleteSection(
     };
   } finally {
     clearTimeout(timer);
+    // Rejected native clips can still move the browser. The fallback must never
+    // use old document coordinates against pixels from the reset hero viewport.
+    if(completed)await restorePosition(page,before);
   }
 }

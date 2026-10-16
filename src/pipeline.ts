@@ -31,8 +31,10 @@ export async function validateCaptureFiles(root: string, manifest: PageManifest)
       if (createHash('sha256').update(buffer).digest('hex') !== frame.sha256) return false;
       const metadata = await sharp(buffer).metadata();
       if (metadata.width !== frame.width || metadata.height !== frame.height) return false;
-      const thumbnail=await sharp(await readFile(inside(root,frame.thumbnail))).metadata();
-      if(!thumbnail.width || !thumbnail.height || thumbnail.format!=='webp')return false;
+      if(frame.thumbnail!==frame.path){
+        const thumbnail=await sharp(await readFile(inside(root,frame.thumbnail))).metadata();
+        if(!thumbnail.width || !thumbnail.height || thumbnail.format!=='webp')return false;
+      }
     }
     return manifest.variants.every(v=>v.status !== 'complete' || v.regions.some(r=>r.frames.length));
   } catch { return false; }

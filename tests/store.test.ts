@@ -7,6 +7,18 @@ import { Store } from '../src/store.ts';
 import { canonicalUrl, inside } from '../src/utils.ts';
 import { parseConfig } from '../src/config.ts';
 import { pageFolder } from '../src/naming.ts';
+import { runtimeOwnerAlive } from '../src/runtime-owner.ts';
+import { basename } from 'node:path';
+
+test('ambiguous Windows owner permissions protect Node owners but do not lock output to a reused service PID',()=>{
+  const denied=()=>{throw Object.assign(new Error('Access denied'),{code:'EPERM'});};
+  assert.equal(runtimeOwnerAlive(process.pid),true);
+  assert.equal(runtimeOwnerAlive(123,{signal:()=>{throw Object.assign(new Error('Gone'),{code:'ESRCH'});}}),false);
+  assert.equal(runtimeOwnerAlive(123,{platform:'win32',signal:denied,listing:()=>`"svchost.exe","123","Services","0","5,000 K"`}),false);
+  for(const listing of [null,'Unknown listing',`"svchost.exe","1234","Services","0","5,000 K"`,`"${basename(process.execPath)}","123","Console","1","5,000 K"`])
+    assert.equal(runtimeOwnerAlive(123,{platform:'win32',signal:denied,listing:()=>listing}),true);
+  assert.equal(runtimeOwnerAlive(123,{platform:'linux',signal:denied,listing:()=>`"svchost.exe","123",`}),true);
+});
 
 test('public site folders are readable, Windows-safe and durable across collisions and restart',async t=>{
   const root=await mkdtemp(join(tmpdir(),'folio-folders-'));t.after(()=>rm(root,{recursive:true,force:true}));let store=new Store(root);
